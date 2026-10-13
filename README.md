@@ -73,7 +73,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、型チェック・テスト�
 | きっかけ | デプロイ先 |
 |---|---|
 | main への push（PR の Merge） | 本番 |
-| 同じリポジトリからの PR | プレビュー（`<branch>.<project>.pages.dev`。URL は Actions の実行結果の Summary に出る） |
+| 同じリポジトリからの PR | プレビュー（`pr-<PR番号>.<project>.pages.dev`。URL は Actions の実行結果の Summary に出る） |
 | Actions 画面からの手動実行（Run workflow） | main なら本番、それ以外はプレビュー |
 
 Secret が未設定の間は、デプロイだけ警告付きで省略されます（CI は失敗しません）。

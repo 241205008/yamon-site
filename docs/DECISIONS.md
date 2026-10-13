@@ -220,9 +220,10 @@ packages/shared  入力チェック（zod）・型・固定マスター（主な
 ## D22. CI/CD：GitHub Actions の1つのワークフローで、検査に通ったビルドを Cloudflare Pages へデプロイする
 
 - **決定（2026-10-13）**：`.github/workflows/ci.yml` に、これまでの検査（型チェック・テスト・ビルド）と、その後に動くデプロイのジョブを置く。
-  - main への push（＝PR の Squash Merge）で本番へ、同じリポジトリからの PR ではプレビュー（`<branch>.<project>.pages.dev`）へデプロイする。
+  - main への push（＝PR の Squash Merge）で本番へ、同じリポジトリからの PR ではプレビュー（`pr-<PR番号>.<project>.pages.dev`。head の Branch 名を使わないので、head が `main` の PR でも本番に出ない）へデプロイする。
   - 検査のジョブが作った `dist/` を Artifact で受け渡し、テストに通ったものと同じファイルをそのまま配信する。
   - デプロイは Cloudflare の公式 Action（`cloudflare/wrangler-action`）で `wrangler pages deploy` を実行する（Direct Upload）。
+  - Secret は依存パッケージのコードが動く前（`npm ci` より前）のステップでだけ参照し、デプロイの判定に使う。
   - Cloudflare の API トークンとアカウント ID が未設定の間は、失敗にせず警告を出してデプロイだけ省略する。アカウントの準備（#14）が終わる前でも PR の CI は緑のまま使える。
   - 検査のジョブ名（`Typecheck / Test / Build`）は変えない。Branch 保護の必須チェックに登録していても壊れない。
 - **採択理由**：「CI が通ったものだけが本番に出る」を、ワークフローの依存関係（`needs`）だけで保証できる。設定が1ファイルにまとまり、1人でも読み切れる。API（Cloud Run）のデプロイも後で同じファイルにジョブとして足せるため、フロントとバックのデプロイ方法がそろう。

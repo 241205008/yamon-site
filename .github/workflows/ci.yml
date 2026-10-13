@@ -22,6 +22,20 @@ jobs:
     outputs:
       deploy-ready: ${{ steps.secrets.outputs.ready }}
     steps:
+      # アカウント準備（#14）が終わるまでは Secret がないので、失敗にせず警告を出してデプロイを省略する。
+      # 依存パッケージのコードが動く前（npm ci より前）に判定し、後のステップから Secret が見えないようにする
+      - name: Check deploy secrets
+        id: secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID が未設定のため、デプロイを省略します（README の「デプロイ」を参照）"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -37,19 +51,6 @@ jobs:
           name: dist
           path: dist
           retention-days: 7
-      # アカウント準備（#14）が終わるまでは Secret がないので、失敗にせず警告を出してデプロイを省略する
-      - name: Check deploy secrets
-        id: secrets
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID が未設定のため、デプロイを省略します（README の「デプロイ」を参照）"
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          fi
 
   deploy:
     name: Deploy (Cloudflare Pages)
@@ -63,13 +64,19 @@ jobs:
       name: ${{ (github.event_name != 'pull_request' && github.ref == 'refs/heads/main') && 'production' || 'preview' }}
       url: ${{ steps.deploy.outputs.deployment-url }}
     steps:
-      # Branch 名はコマンドに埋め込む前に英数字とハイフンだけにする
+      # PR は pr-<番号> の名前でプレビューにする（head が main でも本番に出ないように）。
+      # それ以外の Branch 名はコマンドに埋め込む前に英数字とハイフンだけにする
       - name: Resolve branch
         id: branch
         env:
-          RAW_BRANCH: ${{ github.head_ref || github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RAW_BRANCH: ${{ github.ref_name }}
         run: |
-          branch=$(printf '%s' "$RAW_BRANCH" | tr -c 'A-Za-z0-9-' '-')
+          if [ -n "$PR_NUMBER" ]; then
+            branch="pr-$PR_NUMBER"
+          else
+            branch=$(printf '%s' "$RAW_BRANCH" | tr -c 'A-Za-z0-9-' '-')
+          fi
           echo "name=$branch" >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@v4
