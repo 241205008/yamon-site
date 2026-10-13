@@ -1,0 +1,45 @@
+name: Task
+description: 開発環境、設定、リファクタリング、ドキュメントなどの開発作業
+title: '[Task] '
+labels:
+  - task
+body:
+  - type: markdown
+    attributes:
+      value: 既存Issueを検索して重複を避けてください。Secretの実値は記載しないでください。着手者はAssigneeとProject「やもんサイト」のStatusとScopeを設定します。
+  - type: textarea
+    id: field-1
+    attributes:
+      label: 目的
+      description: なぜこの作業が必要なのか
+    validations:
+      required: true
+  - type: textarea
+    id: field-2
+    attributes:
+      label: やること
+    validations:
+      required: true
+  - type: textarea
+    id: field-3
+    attributes:
+      label: 完了条件
+    validations:
+      required: true
+  - type: textarea
+    id: field-4
+    attributes:
+      label: 補足
+      description: 関連Issue、参考資料など
+    validations:
+      required: false
+  - type: textarea
+    id: field-5
+    attributes:
+      label: 開発情報
+      description: 着手する本人がSelect assignees（作成後はAssignees）で自分を設定してください。詳細はCONTRIBUTING.mdの「開発情報」を参照。 Branch作成後に名前を記載し、Push後にリンクを追記。PR作成後にURLまたは番号を追記してください。
+      value: |-
+        - Branch: 未作成
+        - Pull Request: 未作成
+    validations:
+      required: true

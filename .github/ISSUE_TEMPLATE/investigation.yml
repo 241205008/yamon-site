@@ -1,0 +1,83 @@
+name: Investigation
+description: 技術・仕様・実現可能性などを調査し、判断材料を整理するIssue
+title: '[Investigation] '
+labels:
+  - investigation
+body:
+  - type: markdown
+    attributes:
+      value: 既存Issueを検索して重複を避けてください。Secretの実値は記載しないでください。着手者はAssigneeとProject「やもんサイト」のStatusとScopeを設定します。
+  - type: textarea
+    id: field-1
+    attributes:
+      label: 調査目的
+      description: 何を判断するための調査か
+    validations:
+      required: true
+  - type: textarea
+    id: field-2
+    attributes:
+      label: 確認したいこと
+    validations:
+      required: true
+  - type: textarea
+    id: field-3
+    attributes:
+      label: 完了条件
+      description: 調べる範囲、成果物、何が分かれば調査完了か。採用決定と調査完了は区別する
+    validations:
+      required: true
+  - type: textarea
+    id: field-4
+    attributes:
+      label: 調査結果
+      description: 分かったことを記載
+    validations:
+      required: false
+  - type: textarea
+    id: field-5
+    attributes:
+      label: 選択肢
+      placeholder: |-
+        ### 案A
+
+        - メリット:
+        - デメリット:
+
+        ### 案B
+
+        - メリット:
+        - デメリット:
+    validations:
+      required: false
+  - type: textarea
+    id: field-6
+    attributes:
+      label: 結論
+      description: 確定 / 候補 / 仮説 / 未定を明記。採用・不採用はチームの決定根拠とリンクを添え、未決定なら提案または保留とする
+    validations:
+      required: false
+  - type: textarea
+    id: field-7
+    attributes:
+      label: 判断理由
+      description: なぜその判断をしたか
+    validations:
+      required: false
+  - type: textarea
+    id: field-8
+    attributes:
+      label: 関連資料
+      description: 公式ドキュメント、検証コードなど
+    validations:
+      required: false
+  - type: textarea
+    id: field-9
+    attributes:
+      label: 開発情報
+      description: 着手する本人がSelect assignees（作成後はAssignees）で自分を設定してください。詳細はCONTRIBUTING.mdの「開発情報」を参照。 Branch作成後に名前を記載し、Push後にリンクを追記。PR作成後にURLまたは番号を追記してください。
+      value: |-
+        - Branch: 未作成
+        - Pull Request: 未作成
+    validations:
+      required: true

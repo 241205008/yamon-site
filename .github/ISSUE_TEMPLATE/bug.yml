@@ -1,0 +1,76 @@
+name: Bug
+description: 想定した動作になっていない不具合やバグを報告するIssue
+title: '[Bug] '
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: 既存Issueを検索して重複を避けてください。Secretの実値は記載しないでください。着手者はAssigneeとProject「やもんサイト」のStatusとScopeを設定します。
+  - type: textarea
+    id: field-1
+    attributes:
+      label: 発生している問題
+      description: 何が起きているか
+    validations:
+      required: true
+  - type: textarea
+    id: field-2
+    attributes:
+      label: 再現手順
+      placeholder: |-
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: field-3
+    attributes:
+      label: 期待する動作
+      description: 本来どう動くべきか
+    validations:
+      required: true
+  - type: textarea
+    id: field-4
+    attributes:
+      label: 実際の動作
+      description: 実際にはどうなったか
+    validations:
+      required: true
+  - type: textarea
+    id: field-5
+    attributes:
+      label: 環境
+      placeholder: |-
+        - OS:
+        - Browser:
+        - その他:
+    validations:
+      required: false
+  - type: textarea
+    id: field-6
+    attributes:
+      label: 補足
+      description: エラーログ、スクリーンショット、関連Issueなど
+    validations:
+      required: false
+  - type: textarea
+    id: field-7
+    attributes:
+      label: 完了条件
+      placeholder: |-
+        - [ ] 再現手順で期待する動作になっている
+        - [ ] 必要な回帰確認を行い、結果を記録した
+    validations:
+      required: true
+  - type: textarea
+    id: field-8
+    attributes:
+      label: 開発情報
+      description: 着手する本人がSelect assignees（作成後はAssignees）で自分を設定してください。詳細はCONTRIBUTING.mdの「開発情報」を参照。 Branch作成後に名前を記載し、Push後にリンクを追記。PR作成後にURLまたは番号を追記してください。
+      value: |-
+        - Branch: 未作成
+        - Pull Request: 未作成
+    validations:
+      required: true
