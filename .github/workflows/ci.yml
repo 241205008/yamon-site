@@ -4,14 +4,23 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+# PR は新しい push が来たら古い実行を止める。main はデプロイを途中で止めないよう、順番に実行する。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
     name: Typecheck / Test / Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      deploy-ready: ${{ steps.secrets.outputs.ready }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,3 +31,67 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # テストに通ったビルドを、そのままデプロイに使う
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 7
+      # アカウント準備（#14）が終わるまでは Secret がないので、失敗にせず警告を出してデプロイを省略する
+      - name: Check deploy secrets
+        id: secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID が未設定のため、デプロイを省略します（README の「デプロイ」を参照）"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Deploy (Cloudflare Pages)
+    needs: check
+    # main への push・main の手動実行は本番、それ以外（同じリポジトリからの PR など）はプレビュー。
+    # フォークや Dependabot の PR には Secret が渡らないため、deploy-ready が false になり実行しない。
+    if: needs.check.outputs.deploy-ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: ${{ (github.event_name != 'pull_request' && github.ref == 'refs/heads/main') && 'production' || 'preview' }}
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      # Branch 名はコマンドに埋め込む前に英数字とハイフンだけにする
+      - name: Resolve branch
+        id: branch
+        env:
+          RAW_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          branch=$(printf '%s' "$RAW_BRANCH" | tr -c 'A-Za-z0-9-' '-')
+          echo "name=$branch" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'yamon-site' }} --branch=${{ steps.branch.outputs.name }}
+
+      - name: Summary
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+          ALIAS_URL: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
+        run: |
+          {
+            echo "### デプロイ完了"
+            echo "- URL: $DEPLOYMENT_URL"
+            if [ -n "$ALIAS_URL" ]; then echo "- Branch の URL: $ALIAS_URL"; fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -156,4 +156,4 @@ APIキー、アクセストークン、パスワード、`.env` の実値など�
 | Issueの種類 | GitHubのIssue Type（Organization機能） | ラベル（feature / bug / task / investigation） | 個人リポジトリではIssue Typeを使えないため。ラベルなら一覧で絞り込める |
 | レビュー | 別メンバーのApprove必須（条件付きセルフマージあり） | 条件付きセルフマージのみ。`/code-review` などのコードレビューを必須にする | 開発者が1人で、Approveできる人がいないため。レビュー自体は省かない |
 | 仕様の正本 | `docs/product-spec.md` と `docs/architecture.md` の2本＋Decision Log | `README.md` と `docs/DECISIONS.md` | 規模が小さく、文書を分けると更新漏れの方が問題になるため。規模が大きくなったら分割を検討する |
-| CI | Foundation（文書・設定の検査）＋アプリ別 | 型チェック・テスト・ビルドの1本 | アプリが1つだけのため |
+| CI | Foundation（文書・設定の検査）＋アプリ別 | 型チェック・テスト・ビルドの1本。成功したら同じワークフローで Cloudflare Pages へデプロイする（[D22](docs/DECISIONS.md)） | アプリが1つだけのため。デプロイを CI の成功に依存させ、テストが落ちたものを本番に出さないため |

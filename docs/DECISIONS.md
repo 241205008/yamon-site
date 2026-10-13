@@ -216,3 +216,20 @@ packages/shared  入力チェック（zod）・型・固定マスター（主な
   - Namecheap：アカウント間で無料で移せる（Change Ownership）。ただし DNS の管理画面が Cloudflare と分かれる。
   - お名前.com など国内の登録業者：日本語で手続きできるが、更新料が初年度より高くなることが多く、オプションの勧誘も多い。
 - **注意**：サークルは法人ではないことが多く、カードは代表者個人の名義になりやすい。代表者が卒業するたびに支払い元を付け替える手順を、引き継ぎ資料に残す（後続 Issue）。
+
+## D22. CI/CD：GitHub Actions の1つのワークフローで、検査に通ったビルドを Cloudflare Pages へデプロイする
+
+- **決定（2026-10-13）**：`.github/workflows/ci.yml` に、これまでの検査（型チェック・テスト・ビルド）と、その後に動くデプロイのジョブを置く。
+  - main への push（＝PR の Squash Merge）で本番へ、同じリポジトリからの PR ではプレビュー（`<branch>.<project>.pages.dev`）へデプロイする。
+  - 検査のジョブが作った `dist/` を Artifact で受け渡し、テストに通ったものと同じファイルをそのまま配信する。
+  - デプロイは Cloudflare の公式 Action（`cloudflare/wrangler-action`）で `wrangler pages deploy` を実行する（Direct Upload）。
+  - Cloudflare の API トークンとアカウント ID が未設定の間は、失敗にせず警告を出してデプロイだけ省略する。アカウントの準備（#14）が終わる前でも PR の CI は緑のまま使える。
+  - 検査のジョブ名（`Typecheck / Test / Build`）は変えない。Branch 保護の必須チェックに登録していても壊れない。
+- **採択理由**：「CI が通ったものだけが本番に出る」を、ワークフローの依存関係（`needs`）だけで保証できる。設定が1ファイルにまとまり、1人でも読み切れる。API（Cloud Run）のデプロイも後で同じファイルにジョブとして足せるため、フロントとバックのデプロイ方法がそろう。
+- **比較した案**
+  - Cloudflare Pages の Git 連携（Cloudflare 側でビルドする）：設定は一番少ない。ただし GitHub Actions の CI と無関係に動くため、テストが落ちた commit も本番に出る。ビルド環境も CI と別になる。Cloud Run のデプロイは結局 Actions で書くので、仕組みが2つに分かれる。また Pages では Direct Upload と Git 連携を後から切り替えられないため、最初に決める必要がある。
+  - デプロイ用に別ワークフローを作り、`workflow_run` で CI の成功を待つ：分けると読みやすいが、`workflow_run` は既定 Branch の定義で動く・Artifact を別ワークフローから取り出す手間がある、など癖が多い。この規模では1ファイルの方が単純。
+  - 再利用可能ワークフロー（`workflow_call`）で CI を呼び出す：main への push で CI が2回動くか、CI の push トリガーを外す必要があり、どちらも分かりにくい。
+  - Vercel / Netlify の GitHub 連携：D15 でホスティングに採用していない。
+- **プレビューの注意**：プレビュー URL は誰でも開ける。今はデモデータしかないので問題ないが、API とつないだ後に本番データが見える形にする場合は、Cloudflare Access で保護するか、プレビューを止める（#14 で判断する）。
+- **後続**：Cloud Run（`apps/api`）のデプロイジョブは、API の土台（#10）と本番環境の構築（#14）の後に追加する。リポジトリ分割（#9）で `dist/` の場所が `apps/web/dist` に変わったら、Artifact のパスも合わせて変える。
