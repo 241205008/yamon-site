@@ -75,7 +75,7 @@ body:
     id: field-9
     attributes:
       label: 開発情報
-      description: 着手する本人がSelect assignees（作成後はAssignees）で自分を設定してください。詳細はCONTRIBUTING.mdのAssignee・紐付けルールを参照。 Branch作成後に名前を記載し、Push後にリンクを追記。PR作成後にURLまたは番号を追記してください。
+      description: 着手する本人がSelect assignees（作成後はAssignees）で自分を設定してください。詳細はCONTRIBUTING.mdの「開発情報」を参照。 Branch作成後に名前を記載し、Push後にリンクを追記。PR作成後にURLまたは番号を追記してください。
       value: |-
         - Branch: 未作成
         - Pull Request: 未作成

@@ -68,7 +68,7 @@ Issue本文の末尾に、BranchとPull Requestを記録します。
 
 ## Project（Status / Scope）
 
-Project「やもんサイト」（https://github.com/users/241205008/projects/3）で管理します。
+Project「やもんサイト」（https://github.com/users/241205008/projects/3 、非公開）で管理します。
 
     Backlog → Ready → In Progress → In Review → Done
 
