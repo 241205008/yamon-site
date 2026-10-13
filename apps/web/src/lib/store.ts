@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { findMainLocation } from './master';
+import { findMainLocation } from '@yamon/shared';
 import { hashPassword, MIN_PASSWORD_LENGTH, newSalt, verifyPassword } from './password';
 import { createSeedDatabase } from './seed';
 import type {

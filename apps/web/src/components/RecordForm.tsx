@@ -1,8 +1,7 @@
 import { Clock, Plus, Search } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
-import { MAIN_LOCATIONS, findMainLocation } from '../lib/master';
+import { MAIN_LOCATIONS, findMainLocation, nowTimeJst, todayJst } from '@yamon/shared';
 import { addCreature, StoreError, type RecordInput } from '../lib/store';
-import { nowTimeJst, todayJst } from '../lib/time';
 import { CATEGORIES, type Category, type Creature, type LocationType, type ObservationRecord } from '../lib/types';
 import { CoordinatePicker } from './CoordinatePicker';
 import { ErrorText, inputClass } from './ui';

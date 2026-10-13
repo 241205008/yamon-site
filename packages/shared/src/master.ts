@@ -1,4 +1,17 @@
-import type { MainLocation } from './types';
+/** 生き物のカテゴリ（固定マスター） */
+export const CATEGORIES = ['インセクター', 'ママル', 'アクア', 'バーダー'] as const;
+export type Category = (typeof CATEGORIES)[number];
+
+/** 時間帯（time.ts の getTimeOfDay で導出する） */
+export const TIMES_OF_DAY = ['朝', '昼', '夕方', '夜'] as const;
+export type TimeOfDay = (typeof TIMES_OF_DAY)[number];
+
+export interface MainLocation {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+}
 
 /** 主な場所（固定マスター）。ID は記録から参照されるため変更しないこと */
 export const MAIN_LOCATIONS: MainLocation[] = [

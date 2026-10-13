@@ -1,0 +1,7 @@
+{
+  "name": "@yamon/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "バックエンド（Hono）。中身は #10 で作る"
+}

@@ -1,15 +1,8 @@
-export const CATEGORIES = ['インセクター', 'ママル', 'アクア', 'バーダー'] as const;
-export type Category = (typeof CATEGORIES)[number];
+import type { Category } from '@yamon/shared';
 
-export const TIMES_OF_DAY = ['朝', '昼', '夕方', '夜'] as const;
-export type TimeOfDay = (typeof TIMES_OF_DAY)[number];
-
-export interface MainLocation {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-}
+// 固定マスター（カテゴリ・時間帯・主な場所）はフロントとバックで共有するため @yamon/shared に置く
+export { CATEGORIES, TIMES_OF_DAY } from '@yamon/shared';
+export type { Category, MainLocation, TimeOfDay } from '@yamon/shared';
 
 export interface Creature {
   id: string;

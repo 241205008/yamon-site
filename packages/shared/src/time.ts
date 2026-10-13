@@ -1,4 +1,4 @@
-import type { TimeOfDay } from './types';
+import type { TimeOfDay } from './master';
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 

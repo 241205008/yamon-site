@@ -1,4 +1,4 @@
-import { findMainLocation } from './master';
+import { findMainLocation } from '@yamon/shared';
 import { hashPassword, newSalt } from './password';
 import type {
   Creature,

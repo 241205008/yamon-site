@@ -1,9 +1,8 @@
 import { Calendar, MapPin, Navigation } from 'lucide-react';
 import { useState } from 'react';
 import { getCurrentPosition } from '../lib/geo';
-import { MAIN_LOCATIONS, findMainLocation } from '../lib/master';
+import { MAIN_LOCATIONS, findMainLocation, todayJst } from '@yamon/shared';
 import { StoreError, type EventInput } from '../lib/store';
-import { todayJst } from '../lib/time';
 import { ErrorText, inputClass } from './ui';
 
 const STEPS = ['観察会名', '場所', '日時'];
