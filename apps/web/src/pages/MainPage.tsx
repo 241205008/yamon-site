@@ -19,7 +19,7 @@ import {
   useCurrentUser,
   useDb,
 } from '../lib/store';
-import { formatRemaining } from '../lib/time';
+import { formatRemaining } from '@yamon/shared';
 import type { ObservationRecord } from '../lib/types';
 
 const RECENT_LIMIT = 10;

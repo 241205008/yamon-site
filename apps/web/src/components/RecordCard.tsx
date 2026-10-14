@@ -1,5 +1,5 @@
 import { Pencil, Trash2 } from 'lucide-react';
-import { getTimeOfDay, monthOf } from '../lib/time';
+import { getTimeOfDay, monthOf } from '@yamon/shared';
 import type { Creature, ObservationRecord } from '../lib/types';
 import { CategoryBadge } from './ui';
 
