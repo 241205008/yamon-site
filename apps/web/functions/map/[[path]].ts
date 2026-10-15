@@ -1,3 +1,5 @@
+// CI のデプロイは node_modules なしで functions/ を束ねる（ci.yml）。ここからは相対パスのファイルだけを
+// import する。npm のパッケージや @yamon/shared を値として import するとデプロイが失敗する（import type は可）
 import { parseRange } from './range';
 
 interface Env {

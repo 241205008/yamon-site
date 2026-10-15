@@ -85,7 +85,9 @@ jobs:
           fi
           echo "name=$branch" >> "$GITHUB_OUTPUT"
 
-      # checkout はしない。wrangler は実行場所の functions/ を読んで Functions としてデプロイする
+      # checkout はしない。wrangler は実行場所の functions/ を読んで Functions としてデプロイする。
+      # node_modules がないため、functions/ からは相対パスのファイルだけを import できる
+      # （npm のパッケージや @yamon/shared を値として import すると失敗する。import type は可）
       - uses: actions/download-artifact@v4
         with:
           name: site
