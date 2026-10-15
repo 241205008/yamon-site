@@ -221,7 +221,7 @@ packages/shared  入力チェック（zod）・型・固定マスター（主な
 
 - **決定（2026-10-13）**：`.github/workflows/ci.yml` に、これまでの検査（型チェック・テスト・ビルド）と、その後に動くデプロイのジョブを置く。
   - main への push（＝PR の Squash Merge）で本番へ、同じリポジトリからの PR ではプレビュー（`pr-<PR番号>.<project>.pages.dev`。head の Branch 名を使わないので、head が `main` の PR でも本番に出ない）へデプロイする。
-  - 検査のジョブが作った `dist/` を Artifact で受け渡し、テストに通ったものと同じファイルをそのまま配信する。
+  - 検査のジョブが作った `apps/web/dist/` を Artifact で受け渡し、テストに通ったものと同じファイルをそのまま配信する。
   - デプロイは Cloudflare の公式 Action（`cloudflare/wrangler-action`）で `wrangler pages deploy` を実行する（Direct Upload）。
   - Secret は依存パッケージのコードが動く前（`npm ci` より前）のステップでだけ参照し、デプロイの判定に使う。
   - Cloudflare の API トークンとアカウント ID が未設定の間は、失敗にせず警告を出してデプロイだけ省略する。アカウントの準備（#14）が終わる前でも PR の CI は緑のまま使える。
@@ -233,4 +233,4 @@ packages/shared  入力チェック（zod）・型・固定マスター（主な
   - 再利用可能ワークフロー（`workflow_call`）で CI を呼び出す：main への push で CI が2回動くか、CI の push トリガーを外す必要があり、どちらも分かりにくい。
   - Vercel / Netlify の GitHub 連携：D15 でホスティングに採用していない。
 - **プレビューの注意**：プレビュー URL は誰でも開ける。今はデモデータしかないので問題ないが、API とつないだ後に本番データが見える形にする場合は、Cloudflare Access で保護するか、プレビューを止める（#14 で判断する）。
-- **後続**：Cloud Run（`apps/api`）のデプロイジョブは、API の土台（#10）と本番環境の構築（#14）の後に追加する。リポジトリ分割（#9）で `dist/` の場所が `apps/web/dist` に変わったら、Artifact のパスも合わせて変える。
+- **後続**：Cloud Run（`apps/api`）のデプロイジョブは、API の土台（#10）と本番環境の構築（#14）の後に追加する。

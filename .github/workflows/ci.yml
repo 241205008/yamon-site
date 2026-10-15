@@ -49,7 +49,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist
+          path: apps/web/dist
+          if-no-files-found: error
           retention-days: 7
 
   deploy:
