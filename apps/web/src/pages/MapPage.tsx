@@ -4,10 +4,9 @@ import { MapContainer, Marker, TileLayer, Tooltip, useMapEvents } from 'react-le
 import { TILE_ATTRIBUTION, TILE_URL } from '../components/MapPickerModal';
 import { pinIcon } from '../components/mapPins';
 import { BackBar, CategoryBadge, Modal, PageBackground, inputClass } from '../components/ui';
-import { MAP_CENTER } from '../lib/master';
+import { MAP_CENTER, getTimeOfDay, monthOf } from '@yamon/shared';
 import { compareRecordsDesc, hasCoords, useCreatureMap } from '../lib/selectors';
 import { useDb } from '../lib/store';
-import { getTimeOfDay, monthOf } from '../lib/time';
 import { TIMES_OF_DAY, type ObservationRecord, type TimeOfDay } from '../lib/types';
 
 interface Group {

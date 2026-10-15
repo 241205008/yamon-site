@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
-import { MAP_CENTER } from '../lib/master';
+import { MAP_CENTER } from '@yamon/shared';
 import { pinIcon } from './mapPins';
 import { Modal } from './ui';
 

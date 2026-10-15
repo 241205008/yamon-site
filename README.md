@@ -2,6 +2,8 @@
 
 自然観察会の記録管理 Web アプリ（プロトタイプ）。招待制で、観察記録・観察会・生き物・場所をブラウザの localStorage に保存します。
 
+> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D21 を参照してください。
+
 ## 起動
 
 ```bash
@@ -11,12 +13,16 @@ npm run dev
 
 http://localhost:5173 を開きます。
 
+リポジトリのルートで実行します。各コマンドは、中身のあるパッケージ（workspace）すべてに対して動きます。
+
 | コマンド | 内容 |
 |---|---|
-| `npm run dev` | 開発サーバー |
-| `npm run build` | 型チェック＋本番ビルド（`dist/`） |
+| `npm run dev` | フロントの開発サーバー（`apps/web`） |
+| `npm run build` | 型チェック＋本番ビルド（`apps/web/dist/`） |
 | `npm test` | 単体テスト（Vitest） |
 | `npm run typecheck` | 型チェックのみ |
+
+特定のパッケージだけ動かすときは `-w` を付けます（例：`npm test -w @yamon/shared`）。
 
 > TLS 検査のあるネットワークで `npm install` が証明書エラーになる場合は、`NODE_OPTIONS=--use-system-ca` を付けて実行してください。
 
@@ -56,12 +62,21 @@ http://localhost:5173 を開きます。
 
 ## 構成
 
+npm workspaces で、フロント・バック・共有コードを分けています（docs/DECISIONS.md D20）。
+
 ```
-src/
-  lib/          データモデル・localStorage ストア・日時（JST）・パスワードハッシュ
-  components/   共通 UI、RecordForm、EventForm、地図ピッカーなど
-  pages/        各画面
-docs/DECISIONS.md   技術選定・仕様の解釈とその理由
+apps/
+  web/                フロントエンド（@yamon/web）
+    src/lib/          データモデル・localStorage ストア・パスワードハッシュ
+    src/components/   共通 UI、RecordForm、EventForm、地図ピッカーなど
+    src/pages/        各画面
+  api/                バックエンド（@yamon/api）。中身は #10 で作る
+packages/
+  shared/             フロントとバックで共有するコード（@yamon/shared）
+                      固定マスター（カテゴリ・時間帯・主な場所）、日時（JST）の処理
+docs/
+  MVP.md              合意した MVP
+  DECISIONS.md        技術選定・仕様の解釈とその理由
 ```
 
 仕様との差分や判断の理由は [docs/DECISIONS.md](docs/DECISIONS.md) にまとめています。

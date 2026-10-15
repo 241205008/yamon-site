@@ -13,7 +13,7 @@ import {
   useCurrentUser,
   useDb,
 } from '../lib/store';
-import { formatRemaining, isoToJstDate, isoToJstDateTime } from '../lib/time';
+import { formatRemaining, isoToJstDate, isoToJstDateTime } from '@yamon/shared';
 import type { Invitation, InvitationStatus, User } from '../lib/types';
 
 const toMessage = (e: unknown) => (e instanceof StoreError ? e.message : '処理に失敗しました');

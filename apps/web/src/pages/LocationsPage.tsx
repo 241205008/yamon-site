@@ -1,7 +1,7 @@
 import { MapPin } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { BackBar, CategoryBadge, PageBackground } from '../components/ui';
-import { MAIN_LOCATIONS } from '../lib/master';
+import { MAIN_LOCATIONS } from '@yamon/shared';
 import { useCreatureMap } from '../lib/selectors';
 import { useDb } from '../lib/store';
 
