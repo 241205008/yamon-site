@@ -22,20 +22,25 @@ export function MapPickerModal({
   onSelect: (lat: number, lng: number) => void;
   initial: { lat: number; lng: number } | null;
 }) {
-  const [picked, setPicked] = useState(initial);
+  // 範囲外の座標（範囲を決める前に保存したデータなど）は選択済みとして扱わない
+  const start = initial && isInTokai(initial.lat, initial.lng) ? initial : null;
+  const [picked, setPicked] = useState(start);
+  const [outside, setOutside] = useState(false);
 
   return (
     <Modal open={open} onClose={onClose} title="マップで位置を選択" wide>
       <p className="mb-3 text-sm text-gray-600">地図をクリックして観察した位置を選んでください。</p>
       <TokaiMap
-        center={initial ?? MAP_CENTER}
-        zoom={initial ? 16 : 14}
+        center={start ?? MAP_CENTER}
+        zoom={start ? 16 : 14}
         className="h-[420px] overflow-hidden rounded-lg border border-gray-200"
       >
         <ClickToPick
           onPick={(lat, lng) => {
-            // 地図は長方形の範囲外へ動かないが、範囲の端の外側をクリックできることがあるため確かめる
-            if (isInTokai(lat, lng)) setPicked({ lat, lng });
+            // 地図は長方形の範囲外へ動かないが、縮小すると範囲の外側（灰色）もクリックできる
+            const inside = isInTokai(lat, lng);
+            setOutside(!inside);
+            if (inside) setPicked({ lat, lng });
           }}
         />
         {picked && <Marker position={picked} icon={pinIcon()} />}
@@ -45,6 +50,7 @@ export function MapPickerModal({
           ? `選択中の座標: ${picked.lat.toFixed(4)}, ${picked.lng.toFixed(4)}`
           : 'まだ位置が選ばれていません'}
       </p>
+      {outside && <p className="mt-1 text-sm text-red-600">東海3県の範囲外は選べません</p>}
       <div className="mt-4 flex justify-end gap-2">
         <button
           type="button"

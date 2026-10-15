@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { parseRange } from './range';
-import { serveMapData } from './[[path]]';
+import { clearMapMetaCacheForTest, serveMapData } from './[[path]]';
 
 describe('parseRange', () => {
   it('範囲の指定を読む', () => {
@@ -24,24 +24,42 @@ describe('parseRange', () => {
   });
 });
 
-/** R2Bucket のうち head と get(range) だけを持つ偽物 */
+/** R2Bucket のうち head と get(range, onlyIf.etagMatches) だけを持つ偽物。calls で呼ばれた回数を数える */
 function fakeBucket(files: Record<string, Uint8Array>) {
-  return {
+  const etags: Record<string, string> = {};
+  const calls = { head: 0, get: 0 };
+  const etagOf = (key: string) => etags[key] ?? 'v1';
+  const bucket = {
     async head(key: string) {
+      calls.head++;
       const f = files[key];
-      return f ? { size: f.length, httpEtag: '"etag-1"' } : null;
+      return f ? { size: f.length, etag: etagOf(key), httpEtag: `"${etagOf(key)}"` } : null;
     },
-    async get(key: string, opts?: { range?: { offset: number; length: number } }) {
+    async get(key: string, opts?: { range?: { offset: number; length: number }; onlyIf?: { etagMatches?: string } }) {
+      calls.get++;
       const f = files[key];
       if (!f) return null;
+      if (opts?.onlyIf?.etagMatches && opts.onlyIf.etagMatches !== etagOf(key)) return { size: f.length };
       const { offset = 0, length = f.length } = opts?.range ?? {};
       return { body: f.slice(offset, offset + length) };
     },
   } as unknown as R2Bucket;
+  /** ファイルを差し替える */
+  const replace = (key: string, data: Uint8Array, etag: string) => {
+    files[key] = data;
+    etags[key] = etag;
+  };
+  return { bucket, calls, replace };
 }
 
 const data = new Uint8Array(Array.from({ length: 100 }, (_, i) => i));
-const bucket = fakeBucket({ 'tokai.pmtiles': data, 'secret.txt': data });
+let fake: ReturnType<typeof fakeBucket>;
+let bucket: R2Bucket;
+beforeEach(() => {
+  clearMapMetaCacheForTest();
+  fake = fakeBucket({ 'tokai.pmtiles': data, 'secret.txt': data });
+  bucket = fake.bucket;
+});
 const req = (range?: string) => new Request('https://example.com/map/tokai.pmtiles', range ? { headers: { Range: range } } : {});
 
 describe('serveMapData', () => {
@@ -49,7 +67,7 @@ describe('serveMapData', () => {
     const res = await serveMapData(req('bytes=10-19'), bucket, 'tokai.pmtiles');
     expect(res.status).toBe(206);
     expect(res.headers.get('Content-Range')).toBe('bytes 10-19/100');
-    expect(res.headers.get('ETag')).toBe('"etag-1"');
+    expect(res.headers.get('ETag')).toBe(`"v1"`);
     expect([...new Uint8Array(await res.arrayBuffer())]).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
   });
 
@@ -63,6 +81,22 @@ describe('serveMapData', () => {
     const res = await serveMapData(req('bytes=100-'), bucket, 'tokai.pmtiles');
     expect(res.status).toBe(416);
     expect(res.headers.get('Content-Range')).toBe('bytes */100');
+  });
+
+  it('2回目からは head を呼ばず、R2 の読み出しは1回で済む', async () => {
+    await serveMapData(req('bytes=0-9'), bucket, 'tokai.pmtiles');
+    await serveMapData(req('bytes=10-19'), bucket, 'tokai.pmtiles');
+    expect(fake.calls).toEqual({ head: 1, get: 2 });
+  });
+
+  it('差し替えられたら、新しいファイルの大きさ・ETag・中身で返す（古い大きさと新しい中身を混ぜない）', async () => {
+    await serveMapData(req('bytes=0-9'), bucket, 'tokai.pmtiles');
+    fake.replace('tokai.pmtiles', new Uint8Array(50).fill(7), 'v2');
+    const res = await serveMapData(req('bytes=40-'), bucket, 'tokai.pmtiles');
+    expect(res.status).toBe(206);
+    expect(res.headers.get('Content-Range')).toBe('bytes 40-49/50');
+    expect(res.headers.get('ETag')).toBe(`"v2"`);
+    expect([...new Uint8Array(await res.arrayBuffer())]).toEqual(Array(10).fill(7));
   });
 
   it('.pmtiles 以外の名前・パスを含む名前・ないファイルは 404', async () => {

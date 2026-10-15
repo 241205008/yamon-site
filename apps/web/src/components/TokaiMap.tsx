@@ -1,12 +1,15 @@
 import L from 'leaflet';
 import { Layers } from 'lucide-react';
+import { PMTiles } from 'pmtiles';
 import { leafletLayer } from 'protomaps-leaflet';
 import { useEffect, useState, type ReactNode } from 'react';
-import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, ZoomControl, useMap } from 'react-leaflet';
 import { TOKAI_BOUNDS } from '@yamon/shared';
 
 /** 基本の地図（Protomaps の東海3県）。開発では vite.config.ts、本番では Pages Functions（functions/map）が返す */
 export const MAP_TILES_URL: string = import.meta.env.VITE_MAP_TILES_URL || '/map/tokai.pmtiles';
+/** 地図データの読み込み口。ヘッダーと目次のキャッシュを、すべての地図と切り替えで使い回すため1つだけ作る */
+const mapSource = new PMTiles(MAP_TILES_URL);
 const MAP_ATTRIBUTION =
   '<a href="https://protomaps.com">Protomaps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> の貢献者';
 
@@ -27,7 +30,7 @@ function ProtomapsLayer() {
   const map = useMap();
   useEffect(() => {
     const layer = leafletLayer({
-      url: MAP_TILES_URL,
+      url: mapSource,
       flavor: 'light',
       lang: 'ja',
       maxDataZoom: MAP_DATA_MAX_ZOOM,
@@ -87,6 +90,7 @@ export function TokaiMap({
         maxZoom={MAX_ZOOM}
         maxBounds={TOKAI_LATLNG_BOUNDS}
         maxBoundsViscosity={1}
+        zoomControl={false}
         className="h-full w-full"
       >
         {photo ? (
@@ -101,6 +105,8 @@ export function TokaiMap({
           <ProtomapsLayer />
         )}
         <LimitZoomOut />
+        {/* 左上はマップ画面の「マップビュー」の表示と重なるため、左下に置く */}
+        <ZoomControl position="bottomleft" />
         {children}
       </MapContainer>
       <button

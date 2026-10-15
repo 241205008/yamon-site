@@ -16,7 +16,8 @@ function localMapData(): Plugin {
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use('/map/', (req, res, next) => {
-        const name = decodeURIComponent((req.url ?? '').split('?')[0].replace(/^\//, ''));
+        // 名前は英小文字・数字・ハイフンだけなので、URL のデコードは要らない
+        const name = (req.url ?? '').split('?')[0].replace(/^\//, '');
         if (!/^[a-z0-9-]+\.pmtiles$/.test(name)) return next();
         let size: number;
         try {
@@ -41,7 +42,10 @@ function localMapData(): Plugin {
           res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
         }
         res.setHeader('Content-Length', String(end - start + 1));
-        createReadStream(dir + name, { start, end }).pipe(res);
+        // 読んでいる途中でファイルを差し替えても、開発サーバーごと落ちないようにする
+        createReadStream(dir + name, { start, end })
+          .on('error', () => res.destroy())
+          .pipe(res);
       });
     },
   };
