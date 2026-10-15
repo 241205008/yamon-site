@@ -344,3 +344,40 @@ packages/shared  入力チェック（zod）・型・固定マスター（カテ
 
 - **注意**：地図データ（OpenStreetMap）は年1回程度、手作業で切り出し直して更新する。出典（OpenStreetMap の貢献者、国土地理院）を地図上に表示する。
 - **再検討する条件**：範囲を東海3県の外へ広げるとき、地図の読み込みが Workers の無料枠（1日10万リクエスト）に近づいたとき。
+
+## D30. API の DB 接続とマイグレーション：本番は postgres.js、ローカルとテストは PGlite。マイグレーションは起動時に流さない
+
+- **決定（2026-10-15、#10）**
+  - **本番の接続**：postgres.js（`postgres` パッケージ）で `DATABASE_URL` の PostgreSQL（Neon、D17）につなぐ。
+  - **ローカル開発**：`DATABASE_URL` がなければ PGlite（WebAssembly 版の PostgreSQL）を使い、`apps/api/.data/pglite` に保存する。Docker も PostgreSQL のインストールも要らない。本番（`NODE_ENV=production`）で `DATABASE_URL` がなければ起動を止める。
+  - **テスト**：PGlite をメモリ上に作り、本番と同じマイグレーションを流してから API を呼ぶ（D16）。
+  - **マイグレーション**：`drizzle-kit generate` で `apps/api/drizzle/` に SQL を作ってコミットする。本番の DB には `npm run db:migrate -w @yamon/api`（コンテナでは `node dist/migrate.js`）で流し、API サーバーの起動時には流さない。PGlite（ローカル・テスト）だけは起動時に流す。
+  - **DB 側の制約**：画面や API のチェックに加えて、壊れてはいけない決まりを DB の制約にする。退会したユーザーにメールアドレスとパスワードを残さない（D26）、記録がある生き物・主な場所は削除できない（D9・D27）、観察会を消すと記録の紐づけだけ外れる（#7）、座標は緯度と経度をそろえて持つ、メールアドレスは大文字・小文字を区別せずに重複させない。
+  - **値の持ち方**：役割は `admin / officer / member / viewer`、状態は `active / disabled / withdrawn` の英字で DB に持ち、表示名は `packages/shared` で対応させる。カテゴリは今の表示名（日本語）のまま列挙型にする。日付と時刻は JST の `date` と `time` で持つ（D10）。
+- **採用理由**
+  - postgres.js は依存がなく、ESM で1ファイルにまとめやすい（D31）。Neon も通常の PostgreSQL として接続できるので、Neon 以外へ移っても接続文字列を変えるだけで済む（D17）。
+  - PGlite を開発でも使うと、テストと同じ仕組みで、誰でも `npm run dev` だけで API を動かせる。
+  - Cloud Run はアクセスが増えると複数のインスタンスを同時に起動する。起動時にマイグレーションを流すと、複数のインスタンスが同時に流して失敗することがある。デプロイの手順として1回だけ流す方が安全（デプロイジョブは #14 で足す）。
+  - DB の制約にしておけば、後から書く API に抜けがあっても、決まりに反するデータが入らない。
+- **比較した案**
+  - Neon の専用ドライバー（`@neondatabase/serverless`）：HTTP で1回ずつ問い合わせるので、Workers のような環境に向く。Cloud Run は普通の TCP 接続を張り続けられるので利点が小さく、Neon への依存が増える。
+  - node-postgres（`pg`）：実績は一番多い。ただし CommonJS で、1ファイルにまとめるときに扱いが増える。
+  - ローカルにも PostgreSQL を入れる・Docker で動かす：本番と完全に同じになるが、開発の準備が重くなる。PGlite で足りない違いは、CI で本物の PostgreSQL 17 にマイグレーションを流して確かめる（`.github/workflows/ci.yml` の `API image (Docker)`）。
+  - 起動時にマイグレーションを流す：手順は減るが、上の同時実行の問題がある。
+  - 役割やカテゴリを別の表（マスターテーブル）にする：値を画面から増やせるが、役割は権限の判定と結びつき、コードの変更なしには増やせない（D24）。列挙型の方が値の誤りを DB で止められる。
+- **注意**：drizzle-orm の任意の peer 依存（expo-sqlite → react-native → React 19）が `apps/web` の React 18 と衝突し、npm が drizzle-orm を `apps/api/node_modules` に、drizzle-kit をルートの `node_modules` に置く。そのままでは drizzle-kit が drizzle-orm を見つけられないので、`apps/api/scripts/drizzle-kit.mjs` で読み込み先を差し替えて起動する。`apps/web` を React 19 に上げるか、drizzle-kit 側で解消されたら、このラッパーは消せる。
+
+## D31. API のビルドとコンテナ：esbuild で1ファイルにまとめ、node_modules を含まないイメージにする
+
+- **決定（2026-10-15、#10）**
+  - `apps/api/build.mjs`（esbuild）で、依存パッケージと `packages/shared` を `dist/` にまとめる。コンテナには `dist/` と `drizzle/`（マイグレーション）だけを入れる（`apps/api/Dockerfile`、リポジトリのルートからビルドする）。
+  - ヘルスチェック `GET /api/health` は DB に触らない。
+  - ポートは、本番では Cloud Run が渡す `PORT`、開発では `API_PORT`（既定 8787）を使う。Vite の開発サーバーは `/api/*` を 8787 番へ転送する（本番の Pages Functions と同じく、同じオリジンにする、D15）。`npm run dev` でフロントと API を同時に起動する。
+- **採用理由**
+  - イメージが小さく、Cloud Run の起動（D14 の「最初のアクセスが遅い」）が少しでも速くなる。`packages/shared` は TypeScript のまま公開しているので、まとめてしまえば実行時に TypeScript を読む仕組みが要らない。
+  - 外部の死活監視などがヘルスチェックを呼んでも、止まっている Neon を起こさない。Neon の無料枠（月100 CU 時間）を使わず、起動待ちも起きない。
+  - 開発で `PORT` を使うと、ほかのツール（プレビューなど）が渡す `PORT` とぶつかり、Vite と同じポートを取ろうとする（実際に起きた）。
+- **比較した案**
+  - `tsc` で JavaScript に変換し、`node_modules` ごとコンテナに入れる：一般的だが、`packages/shared` も変換・配置する必要があり、イメージが大きくなる。
+  - tsx で TypeScript のまま動かす：手順は一番少ないが、起動のたびに変換が走り、開発用の依存がイメージに入る。
+  - ヘルスチェックで DB にも問い合わせる：DB の不調も分かるが、上の Neon の理由で、DB の確認は各 API の失敗（500）とログで見る。
