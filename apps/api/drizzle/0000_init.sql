@@ -33,10 +33,11 @@ CREATE TABLE "events" (
 	"lat" double precision,
 	"lng" double precision,
 	"date" date NOT NULL,
-	"time" time(0) NOT NULL,
+	"time" text NOT NULL,
 	"created_by" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "events_time_format" CHECK ("events"."time" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
 	CONSTRAINT "events_coordinates_pair" CHECK (("events"."lat" is null) = ("events"."lng" is null))
 );
 --> statement-breakpoint
@@ -74,11 +75,12 @@ CREATE TABLE "observation_records" (
 	"lat" double precision,
 	"lng" double precision,
 	"date" date NOT NULL,
-	"time" time(0) NOT NULL,
+	"time" text NOT NULL,
 	"memo" text DEFAULT '' NOT NULL,
 	"user_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "observation_records_time_format" CHECK ("observation_records"."time" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
 	CONSTRAINT "observation_records_coordinates_pair" CHECK (("observation_records"."lat" is null) = ("observation_records"."lng" is null)),
 	CONSTRAINT "observation_records_main_location" CHECK (("observation_records"."location_type" = 'main') = ("observation_records"."main_location_id" is not null))
 );
@@ -136,4 +138,5 @@ CREATE INDEX "observation_records_main_location_id_idx" ON "observation_records"
 CREATE INDEX "observation_records_user_id_idx" ON "observation_records" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "password_reset_tokens_user_id_idx" ON "password_reset_tokens" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "sessions_user_id_idx" ON "sessions" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "sessions_expires_at_idx" ON "sessions" USING btree ("expires_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "users_email_unique" ON "users" USING btree (lower("email"));

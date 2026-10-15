@@ -20,11 +20,22 @@ export function validationErrorBody(error: ValidationIssues): ApiErrorBody {
   );
 }
 
+/** HTTPException の status ごとのエラーコード。フロントは code で表示を分ける */
+const HTTP_ERROR_CODES: Partial<Record<number, string>> = {
+  400: 'bad_request',
+  401: 'unauthorized',
+  403: 'forbidden',
+  404: 'not_found',
+  409: 'conflict',
+  413: 'payload_too_large',
+  429: 'too_many_requests',
+};
+
 /** 想定外のエラーは中身を返さずログにだけ出す（スタックトレースや SQL を利用者に見せない） */
 export function handleError(err: Error, c: Context) {
   if (err instanceof HTTPException) {
     const status = err.status as ContentfulStatusCode;
-    return c.json(errorBody(status === 400 ? 'bad_request' : 'http_error', err.message), status);
+    return c.json(errorBody(HTTP_ERROR_CODES[status] ?? 'http_error', err.message), status);
   }
   console.error(err);
   return c.json(errorBody('internal_error', 'サーバーでエラーが発生しました'), 500);

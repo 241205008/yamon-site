@@ -10,10 +10,10 @@ import {
   pgEnum,
   pgTable,
   text,
-  time,
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -27,6 +27,14 @@ export const userStatusEnum = pgEnum('user_status', USER_STATUSES);
 export const categoryEnum = pgEnum('category', CATEGORIES);
 export const locationTypeEnum = pgEnum('location_type', LOCATION_TYPES);
 export const auditActionEnum = pgEnum('audit_action', ['role_changed', 'disabled', 'enabled', 'withdrawn']);
+
+/**
+ * JST の時刻 "HH:MM"（D10）。PostgreSQL の time 型は秒付き（"09:30:00"）で返るため、
+ * 画面と入力チェック（packages/shared の timeSchema）と同じ形の文字列で持つ。文字列のまま並べ替えられる
+ */
+const hhmm = () => text('time').notNull();
+const hhmmCheck = (name: string, column: AnyPgColumn) =>
+  check(name, sql`${column} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`);
 
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const updatedAt = () =>
@@ -73,7 +81,8 @@ export const sessions = pgTable(
     createdAt: createdAt(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },
-  (t) => [index('sessions_user_id_idx').on(t.userId)],
+  // 期限切れのセッションをまとめて消すときに使う
+  (t) => [index('sessions_user_id_idx').on(t.userId), index('sessions_expires_at_idx').on(t.expiresAt)],
 );
 
 /** 招待（48時間有効・1回限り）。トークンはハッシュで保存する（D18） */
@@ -172,9 +181,9 @@ export const events = pgTable(
     locationName: text('location_name').notNull().default(''),
     lat: doublePrecision('lat'),
     lng: doublePrecision('lng'),
-    /** JST の日付と時刻（D10） */
+    /** JST の日付（D10） */
     date: date('date', { mode: 'string' }).notNull(),
-    time: time('time', { precision: 0 }).notNull(),
+    time: hhmm(),
     createdBy: uuid('created_by')
       .notNull()
       .references(() => users.id),
@@ -183,6 +192,7 @@ export const events = pgTable(
   },
   (t) => [
     index('events_date_idx').on(t.date),
+    hhmmCheck('events_time_format', t.time),
     check('events_coordinates_pair', sql`(${t.lat} is null) = (${t.lng} is null)`),
   ],
 );
@@ -207,7 +217,7 @@ export const observationRecords = pgTable(
     lat: doublePrecision('lat'),
     lng: doublePrecision('lng'),
     date: date('date', { mode: 'string' }).notNull(),
-    time: time('time', { precision: 0 }).notNull(),
+    time: hhmm(),
     memo: text('memo').notNull().default(''),
     userId: uuid('user_id')
       .notNull()
@@ -221,6 +231,7 @@ export const observationRecords = pgTable(
     index('observation_records_creature_id_idx').on(t.creatureId),
     index('observation_records_main_location_id_idx').on(t.mainLocationId),
     index('observation_records_user_id_idx').on(t.userId),
+    hhmmCheck('observation_records_time_format', t.time),
     check('observation_records_coordinates_pair', sql`(${t.lat} is null) = (${t.lng} is null)`),
     check(
       'observation_records_main_location',

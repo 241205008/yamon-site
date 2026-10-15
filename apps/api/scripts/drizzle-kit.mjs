@@ -4,9 +4,15 @@
 // 衝突するため、npm は drizzle-orm を apps/api/node_modules に置き、drizzle-kit はルートの node_modules に置く。
 // そのままでは drizzle-kit から drizzle-orm が見えないので、drizzle-orm の読み込みの起点を apps/api に差し替える。
 // module.registerHooks は Node.js 22.15 以降で使える（require と import の両方に効く）
-import { createRequire, registerHooks } from 'node:module';
+import * as nodeModule from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+
+const { createRequire, registerHooks } = nodeModule;
+if (typeof registerHooks !== 'function') {
+  console.error(`Node.js 22.15 以降が必要です（今は ${process.version}）`);
+  process.exit(1);
+}
 
 const apiUrl = new URL('../package.json', import.meta.url).href;
 const requireFromApi = createRequire(apiUrl);

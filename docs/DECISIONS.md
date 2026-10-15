@@ -353,7 +353,7 @@ packages/shared  入力チェック（zod）・型・固定マスター（カテ
   - **テスト**：PGlite をメモリ上に作り、本番と同じマイグレーションを流してから API を呼ぶ（D16）。
   - **マイグレーション**：`drizzle-kit generate` で `apps/api/drizzle/` に SQL を作ってコミットする。本番の DB には `npm run db:migrate -w @yamon/api`（コンテナでは `node dist/migrate.js`）で流し、API サーバーの起動時には流さない。PGlite（ローカル・テスト）だけは起動時に流す。
   - **DB 側の制約**：画面や API のチェックに加えて、壊れてはいけない決まりを DB の制約にする。退会したユーザーにメールアドレスとパスワードを残さない（D26）、記録がある生き物・主な場所は削除できない（D9・D27）、観察会を消すと記録の紐づけだけ外れる（#7）、座標は緯度と経度をそろえて持つ、メールアドレスは大文字・小文字を区別せずに重複させない。
-  - **値の持ち方**：役割は `admin / officer / member / viewer`、状態は `active / disabled / withdrawn` の英字で DB に持ち、表示名は `packages/shared` で対応させる。カテゴリは今の表示名（日本語）のまま列挙型にする。日付と時刻は JST の `date` と `time` で持つ（D10）。
+  - **値の持ち方**：役割は `admin / officer / member / viewer`、状態は `active / disabled / withdrawn` の英字で DB に持ち、表示名は `packages/shared` で対応させる。カテゴリは今の表示名（日本語）のまま列挙型にする。日付は JST の `date` 型、時刻は `"HH:MM"` の文字列（形式は DB の制約で確かめる）で持つ（D10）。PostgreSQL の `time` 型は秒付き（`09:30:00`）で返り、画面と入力チェックの形（`HH:MM`）とずれるため。
 - **採用理由**
   - postgres.js は依存がなく、ESM で1ファイルにまとめやすい（D31）。Neon も通常の PostgreSQL として接続できるので、Neon 以外へ移っても接続文字列を変えるだけで済む（D17）。
   - PGlite を開発でも使うと、テストと同じ仕組みで、誰でも `npm run dev` だけで API を動かせる。

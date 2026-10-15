@@ -131,12 +131,16 @@ describe('観察記録', () => {
     expect(await pgErrorCode(mainWithoutId)).toBe(CHECK_VIOLATION);
   });
 
-  it('日付と時刻は JST の文字列のまま読み書きできる（D10）', async () => {
+  it('日付と時刻は JST の "YYYY-MM-DD" と "HH:MM" のまま読み書きでき、不正な時刻は入らない（D10）', async () => {
     const f = await fixtures();
     const [r] = await ctx.db
       .insert(observationRecords)
       .values({ creatureId: f.creatureId, locationType: 'none', date: '2026-12-31', time: '23:59', userId: f.userId })
       .returning();
-    expect(r).toMatchObject({ date: '2026-12-31', time: '23:59:00' });
+    expect(r).toMatchObject({ date: '2026-12-31', time: '23:59' });
+    const badTime = ctx.db
+      .insert(observationRecords)
+      .values({ creatureId: f.creatureId, locationType: 'none', date: '2026-12-31', time: '24:00', userId: f.userId });
+    expect(await pgErrorCode(badTime)).toBe(CHECK_VIOLATION);
   });
 });

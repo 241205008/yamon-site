@@ -1,5 +1,5 @@
 {
-  "id": "d6db8d3e-168e-44c6-a2dd-fa4a9144de8e",
+  "id": "23f81f57-91c2-4516-bb97-aa555d1bf42e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -243,7 +243,7 @@
         },
         "time": {
           "name": "time",
-          "type": "time(0)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -317,6 +317,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "events_time_format": {
+          "name": "events_time_format",
+          "value": "\"events\".\"time\" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'"
+        },
         "events_coordinates_pair": {
           "name": "events_coordinates_pair",
           "value": "(\"events\".\"lat\" is null) = (\"events\".\"lng\" is null)"
@@ -562,7 +566,7 @@
         },
         "time": {
           "name": "time",
-          "type": "time(0)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -735,6 +739,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "observation_records_time_format": {
+          "name": "observation_records_time_format",
+          "value": "\"observation_records\".\"time\" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'"
+        },
         "observation_records_coordinates_pair": {
           "name": "observation_records_coordinates_pair",
           "value": "(\"observation_records\".\"lat\" is null) = (\"observation_records\".\"lng\" is null)"
@@ -871,6 +879,21 @@
           "columns": [
             {
               "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "sessions_expires_at_idx": {
+          "name": "sessions_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

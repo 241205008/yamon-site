@@ -10,7 +10,8 @@ export default defineConfig({
   },
   server: {
     // ローカル開発では /api/* を API サーバー（apps/api、既定は 8787 番）へ転送し、本番と同じく同じオリジンにする（D15）
-    proxy: { '/api': process.env.API_URL ?? 'http://localhost:8787' },
+    // キーは '/api/'（'/api' だと '/apiary' のような画面のパスまで転送される）
+    proxy: { '/api/': process.env.API_URL ?? 'http://localhost:8787' },
   },
   test: {
     environment: 'jsdom',

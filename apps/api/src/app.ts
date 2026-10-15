@@ -36,5 +36,3 @@ export function createApp({ db, log = false }: AppDeps) {
 
   return app;
 }
-
-export type App = ReturnType<typeof createApp>;
