@@ -2,7 +2,7 @@
 
 自然観察会の記録管理 Web アプリ（プロトタイプ）。招待制で、観察記録・観察会・生き物・場所をブラウザの localStorage に保存します。
 
-> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D22 を参照してください。
+> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D23 を参照してください。
 
 ## 起動
 
@@ -80,6 +80,39 @@ docs/
 ```
 
 仕様との差分や判断の理由は [docs/DECISIONS.md](docs/DECISIONS.md) にまとめています。
+
+## デプロイ
+
+GitHub Actions（`.github/workflows/ci.yml`）で、型チェック・テスト・ビルドが通ったあとに Cloudflare Pages へデプロイします。理由と他の案は [docs/DECISIONS.md の D23](docs/DECISIONS.md) を参照してください。
+
+| きっかけ | デプロイ先 |
+|---|---|
+| main への push（PR の Merge） | 本番 |
+| 同じリポジトリからの PR | プレビュー（`pr-<PR番号>.<project>.pages.dev`。URL は Actions の実行結果の Summary に出る） |
+| Actions 画面からの手動実行（Run workflow） | main なら本番、それ以外はプレビュー |
+
+Secret が未設定の間は、デプロイだけ警告付きで省略されます（CI は失敗しません）。
+
+### 初回の設定
+
+1. Cloudflare でプロジェクトを作る（初回のみ。名前を変える場合は手順3の変数も設定する）
+
+   ```bash
+   npx wrangler pages project create yamon-site --production-branch=main
+   ```
+
+2. Cloudflare の「My Profile → API Tokens」で、権限 `Account / Cloudflare Pages / Edit` だけの API トークンを作る
+3. GitHub の「Settings → Secrets and variables → Actions」に登録する（実値はリポジトリ・Issue・PR に書かない）
+
+   | 種類 | 名前 | 値 |
+   |---|---|---|
+   | Secret | `CLOUDFLARE_API_TOKEN` | 手順2のトークン |
+   | Secret | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare のアカウント ID |
+   | Variable（任意） | `CLOUDFLARE_PAGES_PROJECT` | Pages のプロジェクト名（省略時は `yamon-site`） |
+
+4. Actions 画面で CI を手動実行し、本番 URL が開けることを確かめる
+
+SPA の直接アクセス（例：`/event-detail/xxx` の再読み込み）は、`404.html` がないと Pages が自動で `index.html` を返すため、追加の設定は不要です。
 
 ## 開発の進め方
 

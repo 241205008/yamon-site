@@ -244,3 +244,21 @@ packages/shared  入力チェック（zod）・型・固定マスター（主な
   - Gmail API（OAuth）：アプリパスワードより Google の推奨に沿うが、OAuth の同意画面やトークンの更新の設定が増える。パスワード変更でトークンが無効になる点は同じ。アプリパスワードが使えなくなったときの移行先にする。
   - Brevo：ドメインなしでも送れるが、共用の送信元から送られるため迷惑メールに入りやすい。
 - **再検討する条件**：サークルの予算で独自ドメインを持てるようになったとき、メールの不達が問題になったとき、Google がアプリパスワードでの送信を制限したとき。
+
+## D23. CI/CD：GitHub Actions の1つのワークフローで、検査に通ったビルドを Cloudflare Pages へデプロイする
+
+- **決定（2026-10-13）**：`.github/workflows/ci.yml` に、これまでの検査（型チェック・テスト・ビルド）と、その後に動くデプロイのジョブを置く。
+  - main への push（＝PR の Squash Merge）で本番へ、同じリポジトリからの PR ではプレビュー（`pr-<PR番号>.<project>.pages.dev`。head の Branch 名を使わないので、head が `main` の PR でも本番に出ない）へデプロイする。
+  - 検査のジョブが作った `apps/web/dist/` を Artifact で受け渡し、テストに通ったものと同じファイルをそのまま配信する。
+  - デプロイは Cloudflare の公式 Action（`cloudflare/wrangler-action`）で `wrangler pages deploy` を実行する（Direct Upload）。
+  - Secret は依存パッケージのコードが動く前（`npm ci` より前）のステップでだけ参照し、デプロイの判定に使う。
+  - Cloudflare の API トークンとアカウント ID が未設定の間は、失敗にせず警告を出してデプロイだけ省略する。アカウントの準備（#14）が終わる前でも PR の CI は緑のまま使える。
+  - 検査のジョブ名（`Typecheck / Test / Build`）は変えない。Branch 保護の必須チェックに登録していても壊れない。
+- **採択理由**：「CI が通ったものだけが本番に出る」を、ワークフローの依存関係（`needs`）だけで保証できる。設定が1ファイルにまとまり、1人でも読み切れる。API（Cloud Run）のデプロイも後で同じファイルにジョブとして足せるため、フロントとバックのデプロイ方法がそろう。
+- **比較した案**
+  - Cloudflare Pages の Git 連携（Cloudflare 側でビルドする）：設定は一番少ない。ただし GitHub Actions の CI と無関係に動くため、テストが落ちた commit も本番に出る。ビルド環境も CI と別になる。Cloud Run のデプロイは結局 Actions で書くので、仕組みが2つに分かれる。また Pages では Direct Upload と Git 連携を後から切り替えられないため、最初に決める必要がある。
+  - デプロイ用に別ワークフローを作り、`workflow_run` で CI の成功を待つ：分けると読みやすいが、`workflow_run` は既定 Branch の定義で動く・Artifact を別ワークフローから取り出す手間がある、など癖が多い。この規模では1ファイルの方が単純。
+  - 再利用可能ワークフロー（`workflow_call`）で CI を呼び出す：main への push で CI が2回動くか、CI の push トリガーを外す必要があり、どちらも分かりにくい。
+  - Vercel / Netlify の GitHub 連携：D15 でホスティングに採用していない。
+- **プレビューの注意**：プレビュー URL は誰でも開ける。今はデモデータしかないので問題ないが、API とつないだ後に本番データが見える形にする場合は、Cloudflare Access で保護するか、プレビューを止める（#14 で判断する）。
+- **後続**：Cloud Run（`apps/api`）のデプロイジョブは、API の土台（#10）と本番環境の構築（#14）の後に追加する。Pages Functions（`/api/*` の転送、D22 の R2 配信）を足すときは、`wrangler pages deploy` が実行場所の `functions/` を読むため、checkout してから実行する形に変える。
