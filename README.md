@@ -2,7 +2,7 @@
 
 自然観察会の記録管理 Web アプリ（プロトタイプ）。招待制で、観察記録・観察会・生き物・場所をブラウザの localStorage に保存します。
 
-> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D21 を参照してください。
+> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D23 を参照してください。
 
 ## 起動
 
@@ -83,7 +83,7 @@ docs/
 
 ## デプロイ
 
-GitHub Actions（`.github/workflows/ci.yml`）で、型チェック・テスト・ビルドが通ったあとに Cloudflare Pages へデプロイします。理由と他の案は [docs/DECISIONS.md の D22](docs/DECISIONS.md) を参照してください。
+GitHub Actions（`.github/workflows/ci.yml`）で、型チェック・テスト・ビルドが通ったあとに Cloudflare Pages へデプロイします。理由と他の案は [docs/DECISIONS.md の D23](docs/DECISIONS.md) を参照してください。
 
 | きっかけ | デプロイ先 |
 |---|---|
