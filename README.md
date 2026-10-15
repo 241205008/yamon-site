@@ -2,7 +2,7 @@
 
 自然観察会の記録管理 Web アプリ（プロトタイプ）。招待制で、観察記録・観察会・生き物・場所をブラウザの localStorage に保存します。
 
-> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D28 を参照してください。
+> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D29 を参照してください。
 
 ## 起動
 
@@ -12,6 +12,8 @@ npm run dev
 ```
 
 http://localhost:5173 を開きます。
+
+地図の背景（Protomaps の東海3県、約357MB）は Git に入っていません。`apps/web/map-data/tokai.pmtiles` に置くと表示されます。用意と更新の手順は [docs/MAP_DATA.md](docs/MAP_DATA.md) を参照してください（なくても、地図の背景以外は動きます）。
 
 リポジトリのルートで実行します。各コマンドは、中身のあるパッケージ（workspace）すべてに対して動きます。
 
@@ -70,13 +72,16 @@ apps/
     src/lib/          データモデル・localStorage ストア・パスワードハッシュ
     src/components/   共通 UI、RecordForm、EventForm、地図ピッカーなど
     src/pages/        各画面
+    functions/        Cloudflare Pages Functions（/map/*：R2 の地図データを返す）
+    map-data/         開発用の地図データ（Git に入れない）
   api/                バックエンド（@yamon/api）。中身は #10 で作る
 packages/
   shared/             フロントとバックで共有するコード（@yamon/shared）
-                      固定マスター（カテゴリ・時間帯・主な場所）、日時（JST）の処理
+                      固定マスター（カテゴリ・時間帯・主な場所）、日時（JST）、地図の範囲（東海3県）
 docs/
   MVP.md              合意した MVP
   DECISIONS.md        技術選定・仕様の解釈とその理由
+  MAP_DATA.md         地図データの切り出し・配置・更新の手順
 ```
 
 仕様との差分や判断の理由は [docs/DECISIONS.md](docs/DECISIONS.md) にまとめています。

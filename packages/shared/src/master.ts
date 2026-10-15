@@ -15,14 +15,15 @@ export interface MainLocation {
 
 /** 主な場所（固定マスター）。ID は記録から参照されるため変更しないこと */
 export const MAIN_LOCATIONS: MainLocation[] = [
-  { id: 'loc-central-park', name: '中央公園', lat: 35.6812, lng: 139.7671 },
-  { id: 'loc-riverside', name: '河川敷エリア', lat: 35.6892, lng: 139.775 },
-  { id: 'loc-forest-park', name: '森林公園', lat: 35.695, lng: 139.782 },
-  { id: 'loc-pond-square', name: '池のある広場', lat: 35.673, lng: 139.76 },
-  { id: 'loc-mountain-foot', name: '山の麓', lat: 35.7, lng: 139.79 },
+  { id: 'loc-central-park', name: '中央公園', lat: 35.127, lng: 136.9671 },
+  { id: 'loc-riverside', name: '河川敷エリア', lat: 35.135, lng: 136.975 },
+  { id: 'loc-forest-park', name: '森林公園', lat: 35.1408, lng: 136.982 },
+  { id: 'loc-pond-square', name: '池のある広場', lat: 35.1188, lng: 136.96 },
+  { id: 'loc-mountain-foot', name: '山の麓', lat: 35.1458, lng: 136.99 },
 ];
 
-export const MAP_CENTER = { lat: 35.6889, lng: 139.7759 };
+/** 地図の初期の中心（名古屋市天白区付近）。主な場所を受け取ったら見直す */
+export const MAP_CENTER = { lat: 35.1347, lng: 136.9759 };
 
 export function findMainLocation(id: string | null | undefined): MainLocation | undefined {
   return MAIN_LOCATIONS.find((l) => l.id === id);

@@ -134,7 +134,7 @@ describe('招待', () => {
 describe('観察記録', () => {
   it('主な場所で詳細座標がなければ主な場所の座標になる', () => {
     const r = addRecord(USER1, baseRecord);
-    expect(r).toMatchObject({ locationName: '中央公園', lat: 35.6812, lng: 139.7671, userId: USER1 });
+    expect(r).toMatchObject({ locationName: '中央公園', lat: 35.127, lng: 136.9671, userId: USER1 });
     expect(r.id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
@@ -193,7 +193,7 @@ describe('観察会', () => {
       date: '2026-10-01',
       time: '09:00',
     });
-    expect(ev).toMatchObject({ name: '秋の観察会', locationName: '池のある広場', lat: 35.673, createdBy: USER1 });
+    expect(ev).toMatchObject({ name: '秋の観察会', locationName: '池のある広場', lat: 35.1188, createdBy: USER1 });
   });
 
   it('場所がないと作成できない', () => {

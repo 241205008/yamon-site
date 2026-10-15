@@ -1,12 +1,9 @@
 import { useState } from 'react';
-import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
-import { MAP_CENTER } from '@yamon/shared';
+import { Marker, useMapEvents } from 'react-leaflet';
+import { MAP_CENTER, isInTokai } from '@yamon/shared';
 import { pinIcon } from './mapPins';
+import { TokaiMap } from './TokaiMap';
 import { Modal } from './ui';
-
-export const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-export const TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 function ClickToPick({ onPick }: { onPick: (lat: number, lng: number) => void }) {
   useMapEvents({ click: (e) => onPick(e.latlng.lat, e.latlng.lng) });
@@ -30,17 +27,19 @@ export function MapPickerModal({
   return (
     <Modal open={open} onClose={onClose} title="マップで位置を選択" wide>
       <p className="mb-3 text-sm text-gray-600">地図をクリックして観察した位置を選んでください。</p>
-      <div className="h-[420px] overflow-hidden rounded-lg border border-gray-200">
-        <MapContainer
-          center={initial ?? MAP_CENTER}
-          zoom={initial ? 16 : 14}
-          className="h-full w-full"
-        >
-          <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
-          <ClickToPick onPick={(lat, lng) => setPicked({ lat, lng })} />
-          {picked && <Marker position={picked} icon={pinIcon()} />}
-        </MapContainer>
-      </div>
+      <TokaiMap
+        center={initial ?? MAP_CENTER}
+        zoom={initial ? 16 : 14}
+        className="h-[420px] overflow-hidden rounded-lg border border-gray-200"
+      >
+        <ClickToPick
+          onPick={(lat, lng) => {
+            // 地図は長方形の範囲外へ動かないが、範囲の端の外側をクリックできることがあるため確かめる
+            if (isInTokai(lat, lng)) setPicked({ lat, lng });
+          }}
+        />
+        {picked && <Marker position={picked} icon={pinIcon()} />}
+      </TokaiMap>
       <p className="mt-3 text-sm text-gray-700">
         {picked
           ? `選択中の座標: ${picked.lat.toFixed(4)}, ${picked.lng.toFixed(4)}`

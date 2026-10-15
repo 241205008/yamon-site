@@ -45,11 +45,16 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      # テストに通ったビルドを、そのままデプロイに使う
+      # テストに通ったビルドと Pages Functions（functions/、地図データの配信 D28）を、そのままデプロイに使う。
+      # 2つの共通の親（apps/web）からの相対パスで入るので、Artifact の中は dist/ と functions/ になる
       - uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: apps/web/dist
+          name: site
+          path: |
+            apps/web/dist
+            apps/web/functions
+            !apps/web/functions/**/*.test.ts
+            !apps/web/functions/tsconfig.json
           if-no-files-found: error
           retention-days: 7
 
@@ -80,10 +85,11 @@ jobs:
           fi
           echo "name=$branch" >> "$GITHUB_OUTPUT"
 
+      # checkout はしない。wrangler は実行場所の functions/ を読んで Functions としてデプロイする
       - uses: actions/download-artifact@v4
         with:
-          name: dist
-          path: dist
+          name: site
+          path: site
 
       - name: Deploy
         id: deploy
@@ -91,6 +97,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: site
           command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'yamon-site' }} --branch=${{ steps.branch.outputs.name }}
 
       - name: Summary
