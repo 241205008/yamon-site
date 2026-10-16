@@ -1,8 +1,8 @@
-import { isInTokai } from '@yamon/shared';
+import { isInSurveyArea } from '@yamon/shared';
 
 /**
  * navigator.geolocation を Promise にしたもの。失敗理由は日本語メッセージで返す。
- * 地図の範囲（東海3県）の外の位置は記録に使えないため、失敗として扱う（D28）
+ * 地図の範囲（4県）の外の位置は記録に使えないため、失敗として扱う（D28）
  */
 export function getCurrentPosition(): Promise<{ lat: number; lng: number }> {
   return new Promise((resolve, reject) => {
@@ -13,8 +13,8 @@ export function getCurrentPosition(): Promise<{ lat: number; lng: number }> {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
-        if (isInTokai(lat, lng)) resolve({ lat, lng });
-        else reject(new Error('現在位置が東海3県の範囲外のため使えません。マップで位置を選択してください'));
+        if (isInSurveyArea(lat, lng)) resolve({ lat, lng });
+        else reject(new Error('現在位置が地図の範囲外（愛知・岐阜・三重・滋賀の4県）のため使えません。マップで位置を選択してください'));
       },
       (err) =>
         reject(

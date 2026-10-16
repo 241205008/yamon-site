@@ -2,7 +2,7 @@ import { Calendar, Filter, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Marker, Tooltip, useMapEvents } from 'react-leaflet';
 import { pinIcon } from '../components/mapPins';
-import { TokaiMap } from '../components/TokaiMap';
+import { SurveyMap } from '../components/SurveyMap';
 import { BackBar, CategoryBadge, Modal, PageBackground, inputClass } from '../components/ui';
 import { MAP_CENTER, getTimeOfDay, monthOf } from '@yamon/shared';
 import { compareRecordsDesc, hasCoords, useCreatureMap } from '../lib/selectors';
@@ -141,7 +141,7 @@ export function MapPage() {
         </aside>
 
         <section className="relative h-[600px] overflow-hidden rounded-xl shadow-md lg:col-span-3">
-          <TokaiMap center={MAP_CENTER} zoom={14} className="h-full w-full">
+          <SurveyMap center={MAP_CENTER} zoom={14} className="h-full w-full">
             <CenterTracker onChange={setCenter} />
             {groups.map((g) => (
               <Marker
@@ -163,7 +163,7 @@ export function MapPage() {
                 </Tooltip>
               </Marker>
             ))}
-          </TokaiMap>
+          </SurveyMap>
 
           <div className="pointer-events-none absolute top-4 left-4 z-[1000] rounded-lg bg-white px-4 py-2 shadow-md">
             <p className="text-sm text-gray-700">マップビュー</p>

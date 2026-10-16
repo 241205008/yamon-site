@@ -13,7 +13,7 @@ npm run dev
 
 http://localhost:5173 を開きます。
 
-地図の背景（Protomaps の東海3県、約357MB）は Git に入っていません。`apps/web/map-data/tokai.pmtiles` に置くと表示されます。用意と更新の手順は [docs/MAP_DATA.md](docs/MAP_DATA.md) を参照してください（なくても、地図の背景以外は動きます）。
+地図の背景（Protomaps の愛知・岐阜・三重・滋賀の4県、約380MB）は Git に入っていません。`apps/web/map-data/survey-area.pmtiles` に置くと表示されます。用意と更新の手順は [docs/MAP_DATA.md](docs/MAP_DATA.md) を参照してください（なくても、地図の背景以外は動きます）。
 
 リポジトリのルートで実行します。各コマンドは、中身のあるパッケージ（workspace）すべてに対して動きます。
 
@@ -77,7 +77,7 @@ apps/
   api/                バックエンド（@yamon/api）。中身は #10 で作る
 packages/
   shared/             フロントとバックで共有するコード（@yamon/shared）
-                      固定マスター（カテゴリ・時間帯・主な場所）、日時（JST）、地図の範囲（東海3県）
+                      固定マスター（カテゴリ・時間帯・主な場所）、日時（JST）、地図の範囲（愛知・岐阜・三重・滋賀の4県）
 docs/
   MVP.md              合意した MVP
   DECISIONS.md        技術選定・仕様の解釈とその理由

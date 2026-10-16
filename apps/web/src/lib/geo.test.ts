@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe('getCurrentPosition', () => {
-  it('東海3県の中の位置はそのまま返す', async () => {
+  it('4県の中の位置はそのまま返す', async () => {
     stubGeolocation({ lat: 35.1347, lng: 136.9759 });
     await expect(getCurrentPosition()).resolves.toEqual({ lat: 35.1347, lng: 136.9759 });
   });

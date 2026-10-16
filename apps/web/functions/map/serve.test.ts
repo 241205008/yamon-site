@@ -57,14 +57,14 @@ let fake: ReturnType<typeof fakeBucket>;
 let bucket: R2Bucket;
 beforeEach(() => {
   clearMapMetaCacheForTest();
-  fake = fakeBucket({ 'tokai.pmtiles': data, 'secret.txt': data });
+  fake = fakeBucket({ 'survey-area.pmtiles': data, 'secret.txt': data });
   bucket = fake.bucket;
 });
-const req = (range?: string) => new Request('https://example.com/map/tokai.pmtiles', range ? { headers: { Range: range } } : {});
+const req = (range?: string) => new Request('https://example.com/map/survey-area.pmtiles', range ? { headers: { Range: range } } : {});
 
 describe('serveMapData', () => {
   it('Range があれば 206 で、その範囲だけ返す', async () => {
-    const res = await serveMapData(req('bytes=10-19'), bucket, 'tokai.pmtiles');
+    const res = await serveMapData(req('bytes=10-19'), bucket, 'survey-area.pmtiles');
     expect(res.status).toBe(206);
     expect(res.headers.get('Content-Range')).toBe('bytes 10-19/100');
     expect(res.headers.get('ETag')).toBe(`"v1"`);
@@ -72,27 +72,27 @@ describe('serveMapData', () => {
   });
 
   it('Range がなければ 200 で全体を返す', async () => {
-    const res = await serveMapData(req(), bucket, 'tokai.pmtiles');
+    const res = await serveMapData(req(), bucket, 'survey-area.pmtiles');
     expect(res.status).toBe(200);
     expect((await res.arrayBuffer()).byteLength).toBe(100);
   });
 
   it('範囲の外は 416', async () => {
-    const res = await serveMapData(req('bytes=100-'), bucket, 'tokai.pmtiles');
+    const res = await serveMapData(req('bytes=100-'), bucket, 'survey-area.pmtiles');
     expect(res.status).toBe(416);
     expect(res.headers.get('Content-Range')).toBe('bytes */100');
   });
 
   it('2回目からは head を呼ばず、R2 の読み出しは1回で済む', async () => {
-    await serveMapData(req('bytes=0-9'), bucket, 'tokai.pmtiles');
-    await serveMapData(req('bytes=10-19'), bucket, 'tokai.pmtiles');
+    await serveMapData(req('bytes=0-9'), bucket, 'survey-area.pmtiles');
+    await serveMapData(req('bytes=10-19'), bucket, 'survey-area.pmtiles');
     expect(fake.calls).toEqual({ head: 1, get: 2 });
   });
 
   it('差し替えられたら、新しいファイルの大きさ・ETag・中身で返す（古い大きさと新しい中身を混ぜない）', async () => {
-    await serveMapData(req('bytes=0-9'), bucket, 'tokai.pmtiles');
-    fake.replace('tokai.pmtiles', new Uint8Array(50).fill(7), 'v2');
-    const res = await serveMapData(req('bytes=40-'), bucket, 'tokai.pmtiles');
+    await serveMapData(req('bytes=0-9'), bucket, 'survey-area.pmtiles');
+    fake.replace('survey-area.pmtiles', new Uint8Array(50).fill(7), 'v2');
+    const res = await serveMapData(req('bytes=40-'), bucket, 'survey-area.pmtiles');
     expect(res.status).toBe(206);
     expect(res.headers.get('Content-Range')).toBe('bytes 40-49/50');
     expect(res.headers.get('ETag')).toBe(`"v2"`);
@@ -101,12 +101,12 @@ describe('serveMapData', () => {
 
   it('.pmtiles 以外の名前・パスを含む名前・ないファイルは 404', async () => {
     expect((await serveMapData(req(), bucket, 'secret.txt')).status).toBe(404);
-    expect((await serveMapData(req(), bucket, '../tokai.pmtiles')).status).toBe(404);
-    expect((await serveMapData(req(), bucket, 'sub/tokai.pmtiles')).status).toBe(404);
+    expect((await serveMapData(req(), bucket, '../survey-area.pmtiles')).status).toBe(404);
+    expect((await serveMapData(req(), bucket, 'sub/survey-area.pmtiles')).status).toBe(404);
     expect((await serveMapData(req(), bucket, 'kanto.pmtiles')).status).toBe(404);
   });
 
   it('バケットが設定されていなければ 503', async () => {
-    expect((await serveMapData(req(), undefined, 'tokai.pmtiles')).status).toBe(503);
+    expect((await serveMapData(req(), undefined, 'survey-area.pmtiles')).status).toBe(503);
   });
 });

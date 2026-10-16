@@ -158,7 +158,7 @@ describe('観察記録', () => {
     expect(getDb().records.find((x) => x.id === r.id)).toMatchObject({ eventId: 'ev-summer-forest', memo: '更新' });
   });
 
-  it('東海3県の範囲外の座標は追加・編集できない', () => {
+  it('4県の範囲外の座標は追加・編集できない', () => {
     const tokyo = { ...baseRecord, locationType: 'other' as const, mainLocationId: null, lat: 35.6812, lng: 139.7671 };
     expect(() => addRecord(USER1, tokyo)).toThrow('範囲外');
     expect(() => addRecord(USER1, { ...baseRecord, lat: 35.6812, lng: 139.7671 })).toThrow('範囲外');
@@ -206,7 +206,7 @@ describe('観察会', () => {
     expect(ev).toMatchObject({ name: '秋の観察会', locationName: '池のある広場', lat: 35.1188, createdBy: USER1 });
   });
 
-  it('東海3県の範囲外の座標では作成できない', () => {
+  it('4県の範囲外の座標では作成できない', () => {
     expect(() =>
       createEvent(USER1, {
         name: '東京の観察会',

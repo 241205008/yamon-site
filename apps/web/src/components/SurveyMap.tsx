@@ -4,10 +4,10 @@ import { PMTiles } from 'pmtiles';
 import { leafletLayer } from 'protomaps-leaflet';
 import { useEffect, useState, type ReactNode } from 'react';
 import { MapContainer, TileLayer, ZoomControl, useMap } from 'react-leaflet';
-import { TOKAI_BOUNDS } from '@yamon/shared';
+import { SURVEY_BOUNDS } from '@yamon/shared';
 
-/** 基本の地図（Protomaps の東海3県）。開発では vite.config.ts、本番では Pages Functions（functions/map）が返す */
-export const MAP_TILES_URL: string = import.meta.env.VITE_MAP_TILES_URL || '/map/tokai.pmtiles';
+/** 基本の地図（Protomaps の4県）。開発では vite.config.ts、本番では Pages Functions（functions/map）が返す */
+export const MAP_TILES_URL: string = import.meta.env.VITE_MAP_TILES_URL || '/map/survey-area.pmtiles';
 /** 地図データの読み込み口。ヘッダーと目次のキャッシュを、すべての地図と切り替えで使い回すため1つだけ作る */
 const mapSource = new PMTiles(MAP_TILES_URL);
 const MAP_ATTRIBUTION =
@@ -21,9 +21,9 @@ const PHOTO_ATTRIBUTION = '<a href="https://maps.gsi.go.jp/development/ichiran.h
 const MAP_DATA_MAX_ZOOM = 15;
 const MAX_ZOOM = 18;
 
-export const TOKAI_LATLNG_BOUNDS = L.latLngBounds(
-  [TOKAI_BOUNDS.south, TOKAI_BOUNDS.west],
-  [TOKAI_BOUNDS.north, TOKAI_BOUNDS.east],
+export const SURVEY_LATLNG_BOUNDS = L.latLngBounds(
+  [SURVEY_BOUNDS.south, SURVEY_BOUNDS.west],
+  [SURVEY_BOUNDS.north, SURVEY_BOUNDS.east],
 );
 
 function ProtomapsLayer() {
@@ -35,7 +35,7 @@ function ProtomapsLayer() {
       lang: 'ja',
       maxDataZoom: MAP_DATA_MAX_ZOOM,
       maxZoom: MAX_ZOOM,
-      bounds: TOKAI_LATLNG_BOUNDS,
+      bounds: SURVEY_LATLNG_BOUNDS,
       noWrap: true,
       attribution: MAP_ATTRIBUTION,
     }) as unknown as L.GridLayer;
@@ -47,14 +47,14 @@ function ProtomapsLayer() {
   return null;
 }
 
-/** 東海3県の全体が収まるところまでしか縮小できないようにする（画面の大きさで変わるので、大きさが変わるたびに計算し直す） */
+/** 4県の全体が収まるところまでしか縮小できないようにする（画面の大きさで変わるので、大きさが変わるたびに計算し直す） */
 function LimitZoomOut() {
   const map = useMap();
   useEffect(() => {
     const update = () => {
       const size = map.getSize();
       if (size.x === 0 || size.y === 0) return;
-      map.setMinZoom(map.getBoundsZoom(TOKAI_LATLNG_BOUNDS));
+      map.setMinZoom(map.getBoundsZoom(SURVEY_LATLNG_BOUNDS));
     };
     update();
     map.on('resize', update);
@@ -66,10 +66,10 @@ function LimitZoomOut() {
 }
 
 /**
- * 東海3県の範囲だけを表示する地図（D28）。基本の地図と国土地理院の航空写真を右上のボタンで切り替える。
+ * 4県の範囲だけを表示する地図（D28）。基本の地図と国土地理院の航空写真を右上のボタンで切り替える。
  * ピンなどは children に渡す。className で外枠の大きさを決める
  */
-export function TokaiMap({
+export function SurveyMap({
   center,
   zoom,
   className = '',
@@ -88,7 +88,7 @@ export function TokaiMap({
         center={center}
         zoom={zoom}
         maxZoom={MAX_ZOOM}
-        maxBounds={TOKAI_LATLNG_BOUNDS}
+        maxBounds={SURVEY_LATLNG_BOUNDS}
         maxBoundsViscosity={1}
         zoomControl={false}
         className="h-full w-full"
@@ -99,7 +99,7 @@ export function TokaiMap({
             attribution={PHOTO_ATTRIBUTION}
             maxNativeZoom={18}
             maxZoom={MAX_ZOOM}
-            bounds={TOKAI_LATLNG_BOUNDS}
+            bounds={SURVEY_LATLNG_BOUNDS}
           />
         ) : (
           <ProtomapsLayer />
