@@ -1,6 +1,7 @@
 import { LogIn, UserPlus } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { AuthCard } from '../components/AuthCard';
 import { PrivacyNotice } from '../components/PrivacyNotice';
 import { ErrorText, inputClass } from '../components/ui';
 import { ApiError } from '../lib/api';
@@ -66,33 +67,23 @@ export function LoginPage() {
   if (setupNeeded) return <Navigate to="/setup" replace />;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-600">
-            {mode === 'login' ? <LogIn className="h-8 w-8 text-white" /> : <UserPlus className="h-8 w-8 text-white" />}
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">やもんサイト</h1>
-          <p className="mt-2 text-gray-600">{mode === 'login' ? '生き物観察記録システム' : '新規登録'}</p>
-        </div>
+    <AuthCard icon={mode === 'login' ? LogIn : UserPlus} subtitle={mode === 'login' ? '生き物観察記録システム' : '新規登録'}>
+      {mode === 'login' ? (
+        <LoginForm onDone={() => navigate(from, { replace: true })} onRegister={() => setMode('register')} />
+      ) : (
+        <RegisterForm
+          initialToken={inviteParam ?? ''}
+          onDone={() => navigate('/', { replace: true })}
+          onBack={() => setMode('login')}
+        />
+      )}
 
-        {mode === 'login' ? (
-          <LoginForm onDone={() => navigate(from, { replace: true })} onRegister={() => setMode('register')} />
-        ) : (
-          <RegisterForm
-            initialToken={inviteParam ?? ''}
-            onDone={() => navigate('/', { replace: true })}
-            onBack={() => setMode('login')}
-          />
-        )}
-
-        <p className="mt-4 text-center text-xs text-gray-500">
-          <Link to="/privacy" className="hover:text-gray-700 hover:underline">
-            個人情報の扱い
-          </Link>
-        </p>
-      </div>
-    </div>
+      <p className="mt-4 text-center text-xs text-gray-500">
+        <Link to="/privacy" className="hover:text-gray-700 hover:underline">
+          個人情報の扱い
+        </Link>
+      </p>
+    </AuthCard>
   );
 }
 

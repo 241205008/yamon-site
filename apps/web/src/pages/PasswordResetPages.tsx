@@ -1,6 +1,6 @@
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '@yamon/shared';
 import { KeyRound, Mail } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { AuthCard } from '../components/AuthCard';
 import { ErrorText, inputClass } from '../components/ui';
@@ -79,8 +79,13 @@ export function ForgotPasswordPage() {
 
 /** /reset-password?token=...：メールのリンクから開き、新しいパスワードを決める（#5） */
 export function ResetPasswordPage() {
-  const [params] = useSearchParams();
-  const token = params.get('token') ?? '';
+  const [params, setParams] = useSearchParams();
+  // トークンは最初に読んだ値を画面の状態に持ち、URL からは消す（履歴やアドレスバーに残さない）
+  const [token] = useState(() => params.get('token') ?? '');
+  useEffect(() => {
+    if (params.has('token')) setParams({}, { replace: true });
+  }, [params, setParams]);
+  const [linkInvalid, setLinkInvalid] = useState(false);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [done, setDone] = useState<string | null>(null);
@@ -90,6 +95,7 @@ export function ResetPasswordPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setLinkInvalid(false);
     if (password !== confirm) {
       setError('確認用パスワードが一致しません');
       return;
@@ -99,6 +105,7 @@ export function ResetPasswordPage() {
       setDone(await confirmPasswordReset({ token, password }));
     } catch (err) {
       setError(toMessage(err));
+      setLinkInvalid(err instanceof ApiError && err.code === 'reset_link_invalid');
     } finally {
       setBusy(false);
     }
@@ -149,7 +156,7 @@ export function ResetPasswordPage() {
             />
           </div>
           <ErrorText message={error} />
-          {error && (
+          {linkInvalid && (
             <p className="text-sm text-gray-600">
               リンクが使えないときは、もう一度
               <Link to="/forgot-password" className="mx-1 text-green-700 underline">

@@ -1,8 +1,8 @@
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-/** ログイン画面と同じ見た目のカード（パスワード再設定などの、ログイン前の画面で使う） */
-export function AuthCard({ icon: Icon, subtitle, children }: { icon: LucideIcon; subtitle: string; children: ReactNode }) {
+/** ログイン前の画面（ログイン・登録・初回セットアップ・パスワード再設定）に共通のカード */
+export function AuthCard({ icon: Icon, subtitle, children }: { icon: LucideIcon; subtitle: ReactNode; children: ReactNode }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
