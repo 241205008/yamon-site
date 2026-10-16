@@ -154,6 +154,10 @@ jobs:
           APP_URL: https://yamon-site.yamonken.workers.dev
           SMTP_USER: ${{ vars.SMTP_USER }}
         run: |
+          if [ -z "$SMTP_USER" ]; then
+            echo "::error::Variable の SMTP_USER（サークルの Gmail のアドレス）が未設定です（docs/DEPLOY_API.md）"
+            exit 1
+          fi
           gcloud run deploy "$SERVICE" \
             --image "$IMAGE" \
             --region "$GCP_REGION" \

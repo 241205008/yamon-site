@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Google Cloud の初回準備（docs/DEPLOY_API.md の手順3）。Cloud Shell で、プロジェクト ID を付けて実行する：
+# Google Cloud の初回準備（docs/DEPLOY_API.md の手順4）。Cloud Shell で、プロジェクト ID を付けて実行する：
 #   bash apps/api/deploy/setup-gcp.sh <プロジェクトID>
 # 2回目以降に実行しても、作り済みのものはそのまま使う（Secret は上書きするか聞く）。
 # 秘密の値は画面に表示せずに入力する。リポジトリ・Issue・PR には書かない（D21）
@@ -37,6 +37,16 @@ gcloud artifacts repositories set-cleanup-policies yamon --location="$REGION" --
 rm -f "$policy"
 
 echo "== 3. サービスアカウント"
+# 作ったばかりのサービスアカウントは、数秒たたないと IAM の設定で見つからないことがあるので、少し待ってやり直す
+retry() {
+  local i
+  for i in 1 2 3 4 5 6; do
+    if "$@"; then return 0; fi
+    echo "  少し待ってやり直します（${i}回目）"
+    sleep 10
+  done
+  return 1
+}
 create_sa() {
   if ! gcloud iam service-accounts describe "$1@${PROJECT_ID}.iam.gserviceaccount.com" >/dev/null 2>&1; then
     gcloud iam service-accounts create "$1" --display-name="$2"
@@ -45,11 +55,11 @@ create_sa() {
 create_sa yamon-api-runtime "やもんサイト API（Cloud Run で動く）"
 create_sa github-deployer "GitHub Actions（API のデプロイ）"
 # デプロイ用：Cloud Run の作成・更新と「誰でも呼べる」設定（--no-invoker-iam-check）、イメージの push、実行用アカウントの指定
-gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${DEPLOYER_SA}" \
+retry gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${DEPLOYER_SA}" \
   --role=roles/run.admin --condition=None >/dev/null
-gcloud artifacts repositories add-iam-policy-binding yamon --location="$REGION" \
+retry gcloud artifacts repositories add-iam-policy-binding yamon --location="$REGION" \
   --member="serviceAccount:${DEPLOYER_SA}" --role=roles/artifactregistry.writer >/dev/null
-gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
+retry gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
   --member="serviceAccount:${DEPLOYER_SA}" --role=roles/iam.serviceAccountUser >/dev/null
 
 echo "== 4. GitHub Actions からのログイン（Workload Identity 連携。鍵を作らない）"
@@ -64,7 +74,7 @@ if ! gcloud iam workload-identity-pools providers describe yamon-site --location
     --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
     --attribute-condition="assertion.sub == '${GITHUB_SUBJECT}'"
 fi
-gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER_SA" --role=roles/iam.workloadIdentityUser \
+retry gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER_SA" --role=roles/iam.workloadIdentityUser \
   --member="principal://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github/subject/${GITHUB_SUBJECT}" \
   >/dev/null
 
@@ -82,7 +92,7 @@ store_secret() {
     printf '%s' "$value" | gcloud secrets create "$name" --data-file=- \
       --replication-policy=user-managed --locations="$REGION" >/dev/null
   fi
-  gcloud secrets add-iam-policy-binding "$name" --member="serviceAccount:${RUNTIME_SA}" \
+  retry gcloud secrets add-iam-policy-binding "$name" --member="serviceAccount:${RUNTIME_SA}" \
     --role=roles/secretmanager.secretAccessor >/dev/null
   echo "  $name を登録しました"
 }
@@ -97,9 +107,12 @@ should_write() {
 ask_secret() {
   local name=$1 prompt=$2 value
   should_write "$name" || { echo "  $name はそのまま"; return; }
-  read -rsp "  ${prompt}（入力は表示されません）: " value
-  echo
-  if [ -z "$value" ]; then echo "  空なので $name を登録しませんでした"; return; fi
+  # Cloud Run が起動時に読むので、空のままにはしない（ないとデプロイが失敗する）
+  value=""
+  while [ -z "$value" ]; do
+    read -rsp "  ${prompt}（入力は表示されません）: " value
+    echo
+  done
   store_secret "$name" "$value"
 }
 generated=""
@@ -118,7 +131,7 @@ generate_secret yamon-proxy-secret
 generate_secret yamon-setup-token
 
 echo
-echo "== 完了。次を GitHub の Variables に登録する（docs/DEPLOY_API.md の手順5）"
+echo "== 完了。次を GitHub の Variables に登録する（docs/DEPLOY_API.md の手順6）"
 echo "  GCP_PROJECT_ID: ${PROJECT_ID}"
 echo "  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github/providers/yamon-site"
 echo "  GCP_SERVICE_ACCOUNT: ${DEPLOYER_SA}"

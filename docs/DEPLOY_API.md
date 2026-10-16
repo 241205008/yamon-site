@@ -37,22 +37,32 @@
 
 1. サークルの Gmail でログインし、[Google アカウントのセキュリティ](https://myaccount.google.com/security)で「2段階認証プロセス」を有効にする（電話番号か認証アプリを登録する）
 2. [アプリ パスワード](https://myaccount.google.com/apppasswords)を開き、名前（例：`yamon-site`）を入れて「作成」を押す
-3. 表示された16文字を控える（空白は入れずに使う）。この画面を閉じると二度と表示されない。手順3で Secret Manager に入れたら、控えたメモは消す
+3. 表示された16文字を控える（空白は入れずに使う）。この画面を閉じると二度と表示されない。手順4で Secret Manager に入れたら、控えたメモは消す
 
-> サークルの Gmail のパスワードを変えると、アプリパスワードは無効になり、メールが送れなくなります。そのときはアプリパスワードを作り直し、手順3のスクリプトで `yamon-smtp-pass` を上書きしてから、CI を main に対して再実行してください（引き継ぎ資料 #16）。
+> サークルの Gmail のパスワードを変えると、アプリパスワードは無効になり、メールが送れなくなります。そのときはアプリパスワードを作り直し、手順4のスクリプトで `yamon-smtp-pass` を上書きしてから、CI を main に対して再実行してください（引き継ぎ資料 #16）。
 
 ### 2. Neon：データベース
 
 1. [Neon](https://neon.com/) にサークルの Gmail で登録する（「Continue with Google」）。無料プラン（Free）のままにする
 2. プロジェクトを作る：名前 `yamon-site`、Postgres のバージョン **17**、リージョン **AWS Asia Pacific (Singapore)**
-3. ダッシュボードの「Connect」で、ブランチ `production`（または `main`）・データベース `neondb` を選び、**「Connection pooling」をオフ**にした接続文字列（`postgresql://...@ep-....ap-southeast-1.aws.neon.tech/neondb?sslmode=require`）を控える。手順3と手順4で使ったら、控えたメモは消す
+3. ダッシュボードの「Connect」で、ブランチ `production`（または `main`）・データベース `neondb` を選び、**「Connection pooling」をオフ**にした接続文字列（`postgresql://...@ep-....ap-southeast-1.aws.neon.tech/neondb?sslmode=require`）を控える。手順4と手順6で使ったら、控えたメモは消す
 
-### 3. Google Cloud：プロジェクト・カード・各サービス
+### 3. GitHub：地図データ更新用の token（D34）
+
+GitHub の「Settings」→「Developer settings」→「Fine-grained tokens」→「Generate new token」で作ります。
+
+- Repository access：Only select repositories → `241205008/yamon-site`
+- Permissions：Repository permissions の **Actions: Read and write** だけ（Metadata: Read は自動で付く）
+- 有効期限：選べる一番長い期間にし、切れる前に作り直す（切れると管理者画面の「地図データを更新」が失敗する。地図はそのまま表示される）
+
+token を控える。手順4で Secret Manager に入れたら、控えたメモは消す。作り直したときは、手順4のスクリプトをもう一度実行し、`yamon-github-map-data-token` だけを上書きする（ほかは「上書きしますか」に Enter）。
+
+### 4. Google Cloud：プロジェクト・カード・各サービス
 
 1. サークルの Gmail で [Google Cloud コンソール](https://console.cloud.google.com/)にログインし、利用規約に同意する
 2. プロジェクトを作る（名前 `yamon-site`）。プロジェクト ID（例：`yamon-site-123456`）を控える
 3. 「お支払い」で請求先アカウントを作り、開発者のクレジットカードを登録して、このプロジェクトにつなぐ（D21）。無料トライアルのクレジットの案内が出たら、そのまま進めてよい
-4. 右上の「Cloud Shell をアクティブにする」（`>_` のアイコン）を押し、次を順に実行する。途中で、手順1・2で控えた値と、地図データ更新用の token（手順6）を聞かれる。token がまだなければ空のまま Enter を押し、後でもう一度実行する
+4. 右上の「Cloud Shell をアクティブにする」（`>_` のアイコン）を押し、次を順に実行する。途中で、手順1〜3で控えた値を聞かれる（3つとも必須。Cloud Run が起動時に読むため）
 
    ```bash
    git clone https://github.com/241205008/yamon-site.git
@@ -62,9 +72,9 @@
    bash yamon-site/apps/api/deploy/setup-gcp.sh <プロジェクトID>
    ```
 
-5. 最後に表示される3つの値（`GCP_PROJECT_ID`・`GCP_WORKLOAD_IDENTITY_PROVIDER`・`GCP_SERVICE_ACCOUNT`）と、作った秘密の値（`yamon-proxy-secret`・`yamon-setup-token`）を控える。控えたら `clear` で画面を消す
+5. 最後に表示される3つの値（`GCP_PROJECT_ID`・`GCP_WORKLOAD_IDENTITY_PROVIDER`・`GCP_SERVICE_ACCOUNT`）と、作った秘密の値（`yamon-proxy-secret`・`yamon-setup-token`）を控える。控えたら `clear` で画面を消す。控え損ねたときは、Cloud Shell で `gcloud secrets versions access latest --secret=yamon-proxy-secret`（`yamon-setup-token` も同じ）で表示できる
 
-### 4. 予算アラート（月100円）
+### 5. 予算アラート（月100円）
 
 想定外の課金に気づけるよう、サークルの Gmail に通知を届けます。
 
@@ -76,7 +86,7 @@
    - 「通知を管理」で「Cloud Monitoring のメール通知チャネルをこの予算にリンクする」をオンにし、1で登録したチャネルを選ぶ
 3. 保存する。予算アラートは通知だけで、サービスは止まりません。届いたら「お支払い」→「レポート」で、何に課金されたかを確かめる
 
-### 5. GitHub：Variable・Secret・環境の保護
+### 6. GitHub：Variable・Secret・環境の保護
 
 ターミナルで次を実行し、聞かれたら値を貼り付けます（`gh` でログイン済みのこと）。
 
@@ -102,26 +112,16 @@ gh secret set DATABASE_URL --env production
 
 最後に、リポジトリの「Settings」→「Environments」→「production」で「Deployment branches and tags」を「Selected branches and tags」にし、`main` だけを追加する（Neon の接続文字列と Google Cloud へのログインを、main の CI だけに限る）。
 
-### 6. 地図データ更新用の token（D34）
-
-GitHub の「Settings」→「Developer settings」→「Fine-grained tokens」→「Generate new token」で作ります。
-
-- Repository access：Only select repositories → `241205008/yamon-site`
-- Permissions：Repository permissions の **Actions: Read and write** だけ（Metadata: Read は自動で付く）
-- 有効期限：選べる一番長い期間にし、切れる前に作り直す（切れると管理者画面の「地図データを更新」が失敗する。地図はそのまま表示される）
-
-作ったら、手順3のスクリプトをもう一度実行し、`yamon-github-map-data-token` だけを登録する（ほかは「上書きしますか」に Enter）。
-
 ### 7. 最初のデプロイ
 
 1. Actions 画面で CI を main に対して手動実行する（Run workflow）。`Deploy API (Cloud Run)` が Cloud Run のサービスを作る。Summary に Cloud Run の URL が出る
    - この1回目は、Worker の Secret がまだないので、最後の「Check API through Worker」が失敗する。2へ進む
 2. Cloudflare のダッシュボードで「Workers & Pages」→ `yamon-site` →「Settings」→「Variables and Secrets」→「Add」で、種類を **Secret** にして2つ登録する
    - `API_ORIGIN`：1の Cloud Run の URL（`https://yamon-api-....asia-southeast1.run.app`）
-   - `PROXY_SECRET`：手順3で表示された `yamon-proxy-secret` の値
+   - `PROXY_SECRET`：手順4で表示された `yamon-proxy-secret` の値
    - 「Previews」の設定（Base configuration）には登録しない（プレビューを本番の API につながないため、D45）
 3. Actions 画面で、1の実行を「Re-run all jobs」で再実行し、すべて成功することを確かめる
-4. https://yamon-site.yamonken.workers.dev/login を開くと、ユーザーが0人なので `/setup` に移る。手順3で表示された `yamon-setup-token` と、最初の管理者の名前・メールアドレス・パスワードを入れて登録する（D38）
+4. https://yamon-site.yamonken.workers.dev/login を開くと、ユーザーが0人なので `/setup` に移る。手順4で表示された `yamon-setup-token` と、最初の管理者の名前・メールアドレス・パスワードを入れて登録する（D38）
 5. 管理者画面から自分以外のアドレスに招待を送り、サークルの Gmail から招待メールが届くことを確かめる
 
 ## 確かめ方・困ったとき
@@ -132,4 +132,4 @@ GitHub の「Settings」→「Developer settings」→「Fine-grained tokens」�
 - **403 が Worker 経由でも出る**：Worker の `PROXY_SECRET` と Secret Manager の `yamon-proxy-secret` が違う。どちらかを合わせ、Secret Manager を変えたときは CI を再実行して Cloud Run に読み込ませる
 - **メールが届かない**：サークルの Gmail の「送信済み」と受信箱（不達のエラーメール）を見る。アプリパスワードが無効になっていれば、手順1で作り直して `yamon-smtp-pass` を上書きし、CI を再実行する
 - **秘密の値を変えたとき**：Secret Manager の値は、Cloud Run の新しいインスタンスが起動するときに読まれる。CI を main に対して再実行すると確実に切り替わる
-- **前の版に戻す**：Cloud Run の「リビジョン」で前のリビジョンにトラフィックを100%移す。マイグレーションは戻らないので、マイグレーションは前の版の API でも動く形（列の追加など）にしておく
+- **前の版に戻す**：Cloud Run の「リビジョン」で前のリビジョンにトラフィックを100%移す。イメージは新しい3つだけを残すので、戻せるのは2つ前のリビジョンまで。それより前に戻すときは、その commit で CI を実行し直す。マイグレーションは戻らないので、マイグレーションは前の版の API でも動く形（列の追加など）にしておく
