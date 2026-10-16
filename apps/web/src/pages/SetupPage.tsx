@@ -1,10 +1,10 @@
-import { MAX_NAME_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '@yamon/shared';
+import { MAX_NAME_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, type SetupStatus } from '@yamon/shared';
 import { ShieldCheck } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
-import { Navigate, useNavigate } from 'react-router';
+import { Navigate } from 'react-router';
 import { ErrorText, inputClass } from '../components/ui';
 import { ApiError } from '../lib/api';
-import { fetchSetupNeeded, setupFirstAdmin, useCurrentUser } from '../lib/auth';
+import { fetchSetupStatus, setupFirstAdmin, useCurrentUser } from '../lib/auth';
 
 const toMessage = (e: unknown) => (e instanceof ApiError ? e.message : '処理に失敗しました');
 
@@ -14,8 +14,7 @@ const toMessage = (e: unknown) => (e instanceof ApiError ? e.message : '処理�
  */
 export function SetupPage() {
   const user = useCurrentUser();
-  const navigate = useNavigate();
-  const [needed, setNeeded] = useState<boolean | null>(null);
+  const [status, setStatus] = useState<SetupStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [token, setToken] = useState('');
   const [name, setName] = useState('');
@@ -26,13 +25,14 @@ export function SetupPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    fetchSetupNeeded()
-      .then(setNeeded)
+    fetchSetupStatus()
+      .then(setStatus)
       .catch((e) => setLoadError(toMessage(e)));
   }, []);
 
-  if (user) return <Navigate to="/" replace />;
-  if (needed === false) return <Navigate to="/login" replace />;
+  // 登録に成功するとログインした状態になり、ここで管理者画面へ移る（続けて招待できる）
+  if (user) return <Navigate to="/admin" replace />;
+  if (status?.needed === false) return <Navigate to="/login" replace />;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -44,11 +44,10 @@ export function SetupPage() {
     setBusy(true);
     try {
       await setupFirstAdmin({ token, name, email, password });
-      navigate('/admin', { replace: true });
     } catch (err) {
       setError(toMessage(err));
       // 入力中に別の人がセットアップを済ませたときは、ログイン画面へ
-      if (err instanceof ApiError && err.code === 'setup_done') setNeeded(false);
+      if (err instanceof ApiError && err.code === 'setup_done') setStatus({ needed: false, available: true });
     } finally {
       setBusy(false);
     }
@@ -67,8 +66,12 @@ export function SetupPage() {
 
         {loadError ? (
           <ErrorText message={loadError} />
-        ) : needed === null ? (
+        ) : status === null ? (
           <p className="py-6 text-center text-sm text-gray-500">確認しています…</p>
+        ) : !status.available ? (
+          <p className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+            サーバーにセットアップ用トークン（SETUP_TOKEN）が設定されていないため、まだ登録できません。サイトを用意した人（デプロイした人）に確認してください。
+          </p>
         ) : (
           <>
             <p className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">

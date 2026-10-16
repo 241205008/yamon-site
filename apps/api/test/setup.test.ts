@@ -1,6 +1,7 @@
 import type { ApiErrorBody, MeResponse, SetupStatus } from '@yamon/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db/client';
+import { MAX_SETUP_ATTEMPTS } from '../src/routes/setup';
 import { callApi, cookieFrom, createUser, jsonHeaders, setupTestApp, type TestContext } from './helpers';
 
 const SETUP_TOKEN = 'test-setup-token-0123456789abcdef';
@@ -21,6 +22,8 @@ const input = (overrides: Record<string, string> = {}) => ({
 
 const status = async (c: TestContext) =>
   ((await (await callApi(c, undefined, 'GET', '/api/setup')).json()) as SetupStatus).needed;
+const available = async (c: TestContext) =>
+  ((await (await callApi(c, undefined, 'GET', '/api/setup')).json()) as SetupStatus).available;
 const errorCode = async (res: Response) => ((await res.json()) as ApiErrorBody).error.code;
 
 describe('初回セットアップ', () => {
@@ -72,8 +75,19 @@ describe('初回セットアップ', () => {
     expect(await ctx.db.select().from(schema.users)).toHaveLength(1);
   });
 
-  it('サーバーに SETUP_TOKEN がなければ 503（だれも管理者になれない）', async () => {
+  it(`トークンの試行は15分に${MAX_SETUP_ATTEMPTS}回まで。超えると正しいトークンでも 429`, async () => {
+    ctx = await setupTestApp({ setupToken: SETUP_TOKEN });
+    for (let i = 0; i < MAX_SETUP_ATTEMPTS; i++) {
+      expect((await callApi(ctx, undefined, 'POST', '/api/setup', input({ token: `wrong-${i}` }))).status).toBe(403);
+    }
+    const res = await callApi(ctx, undefined, 'POST', '/api/setup', input());
+    expect(res.status).toBe(429);
+    expect(await ctx.db.select().from(schema.users)).toHaveLength(0);
+  });
+
+  it('サーバーに SETUP_TOKEN がなければ 503（だれも管理者になれない）。状態にも出る', async () => {
     ctx = await setupTestApp();
+    expect(await available(ctx)).toBe(false);
     const res = await callApi(ctx, undefined, 'POST', '/api/setup', input());
     expect(res.status).toBe(503);
     expect(await errorCode(res)).toBe('setup_unavailable');

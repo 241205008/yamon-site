@@ -10,7 +10,7 @@ import {
   ROLE_LABELS,
   type InvitationInfo,
 } from '@yamon/shared';
-import { acceptInvitation, fetchSetupNeeded, login, logout, lookupInvitation, useCurrentUser } from '../lib/auth';
+import { acceptInvitation, fetchSetupStatus, login, logout, lookupInvitation, useCurrentUser } from '../lib/auth';
 
 const toMessage = (e: unknown) => (e instanceof ApiError ? e.message : '処理に失敗しました');
 
@@ -27,8 +27,8 @@ export function LoginPage() {
   // ユーザーが1人もいなければ、初回セットアップへ案内する（#4）
   useEffect(() => {
     if (user) return;
-    fetchSetupNeeded()
-      .then(setSetupNeeded)
+    fetchSetupStatus()
+      .then((s) => setSetupNeeded(s.needed))
       .catch(() => {});
   }, [user]);
 

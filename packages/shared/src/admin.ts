@@ -112,4 +112,6 @@ export type SetupInput = z.input<typeof setupInputSchema>;
 /** GET /api/setup：初回セットアップが必要か（ユーザーが1人もいないか） */
 export interface SetupStatus {
   needed: boolean;
+  /** サーバーにセットアップ用トークン（SETUP_TOKEN）が設定されているか。なければ登録できない */
+  available: boolean;
 }

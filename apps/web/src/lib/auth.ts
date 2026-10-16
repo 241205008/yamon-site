@@ -87,9 +87,9 @@ export async function acceptInvitation(input: InvitationAcceptInput): Promise<Se
   return user!;
 }
 
-/** 初回セットアップが必要か（ユーザーが1人もいないか） */
-export async function fetchSetupNeeded(): Promise<boolean> {
-  return (await apiFetch<SetupStatus>('/api/setup')).needed;
+/** 初回セットアップが必要か（ユーザーが1人もいないか）と、サーバーで登録できるか */
+export function fetchSetupStatus(): Promise<SetupStatus> {
+  return apiFetch<SetupStatus>('/api/setup');
 }
 
 /** 初回セットアップで最初の管理者を登録する。登録したらそのままログインした状態になる */
