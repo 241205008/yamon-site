@@ -102,7 +102,9 @@ apps/
     src/lib/          API の呼び出し・ログイン状態・TanStack Query
     src/components/   共通 UI、RecordForm、EventForm、地図ピッカーなど
     src/pages/        各画面
-    functions/        Cloudflare Pages Functions（/map/*：R2 の地図データを返す）
+    worker/           Cloudflare Workers の入口（/map/* を地図配信へ、それ以外は画面のファイル）
+    functions/map/    地図データの配信（R2 のファイルを Range 付きで返す。worker/ から呼ぶ）
+    wrangler.jsonc    Cloudflare Workers の設定
     map-data/         開発用の地図データ（Git に入れない）
   api/                バックエンド（@yamon/api）。Hono ＋ Drizzle ORM ＋ PostgreSQL
     src/app.ts        API の本体（ルートはここにつなぐ）
@@ -123,36 +125,39 @@ docs/
 
 ## デプロイ
 
-GitHub Actions（`.github/workflows/ci.yml`）で、型チェック・テスト・ビルドが通ったあとに Cloudflare Pages へデプロイします。理由と他の案は [docs/DECISIONS.md の D23](docs/DECISIONS.md) を参照してください。
+GitHub Actions（`.github/workflows/ci.yml`）で、型チェック・テスト・ビルドが通ったあとに Cloudflare Workers へデプロイします。画面のファイルは静的アセットとして配信し、`/map/*`（地図データ）だけ Worker を通します。理由と他の案は [docs/DECISIONS.md の D42・D23](docs/DECISIONS.md) を参照してください。
 
 | きっかけ | デプロイ先 |
 |---|---|
-| main への push（PR の Merge） | 本番 |
-| 同じリポジトリからの PR | プレビュー（`pr-<PR番号>.<project>.pages.dev`。URL は Actions の実行結果の Summary に出る） |
-| Actions 画面からの手動実行（Run workflow） | main なら本番、それ以外はプレビュー |
+| main への push（PR の Merge） | 本番（`https://yamon-site.<サブドメイン>.workers.dev`） |
+| 同じリポジトリからの PR | プレビュー（`https://pr-<PR番号>-yamon-site.<サブドメイン>.workers.dev`。本番は変わらない。URL は Actions の実行結果の Summary に出る） |
+| Actions 画面からの手動実行（Run workflow） | main なら本番、それ以外はプレビュー（`b-<Branch名>-yamon-site...`） |
 
 Secret が未設定の間は、デプロイだけ警告付きで省略されます（CI は失敗しません）。
 
 ### 初回の設定
 
-1. Cloudflare でプロジェクトを作る（初回のみ。名前を変える場合は手順3の変数も設定する）
+Cloudflare のアカウントは、サークルの Gmail で作ったものを使います（D21）。作業は、メンバーに招待した個人のアカウントで行って構いません。ただし、アカウントの API トークン（手順2）を作れるのは Super Administrator（または API Token Provisioning の権限を持つ人）だけです。
+
+1. **workers.dev のサブドメインを決める**（アカウントで1回だけ）：Cloudflare の画面の「Workers & Pages」を開き、案内に従ってサブドメインを登録する（「Account Settings」の「workers.dev subdomain」から変更もできる）。URL の `<サブドメイン>` の部分になる
+2. **API トークンを作る**：「Manage Account → Account API Tokens」（アカウントが持つトークン。メンバーを外しても使えなくならない）で「Create Token」→ テンプレート「Edit Cloudflare Workers」を選び、Account Resources をこのアカウントだけ、Zone Resources を「All zones from an account」（このアカウント）に絞る
+3. **GitHub に登録する**（実値はリポジトリ・Issue・PR に書かない）。ターミナルで次を実行し、聞かれたら値を貼り付ける
 
    ```bash
-   npx wrangler pages project create yamon-site --production-branch=main
+   gh secret set CLOUDFLARE_API_TOKEN
    ```
 
-2. Cloudflare の「My Profile → API Tokens」で、権限 `Account / Cloudflare Pages / Edit` だけの API トークンを作る
-3. GitHub の「Settings → Secrets and variables → Actions」に登録する（実値はリポジトリ・Issue・PR に書かない）
+   ```bash
+   gh secret set CLOUDFLARE_ACCOUNT_ID
+   ```
 
-   | 種類 | 名前 | 値 |
-   |---|---|---|
-   | Secret | `CLOUDFLARE_API_TOKEN` | 手順2のトークン |
-   | Secret | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare のアカウント ID |
-   | Variable（任意） | `CLOUDFLARE_PAGES_PROJECT` | Pages のプロジェクト名（省略時は `yamon-site`） |
+   アカウント ID は「Workers & Pages」の右側に表示されている
 
-4. Actions 画面で CI を手動実行し、本番 URL が開けることを確かめる
+4. **最初の本番デプロイ**：Actions 画面で CI を main に対して手動実行する（Worker はここで作られる。Worker がないうちは PR のプレビューが失敗するので、先に本番を1回出す）。Summary の URL を開き、画面が表示されることを確かめる
 
-SPA の直接アクセス（例：`/event-detail/xxx` の再読み込み）は、`404.html` がないと Pages が自動で `index.html` を返すため、追加の設定は不要です。
+地図データ（R2）の準備は [docs/MAP_DATA.md](docs/MAP_DATA.md) を参照してください。R2 のバケットができるまでは、`/map/*` が 503 を返し、背景の地図（Protomaps）だけが表示されません。
+
+画面のパス（例：`/event-detail/xxx`）を直接開いたり再読み込みしたりしたときは、`wrangler.jsonc` の `not_found_handling: "single-page-application"` により index.html が返ります。
 
 ## 開発の進め方
 

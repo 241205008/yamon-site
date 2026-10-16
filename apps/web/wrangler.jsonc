@@ -1,0 +1,21 @@
+// Cloudflare Workers の設定（画面と地図データの配信、D42）。デプロイは CI（.github/workflows/ci.yml）が行う
+{
+  "name": "yamon-site",
+  // CI のデプロイは node_modules なしで束ねる。worker/ と functions/map/ からは相対パスのファイルだけを import する
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  // PR ごとのプレビュー（pr-<番号>-yamon-site.<サブドメイン>.workers.dev）に使う
+  "preview_urls": true,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // 画面のパス（/event-detail/xxx など）を直接開いたり再読み込みしたりしたときは index.html を返す
+    "not_found_handling": "single-page-application",
+    // ここに書いたパスは、静的ファイルより先に必ず Worker を通す。静的ファイルに当たったリクエストは Worker を通らず、
+    // 無料枠のリクエスト数も使わない（どのファイルにも当たらないリクエストは Worker に来る）
+    "run_worker_first": ["/map/*"]
+  }
+  // R2 の地図データ（MAP_DATA）は、バケットを作ってから r2_buckets を足す（docs/MAP_DATA.md）。
+  // バケットがないまま書くとデプロイが失敗するため、それまでは /map/* が 503 を返す
+}

@@ -137,6 +137,8 @@ SPEC.md のコンポーネント構成・技術選定は参考扱いとし、変
 
 ## D15. フロントエンド：既存の React + Vite + TypeScript を流用し、Cloudflare Pages に置く
 
+> **一部置き換え済み**：ホスティングは Cloudflare Pages から Cloudflare Workers（静的アセット）に変えた（D42、2026-10-16）。React + Vite + TypeScript の流用はそのまま。
+
 - **採用理由**：7画面はデザインどおりに作ってあり、動作も確認済み。書き直すとデザインの再現と動作確認をやり直すことになる。変えるのはデータの取得・保存だけで、`src/lib/store.ts` の中身を API 呼び出しに差し替える。サーバーとの通信状態（読み込み中・エラー・再取得）の管理には TanStack Query を足す。
 - **ホスティング**：Cloudflare Pages。静的ファイルの配信は無料・無制限で、商用利用の制限もない。`/api/*` へのアクセスは Pages Functions で Cloud Run へ転送する。こうするとブラウザから見て画面と API が同じドメインになり、ログイン用の Cookie が Safari などの「サードパーティ Cookie のブロック」に引っかからない。
 - **比較した案**
@@ -254,6 +256,8 @@ packages/shared  入力チェック（zod）・型・固定マスター（カテ
 - **再検討する条件**：サークルの予算で独自ドメインを持てるようになったとき、メールの不達が問題になったとき、Google がアプリパスワードでの送信を制限したとき。
 
 ## D23. CI/CD：GitHub Actions の1つのワークフローで、検査に通ったビルドを Cloudflare Pages へデプロイする
+
+> **一部置き換え済み**：デプロイ先を Cloudflare Workers に変え、`wrangler pages deploy` を `wrangler deploy`（本番）と `wrangler versions upload --preview-alias`（プレビュー）に置き換えた（D42、2026-10-16）。検査に通ったビルドだけを出す仕組みはそのまま。
 
 - **決定（2026-10-13）**：`.github/workflows/ci.yml` に、これまでの検査（型チェック・テスト・ビルド）と、その後に動くデプロイのジョブを置く。
   - main への push（＝PR の Squash Merge）で本番へ、同じリポジトリからの PR ではプレビュー（`pr-<PR番号>.<project>.pages.dev`。head の Branch 名を使わないので、head が `main` の PR でも本番に出ない）へデプロイする。
@@ -643,3 +647,27 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - 再設定したら、そのままログインした状態にする：手順が1つ減るが、上の理由で採らない。
   - 送りすぎの制限を IP アドレスごとにする：D33 と同じ理由（Pages Functions を通るため、本当の IP アドレスの扱いが増える）で、アドレスごとにした。
 - **注意**：登録されているアドレスでは、メールを送る分だけ応答が遅くなる（Gmail の SMTP で1秒前後）。応答時間を測れば登録の有無が推測できる。送信を応答の後に回すと、Cloud Run が応答の後に CPU を絞るため、メールが送られないおそれがある。約100人の招待制では、確実に送る方を優先した。
+
+## D42. 配信先：Cloudflare Pages ではなく Cloudflare Workers（静的アセット）に置く
+
+- **背景（2026-10-16、#28・#52）**：本番の Pages のプロジェクトを作ろうとしたところ、最新の wrangler（4.151）は `wrangler pages project create` を「Workers の一部になった新しい Pages」へ回し、従来の Pages を作らなかった（`--force` を付ければ従来の Pages を作れる）。Cloudflare の Pages のドキュメントにも「新しいプロジェクトは Workers で始める」とあり、Workers を主な基盤と位置づけている。Pages の廃止日は書かれていない。
+- **採用（2026-10-16 ユーザーの決定、案B）**：画面のファイル（`apps/web/dist`）を Workers の静的アセットとして配信し、`/map/*` だけを Worker（`apps/web/worker/index.ts`）に通して R2 の地図データを返す。
+  - 設定は `apps/web/wrangler.jsonc`。`not_found_handling: "single-page-application"` で画面のパスの直接アクセスに index.html を返し、`run_worker_first: ["/map/*"]` で Worker を通すパスを限る。
+  - CI は main で `wrangler deploy`（本番）、PR で `wrangler versions upload --preview-alias pr-<番号>`（本番を変えずに版だけ上げる）。URL は `yamon-site.<サブドメイン>.workers.dev` と `pr-<番号>-yamon-site.<サブドメイン>.workers.dev`。
+  - 地図配信の中身（`functions/map/` の `serveMapData`・`servePointer`）はそのまま使い、Worker の入口から呼ぶ。場所の移動は #25 に任せる。
+  - R2 のバインディング（`MAP_DATA`）は `wrangler.jsonc` の `r2_buckets` に書く。バケットを作るまでは書かない（書くとデプロイが失敗する）。その間 `/map/*` は今までどおり 503 を返す。
+- **採用理由**
+  - 10年以上の運用が前提（MVP）。Cloudflare が新規には勧めず、wrangler も新しい仕組みへ回し始めた Pages で始めると、近いうちに移行が要る可能性が高い。画面が7つ・地図配信が1ファイルの今なら、移す手間が一番小さい。
+  - 費用は変わらない。静的アセットの配信は無料・無制限で、Worker を通る `/map/*`（今後は `/api/*` も）と、どの静的ファイルにも当たらないリクエストだけが Workers の無料枠（1日10万リクエスト）を使う。Pages Functions と同じ枠の使い方になる。
+  - 設定（R2 のバインディングなど）が `wrangler.jsonc` としてリポジトリに残る。Pages では画面で設定する必要があり、引き継ぎ（D21）のときに設定の漏れが起きやすかった。
+  - 本番は `wrangler deploy` の1回で切り替わり、前の版へ戻すのも Cloudflare の画面（Deployments）から1操作でできる。
+- **比較した案**
+  - 従来の Pages で作る（`--force`）：今日すぐ作れ、ci.yml・README・地図配信をそのまま使える。ただし Cloudflare が新規では勧めておらず、wrangler の既定の動きからも外れた。いずれ移行が必要になる見込みが高く、運用が長いほど移行の手間とリスクが増える。
+  - 新しい Pages（wrangler が回した先）を使う：中身は Workers と同じ仕組みで、作るには静的ファイルの場所などを決める必要がある。Pages の名前が付いていても設定は Workers の形になるため、最初から Workers として設定する方が分かりやすい。
+  - Vercel / Netlify：D15 のとおり、規約（非商用）や無料枠の上限があり不採用のまま。
+- **変わったこと**
+  - URL が `○○.pages.dev` から `yamon-site.<サブドメイン>.workers.dev` になる（D22 の「`○○.pages.dev` を使う」を読み替える）。サブドメインは Cloudflare のアカウントで1回だけ決める。
+  - API トークンの権限は `Cloudflare Pages: Edit` から、Workers のデプロイ用（「Edit Cloudflare Workers」のテンプレート）に変わる。
+  - `/api/*` を Cloud Run へ転送する仕組み（D15）は、Pages Functions ではなく、この Worker に `/api/*` を足して作る（#14）。`run_worker_first` に `/api/*` を加える。
+  - PR のプレビュー（`versions upload` の版）は、本番と同じバインディング・設定で動く。Pages のプレビュー環境のように別の設定を持たない。今は R2 も API もつないでいないので問題ないが、#14 で `/api/*` の転送や R2 を足すと、PR のコードが本番の API・R2 につながった公開 URL で動く。#14 で、プレビューの扱い（Cloudflare Access で守る、プレビューでは転送しない など）を決める。
+- **再検討する条件**：Workers の無料枠（1日10万リクエスト）に近づいたとき。そのときは、地図データを独自ドメインの R2 から直接配信する（D29 の比較案）か、Workers Paid（月$5）を検討する。
