@@ -39,3 +39,17 @@ export interface SessionUser {
 export interface MeResponse {
   user: SessionUser | null;
 }
+
+/** パスワード再設定のリンクの有効期限（MVP 2章「ログイン」） */
+export const PASSWORD_RESET_TTL_MINUTES = 60;
+
+/** 再設定メールを送ってもらう（POST /api/password-reset/request） */
+export const passwordResetRequestSchema = z.object({ email: emailSchema });
+export type PasswordResetRequestInput = z.input<typeof passwordResetRequestSchema>;
+
+/** 再設定リンクのトークンで新しいパスワードを決める（POST /api/password-reset/confirm） */
+export const passwordResetConfirmSchema = z.object({
+  token: z.string().trim().min(1, '再設定のリンクが正しくありません').max(200),
+  password: newPasswordSchema,
+});
+export type PasswordResetConfirmInput = z.input<typeof passwordResetConfirmSchema>;
