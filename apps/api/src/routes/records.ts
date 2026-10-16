@@ -16,7 +16,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { z } from 'zod';
 import { assertCanActOn, requirePermission, type AuthedEnv } from '../auth/middleware';
 import { schema, type Db } from '../db/client';
-import { findMainLocation, notFound, selectRecords, toRecordView } from '../observations/view';
+import { findMainLocation, isForeignKeyViolation, notFound, selectRecords, toRecordView } from '../observations/view';
 import { validate } from '../validator';
 
 const { observationRecords: r, creatures, events } = schema;
@@ -180,10 +180,19 @@ export const recordRoutes = new Hono<AuthedEnv>()
     const db = c.get('db');
     const input = c.req.valid('json');
     const values = await buildRecordValues(db, input);
-    const [created] = await db
-      .insert(r)
-      .values({ ...values, eventId: input.eventId, userId: c.get('user').id })
-      .returning({ id: r.id });
+    let created: { id: string };
+    try {
+      [created] = await db
+        .insert(r)
+        .values({ ...values, eventId: input.eventId, userId: c.get('user').id })
+        .returning({ id: r.id });
+    } catch (err) {
+      // 確かめた後に、観察会や生き物が削除されていた（外部キーで止まる）
+      if (isForeignKeyViolation(err)) {
+        throw new HTTPException(400, { message: '観察会または生き物が削除されたため保存できませんでした。画面を読み込み直してください' });
+      }
+      throw err;
+    }
     return c.json(await readRecord(db, created.id, c.get('user')), 201);
   })
   /** 自分の記録だけ。記録の観察会は変えない（入力の eventId は無視する） */

@@ -1,7 +1,8 @@
-import { eventInputSchema, type EventListResponse, type EventView } from '@yamon/shared';
+import { eventInputSchema, type EventListResponse, type EventView, type SessionUser } from '@yamon/shared';
+import type { z } from 'zod';
 import { asc, count, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { requirePermission, type AuthedEnv } from '../auth/middleware';
+import { assertCanActOn, requirePermission, type AuthedEnv } from '../auth/middleware';
 import { schema, type Db } from '../db/client';
 import { findMainLocation, notFound } from '../observations/view';
 import { validate } from '../validator';
@@ -61,6 +62,34 @@ async function listEvents(db: Db, id?: string): Promise<EventView[]> {
   });
 }
 
+/** 観察会の入力を DB に入れる値にする。「使わない」主な場所は新しく選べない（編集で場所を変えないときはそのまま残せる） */
+async function buildEventValues(
+  db: Db,
+  input: z.output<typeof eventInputSchema>,
+  current?: { mainLocationId: string | null },
+) {
+  const loc = input.mainLocationId
+    ? await findMainLocation(db, input.mainLocationId, { activeOnly: current?.mainLocationId !== input.mainLocationId })
+    : null;
+  return {
+    name: input.name,
+    mainLocationId: loc?.id ?? null,
+    locationName: loc?.name ?? input.otherLocationName,
+    lat: input.lat ?? loc?.lat ?? null,
+    lng: input.lng ?? loc?.lng ?? null,
+    date: input.date,
+    time: input.time,
+  };
+}
+
+/** 編集・削除の対象を読み、作った本人か管理者か確かめる（MVP 2章） */
+async function findEditableEvent(db: Db, user: SessionUser, id: string) {
+  const [event] = await db.select().from(events).where(eq(events.id, id)).limit(1);
+  if (!event) throw notFound('観察会');
+  assertCanActOn(user, event.createdBy, 'events.editOwn', 'events.editAny');
+  return event;
+}
+
 export const eventRoutes = new Hono<AuthedEnv>()
   /** 観察会一覧と、観察会一覧の画面の統計 */
   .get('/', requirePermission('records.view'), async (c) => {
@@ -83,21 +112,33 @@ export const eventRoutes = new Hono<AuthedEnv>()
   })
   .post('/', requirePermission('events.create'), validate('json', eventInputSchema), async (c) => {
     const db = c.get('db');
-    const input = c.req.valid('json');
-    const loc = input.mainLocationId ? await findMainLocation(db, input.mainLocationId, { activeOnly: true }) : null;
+    const values = await buildEventValues(db, c.req.valid('json'));
     const [created] = await db
       .insert(events)
-      .values({
-        name: input.name,
-        mainLocationId: loc?.id ?? null,
-        locationName: loc?.name ?? input.otherLocationName,
-        lat: input.lat ?? loc?.lat ?? null,
-        lng: input.lng ?? loc?.lng ?? null,
-        date: input.date,
-        time: input.time,
-        createdBy: c.get('user').id,
-      })
+      .values({ ...values, createdBy: c.get('user').id })
       .returning({ id: events.id });
     const [event] = await listEvents(db, created.id);
     return c.json(event, 201);
+  })
+  /**
+   * 観察会の名前・場所・日時を直す（#7）。作った本人と管理者だけ。
+   * 紐づく記録の日付や場所は変えない（記録はそれぞれの観察の事実なので）
+   */
+  .put('/:id{[0-9a-f-]{36}}', requirePermission('events.editOwn'), validate('json', eventInputSchema), async (c) => {
+    const db = c.get('db');
+    const current = await findEditableEvent(db, c.get('user'), c.req.param('id'));
+    const values = await buildEventValues(db, c.req.valid('json'), current);
+    await db.update(events).set(values).where(eq(events.id, current.id));
+    const [event] = await listEvents(db, current.id);
+    return c.json(event);
+  })
+  /**
+   * 観察会を削除する（#7、D40）。紐づく記録は消さず、観察会との紐づけだけを外して「観察会なし」の記録として残す
+   * （DB の外部キーの ON DELETE SET NULL で外れる）
+   */
+  .delete('/:id{[0-9a-f-]{36}}', requirePermission('events.editOwn'), async (c) => {
+    const db = c.get('db');
+    const current = await findEditableEvent(db, c.get('user'), c.req.param('id'));
+    await db.delete(events).where(eq(events.id, current.id));
+    return c.body(null, 204);
   });

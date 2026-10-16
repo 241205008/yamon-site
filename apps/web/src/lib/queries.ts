@@ -167,6 +167,32 @@ export const useDeleteMainLocation = () =>
 export const useCreateEvent = () =>
   useObsMutation((input: EventInput) => apiFetch<EventView>('/api/events', { method: 'POST', body: input }));
 
+export const useUpdateEvent = () =>
+  useObsMutation(({ id, input }: { id: string; input: EventInput }) =>
+    apiFetch<EventView>(`/api/events/${id}`, { method: 'PUT', body: input }),
+  );
+
+/**
+ * 削除した観察会の詳細と、その観察会の記録一覧は読み直さない（開いている画面が 404・空の一覧を一瞬出すだけなので）。
+ * 紐づいていた記録は「観察会なし」で残る
+ */
+export function useDeleteEvent() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<void>(`/api/events/${id}`, { method: 'DELETE' }),
+    onSuccess: (_, id) =>
+      client.invalidateQueries({
+        queryKey: [OBS],
+        predicate: (q) => {
+          const [, kind, arg] = q.queryKey as [string, string, unknown];
+          if (kind === 'events' && arg === id) return false;
+          if (kind === 'records' && (arg as { eventId?: string | null } | undefined)?.eventId === id) return false;
+          return true;
+        },
+      }),
+  });
+}
+
 /** 画面に出すエラーの文。API のエラーはそのまま、それ以外は fallback */
 export function errorMessage(error: unknown, fallback = '処理に失敗しました'): string {
   return error instanceof ApiError ? error.message : fallback;
