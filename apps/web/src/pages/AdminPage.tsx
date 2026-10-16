@@ -15,6 +15,7 @@ import {
 } from '@yamon/shared';
 import { CheckCircle2, Clock, History, Mail, RotateCw, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { MapDataPanel } from '../components/MapDataPanel';
 import { BackBar, Card, ErrorText, inputClass, Modal, PageBackground, StatCard } from '../components/ui';
 import {
   changeRole,
@@ -66,6 +67,7 @@ function useAdminData() {
 }
 
 export function AdminPage() {
+  const me = useCurrentUser();
   const { data, loadError, reload } = useAdminData();
 
   return (
@@ -103,6 +105,9 @@ export function AdminPage() {
             </div>
           </>
         )}
+
+        {/* 地図データの更新は管理者だけ（API でも同じ権限を確かめる、D34） */}
+        {me && can(me.role, 'mapData.update') && <MapDataPanel />}
       </main>
     </PageBackground>
   );

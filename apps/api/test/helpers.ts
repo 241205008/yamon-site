@@ -1,5 +1,5 @@
 import type { Role } from '@yamon/shared';
-import { createApp } from '../src/app';
+import { createApp, type AppDeps } from '../src/app';
 import { hashPassword } from '../src/auth/password';
 import { connectPglite, schema, type Db } from '../src/db/client';
 import { createMemoryMailer } from '../src/mail';
@@ -8,12 +8,12 @@ export const TEST_APP_URL = 'https://yamon.example.test';
 
 /**
  * メモリ上の PGlite にマイグレーションを流した DB と、それを使う API を作る。
- * メールは送らずに sent にためる
+ * メールは送らずに sent にためる（deps.mailer を渡したときはそちらを使う）
  */
-export async function setupTestApp() {
+export async function setupTestApp(deps: Omit<AppDeps, 'db'> = {}) {
   const handle = await connectPglite();
   const { mailer, sent } = createMemoryMailer();
-  const app = createApp({ db: handle.db, mailer, appUrl: TEST_APP_URL });
+  const app = createApp({ db: handle.db, mailer, appUrl: TEST_APP_URL, ...deps });
   return { app, db: handle.db, close: handle.close, sent };
 }
 
