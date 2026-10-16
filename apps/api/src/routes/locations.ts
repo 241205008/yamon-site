@@ -7,7 +7,7 @@ import { schema, type Db } from '../db/client';
 import { isForeignKeyViolation, notFound } from '../observations/view';
 import { validate } from '../validator';
 
-const { mainLocations, observationRecords: r, creatures, events } = schema;
+const { mainLocations, observationRecords: r, creatures } = schema;
 
 /** 主な場所の一覧（記録の件数つき）。id を渡すとその1件だけ */
 async function listMainLocations(db: Db, id?: string): Promise<MainLocationView[]> {
@@ -18,12 +18,13 @@ async function listMainLocations(db: Db, id?: string): Promise<MainLocationView[
       lat: mainLocations.lat,
       lng: mainLocations.lng,
       isActive: mainLocations.isActive,
-      recordCount: count(r.id),
+      // 場所ごとに索引（main_location_id）で数える。記録の表全体を集計しない（選択肢を出す画面でも毎回呼ぶため）
+      // drizzle は1つの表だけの select では列名に表名を付けないので、サブクエリの中では表名を書いて区別する
+      recordCount: sql<number>`(select count(*) from "observation_records" r where r."main_location_id" = "main_locations"."id")`.mapWith(Number),
+      eventCount: sql<number>`(select count(*) from "events" e where e."main_location_id" = "main_locations"."id")`.mapWith(Number),
     })
     .from(mainLocations)
-    .leftJoin(r, eq(r.mainLocationId, mainLocations.id))
     .where(id ? eq(mainLocations.id, id) : undefined)
-    .groupBy(mainLocations.id)
     .orderBy(asc(mainLocations.sortOrder), asc(mainLocations.createdAt));
 }
 
@@ -61,7 +62,7 @@ export const mainLocationRoutes = new Hono<AuthedEnv>()
       .from(mainLocations);
     const [created] = await db
       .insert(mainLocations)
-      .values({ ...input, sortOrder: Number(next) })
+      .values({ ...input, isActive: input.isActive ?? true, sortOrder: Number(next) })
       .returning({ id: mainLocations.id });
     return c.json(await readMainLocation(db, created.id), 201);
   })
@@ -79,8 +80,7 @@ export const mainLocationRoutes = new Hono<AuthedEnv>()
   .delete('/:id{[0-9a-f-]{36}}', requirePermission('mainLocations.manage'), async (c) => {
     const db = c.get('db');
     const loc = await readMainLocation(db, c.req.param('id'));
-    const [{ eventCount }] = await db.select({ eventCount: count() }).from(events).where(eq(events.mainLocationId, loc.id));
-    if (loc.recordCount > 0 || eventCount > 0) throw new HTTPException(409, { message: IN_USE_MESSAGE });
+    if (loc.recordCount > 0 || loc.eventCount > 0) throw new HTTPException(409, { message: IN_USE_MESSAGE });
     try {
       await db.delete(mainLocations).where(eq(mainLocations.id, loc.id));
     } catch (err) {

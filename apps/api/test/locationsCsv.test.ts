@@ -13,6 +13,17 @@ describe('主な場所の CSV', () => {
     });
   });
 
+  it('コメントや空行の後の見出し行も飛ばす', () => {
+    const { locations, errors } = parseLocationsCsv('# 幹部から\n\nname,lat,lng\n池,35.1,136.9');
+    expect(errors).toEqual([]);
+    expect(locations).toEqual([{ name: '池', lat: 35.1, lng: 136.9 }]);
+  });
+
+  it('数値でない座標は日本語で理由を返す', () => {
+    const { errors } = parseLocationsCsv('池,35.1,136.9\n森,北緯35,136.9');
+    expect(errors).toEqual([{ line: 2, message: '緯度・経度は数値（例 35.1205）で書いてください' }]);
+  });
+
   it('4県の範囲外・数値でない座標・重複・項目の多すぎを行番号つきで返す', () => {
     const csv = ['東京駅,35.68,139.76', '池,abc,136.9', '池2,35.1,136.9', '池2,35.1,136.9', '森,35.1,136.9,余分'].join('\n');
     const { locations, errors } = parseLocationsCsv(csv);

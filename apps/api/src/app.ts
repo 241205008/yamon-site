@@ -4,8 +4,11 @@ import { HTTPException } from 'hono/http-exception';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import type { Db } from './db/client';
+import { consoleMailer, type Mailer } from './mail';
 import { errorBody, handleError } from './errors';
+import { adminRoutes } from './routes/admin';
 import { authRoutes } from './routes/auth';
+import { invitationRoutes } from './routes/invitations';
 import { creatureRoutes } from './routes/creatures';
 import { eventRoutes } from './routes/events';
 import { mainLocationRoutes, statsRoutes } from './routes/locations';
@@ -15,6 +18,9 @@ import { mapDataRoutes, type MapDataDeps } from './mapData/routes';
 export interface AppEnv {
   Variables: {
     db: Db;
+    mailer: Mailer;
+    /** メールに入れるリンクの起点（例 https://yamon.pages.dev）。なければリクエストの Origin を使う */
+    appUrl: string | undefined;
     /** セッションの Cookie に Secure を付けるか */
     cookieSecure: boolean;
     /** ログイン中のユーザー。まだ調べていなければ undefined、未ログインなら null（auth/middleware.ts） */
@@ -31,6 +37,10 @@ export interface AppDeps {
    * 開発（http://localhost）では付けない（Safari は localhost でも Secure の Cookie を送らない）
    */
   cookieSecure?: boolean;
+  /** メールの送り方（mail.ts）。既定は送らずにログに出す */
+  mailer?: Mailer;
+  /** メールに入れるリンクの起点（環境変数 APP_URL） */
+  appUrl?: string;
   /** 地図データの更新（D34）。GitHub の鍵と権限チェック。なければ 503 / 403 を返す */
   mapData?: MapDataDeps;
 }
@@ -42,7 +52,14 @@ const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
  * API のアプリ本体。DB は外から渡す（本番は Neon、テストとローカルは PGlite）。
  * 各機能のルートは、この関数の中で app.route() でつなぐ。
  */
-export function createApp({ db, log = false, cookieSecure = true, mapData = {} }: AppDeps) {
+export function createApp({
+  db,
+  log = false,
+  cookieSecure = true,
+  mailer = consoleMailer,
+  appUrl,
+  mapData = {},
+}: AppDeps) {
   const app = new Hono<AppEnv>().basePath('/api');
 
   if (log) app.use(logger());
@@ -50,6 +67,8 @@ export function createApp({ db, log = false, cookieSecure = true, mapData = {} }
   app.use(async (c, next) => {
     c.set('db', db);
     c.set('cookieSecure', cookieSecure);
+    c.set('mailer', mailer);
+    c.set('appUrl', appUrl);
     await next();
   });
   // CSRF 対策（D33）：Cookie は SameSite=Lax だが、さらに状態を変えるリクエストは Content-Type: application/json に限る。
@@ -73,7 +92,10 @@ export function createApp({ db, log = false, cookieSecure = true, mapData = {} }
   app.route('/records', recordRoutes);
   app.route('/main-locations', mainLocationRoutes);
   app.route('/stats', statsRoutes);
+  app.route('/invitations', invitationRoutes);
+  // /admin/map-data を先につなぐ（後の /admin の users.manage のチェックより先に、地図データの権限で判定する）
   app.route('/admin/map-data', mapDataRoutes(mapData));
+  app.route('/admin', adminRoutes);
 
   app.notFound((c) => c.json(errorBody('not_found', '見つかりません'), 404));
   app.onError(handleError);

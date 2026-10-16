@@ -144,6 +144,16 @@ describe('名前の変更と「使わない」', () => {
     const stats = await call<{ locations: { mainLocationId: string }[] }>('GET', '/stats/locations', 'member');
     expect(stats.body.locations.some((l) => l.mainLocationId === place.id)).toBe(true);
   });
+
+  it('編集で isActive を省くと、今の状態のまま（「使わない」が勝手に戻らない）', async () => {
+    const place = await newPlace({ isActive: false });
+    const res = await call<MainLocationView>('PUT', `/main-locations/${place.id}`, 'admin', {
+      name: `${place.name}改`,
+      lat: place.lat,
+      lng: place.lng,
+    });
+    expect(res.body).toMatchObject({ name: `${place.name}改`, isActive: false });
+  });
 });
 
 describe('削除', () => {
@@ -167,6 +177,7 @@ describe('削除', () => {
       date: '2026-07-02',
       time: '10:00',
     });
+    expect((await list()).find((l) => l.id === withEvent.id)).toMatchObject({ recordCount: 0, eventCount: 1 });
     expect((await call('DELETE', `/main-locations/${withEvent.id}`, 'admin')).status).toBe(409);
   });
 });

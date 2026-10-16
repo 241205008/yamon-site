@@ -41,27 +41,33 @@ function splitCsvLine(line: string): string[] {
   return fields.map((f) => f.trim());
 }
 
+const isNumber = (v: string) => v !== '' && Number.isFinite(Number(v));
+
 /**
- * 主な場所の一覧（CSV：名前,緯度,経度）を読む。1行目が見出し（数値でない緯度）なら飛ばす。
+ * 主な場所の一覧（CSV：名前,緯度,経度）を読む。最初の行が見出し（数値でない緯度）なら飛ばす。
  * 各行は API と同じ入力チェック（4県の範囲内など）を通す
  */
 export function parseLocationsCsv(text: string): CsvResult {
   const result: CsvResult = { locations: [], errors: [] };
   const lines = text.replace(/^﻿/, '').split(/\r?\n/);
+  let first = true;
   lines.forEach((raw, index) => {
     const line = index + 1;
     if (!raw.trim() || raw.trim().startsWith('#')) return;
     const [name = '', lat = '', lng = '', ...rest] = splitCsvLine(raw);
-    if (index === 0 && Number.isNaN(Number(lat))) return; // 見出し行
+    // 空行・# の行を除いた最初の行は、緯度が数値でなければ見出しとして飛ばす
+    const isHeader = first && !isNumber(lat);
+    first = false;
+    if (isHeader) return;
     if (rest.some((f) => f !== '')) {
       result.errors.push({ line, message: '項目が多すぎます（名前,緯度,経度 の3つにしてください）' });
       return;
     }
-    const parsed = mainLocationInputSchema.safeParse({
-      name,
-      lat: lat === '' ? NaN : Number(lat),
-      lng: lng === '' ? NaN : Number(lng),
-    });
+    if (!isNumber(lat) || !isNumber(lng)) {
+      result.errors.push({ line, message: '緯度・経度は数値（例 35.1205）で書いてください' });
+      return;
+    }
+    const parsed = mainLocationInputSchema.safeParse({ name, lat: Number(lat), lng: Number(lng) });
     if (!parsed.success) {
       result.errors.push({ line, message: parsed.error.issues.map((i) => i.message).join('、') });
       return;

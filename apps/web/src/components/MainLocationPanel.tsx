@@ -81,7 +81,9 @@ export function MainLocationPanel() {
                     {!l.isActive && (
                       <span className="rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600">使わない</span>
                     )}
-                    <span className="text-xs text-gray-500">記録 {l.recordCount}件</span>
+                    <span className="text-xs text-gray-500">
+                      記録 {l.recordCount}件・観察会 {l.eventCount}件
+                    </span>
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
                     座標: {l.lat.toFixed(4)}, {l.lng.toFixed(4)}
@@ -103,7 +105,7 @@ export function MainLocationPanel() {
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
-                {l.recordCount === 0 && (
+                {l.recordCount === 0 && l.eventCount === 0 && (
                   <button
                     type="button"
                     onClick={() => void del(l)}

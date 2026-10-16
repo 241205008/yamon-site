@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { createApp } from './app';
 import { requirePermission } from './auth/middleware';
 import { connectPglite, connectPostgres, type DbHandle } from './db/client';
+import { mailerFromEnv } from './mail';
 import { createGitHubWorkflow } from './mapData/github';
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -36,10 +37,15 @@ const mapDataWorkflow = mapDataToken
   : undefined;
 
 // 開発（http://localhost）では Cookie に Secure を付けない
+if (isProduction && !process.env.APP_URL) {
+  console.warn('APP_URL がないため、メールのリンクは画面からのリクエストの Origin から作ります（本番では APP_URL を設定してください）');
+}
 const app = createApp({
   db: handle.db,
   log: true,
   cookieSecure: isProduction,
+  mailer: await mailerFromEnv(process.env, isProduction),
+  appUrl: process.env.APP_URL,
   mapData: { workflow: mapDataWorkflow, authorize: requirePermission('mapData.update') },
 });
 

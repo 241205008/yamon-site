@@ -64,8 +64,8 @@ export const mainLocationInputSchema = z.object({
   name: z.string().trim().min(1, '場所の名前を入力してください').max(50),
   lat: latSchema,
   lng: lngSchema,
-  /** false にすると「使わない」場所になり、選択肢から外れる */
-  isActive: z.boolean().default(true),
+  /** false にすると「使わない」場所になり、選択肢から外れる。省くと、追加では true、編集では今のまま */
+  isActive: z.boolean().optional(),
 });
 export type MainLocationInput = z.input<typeof mainLocationInputSchema>;
 
@@ -128,8 +128,10 @@ export interface MainLocationView {
   lng: number;
   /** false なら「使わない」場所。選択肢には出さず、過去の記録の表示には残す（D27） */
   isActive: boolean;
-  /** この場所の記録の件数（記録がある場所は削除できない、D27） */
+  /** この場所の記録の件数 */
   recordCount: number;
+  /** この場所の観察会の件数（記録か観察会がある場所は削除できない、D37） */
+  eventCount: number;
 }
 
 export interface RecordView {

@@ -1,13 +1,12 @@
-import { Calendar, Database as DbIcon, List, LogOut, Map as MapIcon, MapPin, Pencil, Shield, Undo2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Calendar, Database as DbIcon, List, LogOut, Map as MapIcon, MapPin, Pencil, Shield } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { CreatureManager } from '../components/CreatureManager';
 import { EventForm } from '../components/EventForm';
 import { RecordCard } from '../components/RecordCard';
 import { RecordForm } from '../components/RecordForm';
 import { ErrorText, PageBackground, QueryState, firstUnready } from '../components/ui';
-import { canRevertTransfer, revertTransfer, StoreError, useDb } from '../lib/store';
-import { can, formatRemaining, type RecordView } from '@yamon/shared';
+import { can, type RecordView } from '@yamon/shared';
 import { logout, useCurrentUser } from '../lib/auth';
 import {
   errorMessage,
@@ -119,7 +118,6 @@ export function MainPage() {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-6 px-4 py-8">
-        <RevertTransferBanner userId={user.id} />
 
         {!canCreateEvent ? null : !showEventForm ? (
           <button
@@ -207,47 +205,5 @@ export function MainPage() {
         </section>
       </main>
     </PageBackground>
-  );
-}
-
-/** 管理者権限を移譲した本人に、取り消し期限まで表示するバナー */
-function RevertTransferBanner({ userId }: { userId: string }) {
-  const db = useDb();
-  const [now, setNow] = useState(Date.now());
-  const [error, setError] = useState<string | null>(null);
-  const transfer = db.transfers.find((t) => t.fromUserId === userId && canRevertTransfer(t, now));
-
-  useEffect(() => {
-    if (!transfer) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [transfer]);
-
-  if (!transfer) return null;
-  const to = db.users.find((u) => u.id === transfer.toUserId);
-  const remaining = new Date(transfer.revertDeadline).getTime() - now;
-
-  return (
-    <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-4">
-      <p className="text-sm text-yellow-900">
-        管理者権限を <span className="font-bold">{to?.name}</span> さんに移譲しました。あと{' '}
-        <span className="font-mono font-bold">{formatRemaining(remaining)}</span> 以内なら取り消せます。
-      </p>
-      <ErrorText message={error} />
-      <button
-        type="button"
-        onClick={() => {
-          try {
-            revertTransfer(userId, transfer.id);
-          } catch (e) {
-            setError(e instanceof StoreError ? e.message : '取り消しに失敗しました');
-          }
-        }}
-        className="mt-2 flex items-center gap-1.5 rounded-lg bg-yellow-600 px-3 py-1.5 text-sm text-white hover:bg-yellow-700"
-      >
-        <Undo2 className="h-4 w-4" />
-        移譲を取り消す
-      </button>
-    </div>
   );
 }

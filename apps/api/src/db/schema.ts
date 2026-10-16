@@ -1,4 +1,4 @@
-import { CATEGORIES, LOCATION_TYPES, ROLES, USER_STATUSES } from '@yamon/shared';
+import { AUDIT_ACTIONS, CATEGORIES, LOCATION_TYPES, ROLES, USER_STATUSES } from '@yamon/shared';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -26,7 +26,7 @@ export const roleEnum = pgEnum('role', ROLES);
 export const userStatusEnum = pgEnum('user_status', USER_STATUSES);
 export const categoryEnum = pgEnum('category', CATEGORIES);
 export const locationTypeEnum = pgEnum('location_type', LOCATION_TYPES);
-export const auditActionEnum = pgEnum('audit_action', ['role_changed', 'disabled', 'enabled', 'withdrawn']);
+export const auditActionEnum = pgEnum('audit_action', AUDIT_ACTIONS);
 
 /**
  * JST の時刻 "HH:MM"（D10）。PostgreSQL の time 型は秒付き（"09:30:00"）で返るため、
