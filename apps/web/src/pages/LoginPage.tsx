@@ -1,6 +1,7 @@
 import { LogIn, UserPlus } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
-import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { PrivacyNotice } from '../components/PrivacyNotice';
 import { ErrorText, inputClass } from '../components/ui';
 import { ApiError } from '../lib/api';
 import {
@@ -174,6 +175,11 @@ function LoginForm({ onDone, onRegister }: { onDone: () => void; onRegister: () 
           新規登録へ進む
         </button>
       </p>
+      <p className="mt-4 text-center text-xs text-gray-500">
+        <Link to="/privacy" className="hover:text-gray-700 hover:underline">
+          個人情報の扱い
+        </Link>
+      </p>
     </>
   );
 }
@@ -310,6 +316,7 @@ function RegisterForm({
               className={inputClass}
             />
           </div>
+          <PrivacyNotice />
           <ErrorText message={error} />
           <button
             type="submit"
