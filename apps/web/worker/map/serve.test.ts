@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { parseRange } from './range';
-import { clearMapMetaCacheForTest, serveMapData, servePointer } from './[[path]]';
+import { clearMapMetaCacheForTest, serveMapData, servePointer } from './serve';
 
 describe('parseRange', () => {
   it('範囲の指定を読む', () => {

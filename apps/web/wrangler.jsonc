@@ -1,7 +1,7 @@
 // Cloudflare Workers の設定（画面と地図データの配信、D42）。デプロイは CI（.github/workflows/ci.yml）が行う
 {
   "name": "yamon-site",
-  // CI のデプロイは node_modules なしで束ねる。worker/ と functions/map/ からは相対パスのファイルだけを import する
+  // CI のデプロイは node_modules なしで束ねる。worker/ からは相対パスのファイルだけを import する
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
   "workers_dev": true,
