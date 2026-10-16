@@ -110,6 +110,8 @@ SPEC.md のコンポーネント構成・技術選定は参考扱いとし、変
 
 ## D14. 全体構成：フロント（静的 SPA）＋ API サーバー＋ Postgres の3つに分ける
 
+> **更新（2026-10-16）**：図の Cloudflare Pages・Pages Functions は、Cloudflare Workers（静的アセット）と Worker の `/api/*` の転送に変わった（D42・D44）。3つに分ける構成はそのまま。
+
 ```
 ブラウザ ──> Cloudflare Pages（React SPA）
                └ /api/* を同じオリジンのまま転送（Pages Functions）
@@ -272,7 +274,7 @@ packages/shared  入力チェック（zod）・型・固定マスター（カテ
   - デプロイ用に別ワークフローを作り、`workflow_run` で CI の成功を待つ：分けると読みやすいが、`workflow_run` は既定 Branch の定義で動く・Artifact を別ワークフローから取り出す手間がある、など癖が多い。この規模では1ファイルの方が単純。
   - 再利用可能ワークフロー（`workflow_call`）で CI を呼び出す：main への push で CI が2回動くか、CI の push トリガーを外す必要があり、どちらも分かりにくい。
   - Vercel / Netlify の GitHub 連携：D15 でホスティングに採用していない。
-- **プレビューの注意**：プレビュー URL は誰でも開ける。今はデモデータしかないので問題ないが、API とつないだ後に本番データが見える形にする場合は、Cloudflare Access で保護するか、プレビューを止める（#14 で判断する）。
+- **プレビューの注意**（→ D45 で決めた。プレビューは Workers Previews にし、本番の API につながない）：プレビュー URL は誰でも開ける。今はデモデータしかないので問題ないが、API とつないだ後に本番データが見える形にする場合は、Cloudflare Access で保護するか、プレビューを止める（#14 で判断する）。
 - **後続**：Cloud Run（`apps/api`）のデプロイジョブは、API の土台（#10）と本番環境の構築（#14）の後に追加する。Pages Functions（`/api/*` の転送、D22 の R2 配信）を足すときは、`wrangler pages deploy` が実行場所の `functions/` を読むため、checkout してから実行する形に変える。→ 地図データの配信（#25）では、checkout せず functions/ を Artifact に入れて渡す形にした（D29）。
 
 ## D24. 役割と権限：管理者・幹部・部員・閲覧のみの4つ。対応表は1か所で定義する
@@ -671,7 +673,7 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - URL が `○○.pages.dev` から `yamon-site.<サブドメイン>.workers.dev` になる（D22 の「`○○.pages.dev` を使う」を読み替える）。サブドメインは Cloudflare のアカウントで1回だけ決める。
   - API トークンの権限は `Cloudflare Pages: Edit` から、Workers のデプロイ用（「Edit Cloudflare Workers」のテンプレート）に変わる。
   - `/api/*` を Cloud Run へ転送する仕組み（D15）は、Pages Functions ではなく、この Worker に `/api/*` を足して作る（#14）。`run_worker_first` に `/api/*` を加える。
-  - PR のプレビュー（`versions upload` の版）は、本番と同じバインディング・設定で動く。Pages のプレビュー環境のように別の設定を持たない。今は R2 も API もつないでいないので問題ないが、#14 で `/api/*` の転送や R2 を足すと、PR のコードが本番の API・R2 につながった公開 URL で動く。#14 で、プレビューの扱い（Cloudflare Access で守る、プレビューでは転送しない など）を決める。
+  - PR のプレビュー（`versions upload` の版）は、本番と同じバインディング・設定で動く。Pages のプレビュー環境のように別の設定を持たない。今は R2 も API もつないでいないので問題ないが、#14 で `/api/*` の転送や R2 を足すと、PR のコードが本番の API・R2 につながった公開 URL で動く。#14 で、プレビューの扱い（Cloudflare Access で守る、プレビューでは転送しない など）を決める。→ D45 で、プレビューを Workers Previews（本番の Secret を引き継がない）に替えた。
 - **再検討する条件**：Workers の無料枠（1日10万リクエスト）に近づいたとき。そのときは、地図データを独自ドメインの R2 から直接配信する（D29 の比較案）か、Workers Paid（月$5）を検討する。
 
 ## D43. CI の runner：`ubuntu-latest` をやめて `ubuntu-24.04` に固定する。Actions は Node.js 24 で動く版に上げる
@@ -690,3 +692,58 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - Actions を、Node.js 24 で動く一番古いメジャー版（checkout・setup-node は v5、upload-artifact は v6、download-artifact は v7）にする：変更点は少ないが、すぐ次のメジャー版への更新が要る。最新版との差に、このリポジトリに影響する変更はなかった。
   - Actions を commit の SHA で固定する：改ざんされた版を使うリスクは下がるが、更新の手間が増える。公式の `actions/*` と `cloudflare/*` だけを使っているので、メジャー版のタグで足りる。
 - **再検討する条件**：本番環境（#14）とバックアップ（#15）ができ、締め切り（2026-10-21）を過ぎたら、`ubuntu-26.04` で CI を一度流し、通れば `ubuntu-26.04`（または `ubuntu-latest`）に移す。GitHub が 24.04 の提供終了を予告したときは、それより前に移す。
+
+## D44. API の本番環境：Cloud Run（シンガポール、最大1台）に置き、入口は Worker の秘密のヘッダーで限る。デプロイは CI から Workload Identity 連携で行う
+
+- **決定（2026-10-16、#14）**：D14・D15・D30 の方針を、次のように作った。手順は [DEPLOY_API.md](DEPLOY_API.md)。
+  - **転送**：Worker（`apps/web/worker/api/proxy.ts`）が `/api/*` を、パスとクエリ・ヘッダー（Cookie を含む）・本文のまま Cloud Run へ送る。`run_worker_first` に `/api/*` を加えた。転送先（`API_ORIGIN`）と秘密の値（`PROXY_SECRET`）は本番の Worker の Secret に置く。D15 の「Pages Functions で転送」は、この Worker に読み替える。
+  - **入口の制限**：Worker は秘密のヘッダー（`x-yamon-proxy-secret`）を付ける。ブラウザが同じ名前のヘッダーを送ってきても上書きする。API は `PROXY_SECRET` を渡されたとき、ヘッダーの値が同じリクエストだけを受け付け、それ以外は 403 で断る（ヘルスチェックも含む）。比べ方は初回セットアップのトークンと同じ（SHA-256 にそろえてから一定時間の比較、D38）。本番（`NODE_ENV=production`）では `PROXY_SECRET`（32文字以上）がないと起動しない。
+  - **Cloud Run の設定**：リージョンは `asia-southeast1`（シンガポール）。インスタンスは最小0台・最大1台、CPU 1・メモリ 512MiB・同時リクエスト80・タイムアウト60秒、CPU はリクエストの処理中だけ割り当てる（既定）。IAM の呼び出し元チェックは切り（`--no-invoker-iam-check`）、上の秘密のヘッダーで守る。設定はすべて `ci.yml` の `gcloud run deploy` に書き、デプロイのたびに同じ状態にする。
+  - **秘密の値**：Google Secret Manager に置き、Cloud Run の環境変数として渡す（`--set-secrets`）。読めるのは実行用のサービスアカウント（`yamon-api-runtime`）だけ。`APP_URL`（本番の workers.dev）はワークフローに、`SMTP_USER`（サークルの Gmail）は GitHub の Variable に置く。
+  - **デプロイ**：main の CI の `deploy-api` ジョブが、イメージを作って Artifact Registry（`asia-southeast1`、新しい3つだけ残す）に置き、本番の DB にマイグレーションを流して（D30。CI の runner から `node dist/migrate.js` を実行）、Cloud Run を切り替える。画面のデプロイ（`deploy`）は API のデプロイが成功した後に行い、最後に Worker 経由で `/api/health` を呼んで、転送と秘密のヘッダーがつながっているかを確かめる。Google Cloud への認証は Workload Identity 連携で、GitHub の `production` 環境（main だけに限る）のジョブだけがデプロイ用のサービスアカウント（`github-deployer`）になれる。
+  - **Neon**：無料プラン、Postgres 17、AWS のシンガポール（`aws-ap-southeast-1`）。接続はプール（PgBouncer）を通さない直接の接続文字列を使う。
+- **採用理由**
+  - **リージョン**：Neon にはアジアのリージョンがシンガポールとシドニーしかない（東京はない）。API は1回のリクエストで DB に何度も問い合わせる（セッションの確認、本体の処理）ので、API を DB の近くに置く方が、利用者に近い東京に置くより速い。シンガポールは Cloud Run の料金の Tier 2 で、無料枠を超えた分の単価は東京より高いが、無料枠は金額で差し引かれるので、この規模ではどちらも0円の見込み。
+  - **最大1台**：想定外のアクセス（攻撃や不具合のループ）があっても、課金が1台分を超えない（2026-10-16 の決定、#33）。約100人の招待制なら、1台・同時80件で足りる。
+  - **秘密のヘッダー**：無料で、Worker と API に数行足すだけで、Cloud Run の URL への直接のアクセス（総当たりや、Worker を通らない操作）を断れる。断ったリクエストは DB に触らないので、止まっている Neon を起こさない。
+  - **マイグレーションを CI の runner で流す**：テストに通ったものと同じイメージで、デプロイの直前に1回だけ流せる（D30）。Cloud Run のジョブを別に作るより、Google Cloud の設定が少ない。`DATABASE_URL` は、バックアップ（#15、D32）でも GitHub Actions から使うので、GitHub に置く理由がもともとある。
+  - **Workload Identity 連携**：サービスアカウントの鍵（JSON）を GitHub に置かずに済む。鍵が漏れて悪用される心配も、鍵の作り直しの手間もない。
+  - **設定を ci.yml に書く**：引き継ぎ（D21）のとき、Cloud Run の画面を見なくても、設定がリポジトリから分かる。画面で変えても次のデプロイで戻るので、設定がずれない。
+- **比較した案**
+  - **入口の制限**
+    - Cloud Run の IAM 認証（Worker が Google の ID トークンを付ける）：Google の仕組みで守れ、断ったリクエストは課金されない。ただし Worker でサービスアカウントの鍵を持ち、署名した JWT から ID トークンを作る処理が要る。鍵の管理が増え、Worker の処理も重くなる。
+    - 入口を「内部と Cloud Load Balancing」に限り、ロードバランサーと Cloud Armor を置く：一番堅いが、ロードバランサーは月数千円かかる。
+    - Cloudflare Tunnel：Cloud Run から外向きにつなぐ形はインスタンスが0台になると切れるため、Cloud Run と相性が悪い。
+    - 制限しない：Cloud Run の URL から直接 API を使われ、Worker の外で総当たりされても気づきにくい。
+  - **リージョン**：東京（`asia-northeast1`、Tier 1）。利用者からの往復は短いが、DB への問い合わせのたびに東京とシンガポールを往復する（1回あたり約70ms）。
+  - **マイグレーション**：Cloud Run のジョブで流す（DB の接続文字列を GitHub に置かずに済むが、ジョブの作成・実行の権限と設定が増える）。API の起動時に流す（D30 で不採用）。
+  - **Google Cloud への認証**：サービスアカウントの鍵を GitHub の Secret に置く（設定は簡単だが、鍵が漏れると期限なく使われる）。
+  - **デプロイ用のサービスアカウントの権限**：`roles/run.developer` に絞る（`--no-invoker-iam-check` を付けるには `run.services.setIamPolicy` が要り、足りない）。`roles/run.admin` にした。main の CI を乗っ取られた場合は、どちらでも任意のコードをデプロイできるので、差は小さい。
+  - **Neon の接続**：プール（`-pooler` の接続文字列）を使う。接続の数には強いが、postgres.js の準備済みの文（prepared statement）を切る設定が要る。Cloud Run が最大1台で、接続は5本までなので、直接の接続で足りる。
+- **残る弱点・注意**
+  - 秘密のヘッダーで断ったリクエストも、Cloud Run のリクエスト数と CPU 時間に数えられる。最大1台なので上限はあり、予算アラート（月100円）で気づける。
+  - `PROXY_SECRET` は Secret Manager と Worker の Secret の2か所に同じ値を置く。変えるときは両方を変える（DEPLOY_API.md の「困ったとき」）。
+  - マイグレーションの後で Cloud Run の切り替えに失敗すると、新しいテーブル定義と前の API の組み合わせで動く。マイグレーションは、前の版の API でも動く形（列の追加など）にする。
+- **再検討する条件**：Neon に東京のリージョンができたとき（API と DB をそろって東京へ移す）。断ったリクエストの課金が予算アラートに届くようになったとき（IAM 認証へ移る）。利用者が増えて1台で足りなくなったとき。
+
+## D45. PR のプレビュー：Workers Previews に替え、本番の API・データにつながないようにする（案A）
+
+- **背景（2026-10-16）**：PR ごとのプレビューは誰でも開ける URL で、ユーザーは「本番のデータにつながない」（案A）と決めていた（#14 のコメント）。ところが Workers に移した後のプレビュー（`wrangler versions upload --preview-alias`、D42）は、本番と同じバインディング・Secret で動く。`/api/*` の転送を足すと、PR のコードが本番の API・DB につながった公開 URL で動いてしまう。
+- **決定（#14）**
+  - PR のプレビューを、Cloudflare の **Workers Previews**（`wrangler preview --name pr-<番号>`）に替える。プレビューは本番の設定・Secret を引き継がず、`wrangler.jsonc` の `previews` の設定だけで動く。`previews` は空にし、プレビューには `API_ORIGIN`・`PROXY_SECRET` を登録しない。
+  - Worker は、`API_ORIGIN` か `PROXY_SECRET` がなければ `/api/*` を転送せず、503（「この環境ではサーバーにつながりません」）を返す。プレビューでは、画面の見た目は確かめられるが、ログイン・データの表示はできない。
+  - CI は `cloudflare/wrangler-action@v4` で `preview --name pr-<番号>` を実行し、URL（`pr-<番号>-yamon-site.yamonken.workers.dev`）を Summary に出す。wrangler の版は 4.151.0 に固定する（`preview` は 4.136.3 以降が要る）。
+  - 閉じた PR のプレビューは消さない。無料プランでは1つの Worker に100個までで、超えると一番古いものから自動で消える。API につながらないので、残っても見えるのは画面のファイルだけ。
+  - docs/MVP.md の8章の「未決定」から外した。
+- **採用理由**
+  - Cloudflare の仕組みとして、プレビューに本番の Secret が渡らない。PR のコードを書き換えても本番の Secret は読めないので、Worker のコードでホスト名を見分ける方法より確実。
+  - Cloudflare は PR の確認に Workers Previews を勧めており（「Version URLs を PR の確認に使わない」と案内している）、今後の運用でも標準の形になる。
+  - 費用はかからず、PR ごとの URL で画面の確認を続けられる。
+- **比較した案**
+  - **Worker でホスト名を見て、本番の URL のときだけ転送する**：設定は今のままで済むが、プレビューでも本番の Secret は読める。PR のコードがその判定を外せば本番につながる。
+  - **プレビューをやめる**：一番確実で、設定も一番少ない。ただし PR で画面を確かめる手段がなくなる。
+  - **Cloudflare Access でプレビューを守る**：知らない人には見えなくなるが、開けた人には本番のデータが見える（案A に合わない）。Zero Trust の登録と、見せる人の管理が増える。
+  - **プレビュー用の別の Worker（Wrangler の環境、`yamon-site-preview`）を作る**：本番と Secret を分けられるが、Worker が2つになり、プレビュー用の Worker も先に1回デプロイしておく必要がある。Workers Previews はこれを1つの Worker の中で行う仕組みなので、そちらを選んだ。
+  - **プレビュー用の API と DB（試験用のデータ）を用意する**：ログインまで確かめられるが、Cloud Run・Neon がもう1組要り、無料枠と管理の手間が倍になる。
+- **注意**：Workers Previews は新しい仕組みで、wrangler の版によって動きが変わる可能性がある。プレビューのデプロイが失敗しても本番には影響しない。Cloudflare のダッシュボードでプレビューの設定（Base configuration）に Secret を足すと、新しく作るプレビューに渡るので、API の Secret は足さない。
+- **再検討する条件**：プレビューでログインまで確かめたくなったとき（試験用の API・DB を用意し、`previews` にその転送先を書く）。

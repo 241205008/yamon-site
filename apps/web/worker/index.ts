@@ -1,6 +1,7 @@
-// Cloudflare Workers の入口（D42）。wrangler.jsonc の run_worker_first に書いたパス（/map/*）は必ずここを通る。
+// Cloudflare Workers の入口（D42）。wrangler.jsonc の run_worker_first に書いたパス（/api/*・/map/*）は必ずここを通る。
 // ほかに、どの静的ファイルにも当たらないリクエスト（古いファイル名の /assets/*.js など）もここに来る。
 // CI のデプロイは node_modules なしで束ねるため、相対パスのファイルだけを import する（import type は可）
+import { proxyApi } from './api/proxy';
 import { serveMapData, servePointer } from './map/serve';
 
 export interface Env {
@@ -8,13 +9,21 @@ export interface Env {
   ASSETS: Fetcher;
   /** 地図データを置いた R2 バケット。wrangler.jsonc の r2_buckets で設定する（docs/MAP_DATA.md） */
   MAP_DATA?: R2Bucket;
+  /** Cloud Run の API の URL。本番の Worker にだけ Secret で登録する（D44） */
+  API_ORIGIN?: string;
+  /** API と共有する秘密の値（API の PROXY_SECRET と同じ）。本番の Worker にだけ Secret で登録する（D44） */
+  PROXY_SECRET?: string;
 }
 
+const API_PREFIX = '/api/';
 const MAP_PREFIX = '/map/';
 
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url);
+    if (pathname.startsWith(API_PREFIX)) {
+      return proxyApi(request, { origin: env.API_ORIGIN, secret: env.PROXY_SECRET });
+    }
     if (pathname.startsWith(MAP_PREFIX)) {
       if (request.method !== 'GET' && request.method !== 'HEAD') {
         return new Response('Method Not Allowed', { status: 405, headers: { Allow: 'GET, HEAD' } });
