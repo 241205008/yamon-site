@@ -5,3 +5,4 @@ export * from './area';
 export * from './permissions';
 export * from './auth';
 export * from './observations';
+export * from './mapData';

@@ -1,6 +1,8 @@
 import { serve } from '@hono/node-server';
 import { createApp } from './app';
+import { requirePermission } from './auth/middleware';
 import { connectPglite, connectPostgres, type DbHandle } from './db/client';
+import { createGitHubWorkflow } from './mapData/github';
 
 const isProduction = process.env.NODE_ENV === 'production';
 // 本番は Cloud Run が渡す PORT を使う。開発では PORT（ほかのツールが使うことが多い）を見ず、
@@ -24,8 +26,22 @@ async function connect(): Promise<DbHandle> {
 }
 
 const handle = await connect();
+// 地図データの更新（D34）。鍵がなければ、更新の API は 503 を返す。押せるのは mapData.update の権限を持つ人（管理者）だけ
+const mapDataToken = process.env.GITHUB_MAP_DATA_TOKEN;
+const mapDataWorkflow = mapDataToken
+  ? createGitHubWorkflow({
+      token: mapDataToken,
+      repository: process.env.GITHUB_REPOSITORY ?? '241205008/yamon-site',
+    })
+  : undefined;
+
 // 開発（http://localhost）では Cookie に Secure を付けない
-const app = createApp({ db: handle.db, log: true, cookieSecure: isProduction });
+const app = createApp({
+  db: handle.db,
+  log: true,
+  cookieSecure: isProduction,
+  mapData: { workflow: mapDataWorkflow, authorize: requirePermission('mapData.update') },
+});
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`API: http://localhost:${info.port}/api/health`);

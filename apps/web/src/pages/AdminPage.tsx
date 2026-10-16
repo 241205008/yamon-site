@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, Clock, Copy, Mail, Shield, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
+import { MapDataPanel } from '../components/MapDataPanel';
 import { BackBar, Card, ErrorText, inputClass, Modal, PageBackground, StatCard } from '../components/ui';
 import {
   canRevertTransfer,
@@ -13,7 +14,7 @@ import {
   useDb,
 } from '../lib/store';
 import { useCurrentUser } from '../lib/auth';
-import { formatRemaining, isoToJstDate, isoToJstDateTime } from '@yamon/shared';
+import { can, formatRemaining, isoToJstDate, isoToJstDateTime } from '@yamon/shared';
 import type { Invitation, InvitationStatus, User } from '../lib/types';
 
 const toMessage = (e: unknown) => (e instanceof StoreError ? e.message : '処理に失敗しました');
@@ -159,6 +160,9 @@ export function AdminPage() {
           <StatCard label="招待中" value={pendingCount} color="yellow" />
           <StatCard label="管理者数" value={db.users.filter((u) => u.role === 'admin').length} color="purple" />
         </div>
+
+        {/* 地図データの更新は管理者だけ（API でも同じ権限を確かめる、D34） */}
+        {can(me.role, 'mapData.update') && <MapDataPanel />}
       </main>
 
       {transferTarget && (
