@@ -7,12 +7,14 @@ import { LocationsPage } from './pages/LocationsPage';
 import { LoginPage } from './pages/LoginPage';
 import { MainPage } from './pages/MainPage';
 import { MapPage } from './pages/MapPage';
+import { SetupPage } from './pages/SetupPage';
 
 export function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/setup" element={<SetupPage />} />
         <Route element={<RequireAuth />}>
           <Route path="/" element={<MainPage />} />
           <Route path="/map" element={<MapPage />} />

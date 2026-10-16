@@ -14,6 +14,7 @@ import { eventRoutes } from './routes/events';
 import { mainLocationRoutes, statsRoutes } from './routes/locations';
 import { recordRoutes } from './routes/records';
 import { mapDataRoutes, type MapDataDeps } from './mapData/routes';
+import { setupRoutes } from './routes/setup';
 
 export interface AppEnv {
   Variables: {
@@ -21,6 +22,8 @@ export interface AppEnv {
     mailer: Mailer;
     /** メールに入れるリンクの起点（例 https://yamon.pages.dev）。なければリクエストの Origin を使う */
     appUrl: string | undefined;
+    /** 初回セットアップのトークン（環境変数 SETUP_TOKEN）。なければ初回セットアップはできない */
+    setupToken: string | undefined;
     /** セッションの Cookie に Secure を付けるか */
     cookieSecure: boolean;
     /** ログイン中のユーザー。まだ調べていなければ undefined、未ログインなら null（auth/middleware.ts） */
@@ -41,6 +44,8 @@ export interface AppDeps {
   mailer?: Mailer;
   /** メールに入れるリンクの起点（環境変数 APP_URL） */
   appUrl?: string;
+  /** 初回セットアップのトークン（環境変数 SETUP_TOKEN、D37） */
+  setupToken?: string;
   /** 地図データの更新（D34）。GitHub の鍵と権限チェック。なければ 503 / 403 を返す */
   mapData?: MapDataDeps;
 }
@@ -58,6 +63,7 @@ export function createApp({
   cookieSecure = true,
   mailer = consoleMailer,
   appUrl,
+  setupToken,
   mapData = {},
 }: AppDeps) {
   const app = new Hono<AppEnv>().basePath('/api');
@@ -69,6 +75,7 @@ export function createApp({
     c.set('cookieSecure', cookieSecure);
     c.set('mailer', mailer);
     c.set('appUrl', appUrl);
+    c.set('setupToken', setupToken);
     await next();
   });
   // CSRF 対策（D33）：Cookie は SameSite=Lax だが、さらに状態を変えるリクエストは Content-Type: application/json に限る。
@@ -87,6 +94,7 @@ export function createApp({
   app.get('/health', (c) => c.json({ status: 'ok' }));
 
   app.route('/auth', authRoutes);
+  app.route('/setup', setupRoutes);
   app.route('/creatures', creatureRoutes);
   app.route('/events', eventRoutes);
   app.route('/records', recordRoutes);
