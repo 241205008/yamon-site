@@ -480,9 +480,9 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
 
 - **決定（2026-10-16、#34）**
   1. **流れ**：管理者画面の「地図データを更新」→ API（`POST /api/admin/map-data/refresh`、権限 `mapData.update`＝管理者だけ）→ GitHub の API でワークフロー `.github/workflows/map-data.yml` を起動（`workflow_dispatch`）→ Actions で Protomaps の最新ビルドから4県を切り出し → R2 に置く。
-  2. **切り替え**：R2 には実行ごとに別の名前（`survey-area-<ビルド日>-<実行ID>.pmtiles`）で置き、検査（範囲・最大ズーム・容量）に通ってから、参照先のファイル（`survey-area.json`）を書き換える。Pages Functions は `/map/survey-area.pmtiles` の要求を、参照先に書かれたファイルへつなぐ。参照先がないときは、今までどおり `survey-area.pmtiles` を返す（手作業で置いた最初のデータ）。
+  2. **切り替え**：R2 には実行ごとに別の名前（`survey-area-<ビルド日>-<実行ID>.pmtiles`）で置き、検査（範囲・最大ズーム・容量）に通ってから、参照先のファイル（`survey-area.json`）を書き換える。Worker（`apps/web/worker/map/`、最初は Pages Functions。D42）は `/map/survey-area.pmtiles` の要求を、参照先に書かれたファイルへつなぐ。参照先がないときは、今までどおり `survey-area.pmtiles` を返す（手作業で置いた最初のデータ）。
   3. **古いデータ**：今のものと1つ前のものだけ残し、それより古いものは消す。1つ前に戻すときは、参照先を書き換える（手順は docs/MAP_DATA.md）。
-  4. **状態の表示**：API（`GET /api/admin/map-data/status`）が、GitHub の API でこのワークフローの最新の実行を調べ、「実行中・完了・失敗」と開始時刻を返す。画面は実行中だけ15秒ごとに読み直す。今の地図データのビルド日は、Functions が返す `/map/survey-area.json` から読む。
+  4. **状態の表示**：API（`GET /api/admin/map-data/status`）が、GitHub の API でこのワークフローの最新の実行を調べ、「実行中・完了・失敗」と開始時刻を返す。画面は実行中だけ15秒ごとに読み直す。今の地図データのビルド日は、Worker が返す `/map/survey-area.json` から読む。
   5. **二重の実行を防ぐ**：実行中（待ち・実行中）なら API は 409 を返して起動しない。起動した直後は GitHub の一覧に新しい実行がまだ出ないことがあるので、API は起動した実行を覚え、一覧に出るまで（最大2分）は「更新中」として扱う。取り消された実行（concurrency で置き換えられたものなど）は失敗として表示しない。ワークフローにも `concurrency` を付ける。
   6. **GitHub の鍵**：API は、このリポジトリの Actions だけを読み書きできる fine-grained personal access token（`GITHUB_MAP_DATA_TOKEN`、Cloud Run の Secret）で呼ぶ。R2 への書き込みは、R2 の API トークン（このバケットだけ、読み書き）を GitHub の Secret に置き、Actions から S3 互換の API（aws cli）で行う。
   7. **権限チェック**：#11 の `requirePermission(mapData.update)` を使う。#11 がマージされるまでは、`createApp` に権限チェックを外から渡す形にして、渡されなければ必ず 403 にする（仮の実装で誰でも通れる状態を作らない）。
@@ -503,7 +503,7 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - 状態を DB に保存する：画面の表示は速くなるが、Actions の結果を DB に書き戻す仕組み（Webhook など）が要る。GitHub に問い合わせれば足りる。
 - **注意**
   - aws cli の新しい版は、R2 が対応していない検査用の値（checksum）を既定で付けることがある。ワークフローでは `AWS_REQUEST_CHECKSUM_CALCULATION=when_required` と `AWS_RESPONSE_CHECKSUM_VALIDATION=when_required` を付ける。最初の実行で、アップロードできることを確かめる。
-  - Functions は参照先を10秒、ファイルの大きさと ETag を60秒覚える。切り替えの直後の10秒ほどは、isolate によって新旧のファイルが返り、画面の地図の読み込みがやり直しになることがある。参照先を毎回読めばなくせるが、タイルごとに R2 の読み出しが1回増えるので、10秒で十分とした。
+  - Worker は参照先を10秒、ファイルの大きさと ETag を60秒覚える。切り替えの直後の10秒ほどは、isolate によって新旧のファイルが返り、画面の地図の読み込みがやり直しになることがある。参照先を毎回読めばなくせるが、タイルごとに R2 の読み出しが1回増えるので、10秒で十分とした。
   - 同じビルドでも実行ごとに名前を変えるのは、切り出し直したとき（force）に、表示中のファイルを上書きせず、1つ前のファイルも消さないため。
 
 ## D35. 生き物・観察会・観察記録の API とフロントの読み込み：TanStack Query、記録一覧はカーソル式のページング
