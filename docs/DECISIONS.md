@@ -365,11 +365,13 @@ packages/shared  入力チェック（zod）・型・固定マスター（カテ
 
 D28（Protomaps を R2 から配信）を実装するときに決めた細部。手順は [MAP_DATA.md](MAP_DATA.md)。
 
+> **一部置き換え済み**：3・4 の「Pages Functions」「Pages の画面でのバインディング」は、配信先を Cloudflare Workers に移したこと（D42）に合わせて直した（2026-10-16、#54）。配信の中身（Range・ETag・参照先の扱い）は変えていない。
+
 - **決定（2026-10-15、#25）**
   1. **範囲は県境ではなく長方形**（西 135.7・南 33.65・東 137.95・北 36.55）。`packages/shared` の `SURVEY_BOUNDS` / `isInSurveyArea` に置き、地図の `maxBounds`、地図ピッカー、GPS、API（#13）で同じものを使う。
   2. **ズーム15まで切り出す（4県で 380MB）**。15 より拡大したときは引き伸ばして描く（最大18）。
-  3. **配信は Pages Functions（`apps/web/functions/map/[[path]].ts`）**。`/map/<英小文字・数字・ハイフン>.pmtiles` だけを返し、Range に対応する。R2 のバインディング（`MAP_DATA`）は Pages の画面で設定し、`wrangler.toml` は置かない。バインディングがなければ 503 を返す。ファイルの大きさと ETag は60秒だけ覚えて R2 の読み出しを1回にし、読むときは覚えた ETag と一致するときだけ読む（差し替え中に古い大きさと新しい中身が混ざらない）。ブラウザには `no-cache` で毎回確かめさせる。
-  4. **CI は functions/ を dist/ と同じ Artifact に入れて渡す**。デプロイのジョブは checkout せず、Artifact を展開した場所で `wrangler pages deploy dist` を実行する（D23 の「後続」の対応）。
+  3. **配信は Worker（`apps/web/worker/map/serve.ts`。`worker/index.ts` が `/map/*` をつなぐ）**。最初は Pages Functions（`functions/map/[[path]].ts`）だった。`/map/<英小文字・数字・ハイフン>.pmtiles` だけを返し、Range に対応する。R2 のバインディング（`MAP_DATA`）は `apps/web/wrangler.jsonc` の `r2_buckets` に書く。バケットを作るまでは書かない（書くとデプロイが失敗する）。バインディングがなければ 503 を返す。ファイルの大きさと ETag は60秒だけ覚えて R2 の読み出しを1回にし、読むときは覚えた ETag と一致するときだけ読む（差し替え中に古い大きさと新しい中身が混ざらない）。ブラウザには `no-cache` で毎回確かめさせる。
+  4. **CI は Worker のコード（`worker/`）と `wrangler.jsonc` を dist/ と同じ Artifact に入れて渡す**。デプロイのジョブは checkout せず、Artifact を展開した場所で `wrangler deploy`（PR では `wrangler versions upload`）を実行する（D23 の「後続」の対応、D42）。最初は functions/ を入れて `wrangler pages deploy dist` を実行していた。
   5. **開発環境は Vite の開発サーバーが `apps/web/map-data/` のファイルを返す**。本番と同じ `/map/survey-area.pmtiles` の URL で読む。
   6. **縮小は4県の全体が収まるところまで**。画面の大きさに合わせて最小ズームを計算する。全体が見える縮尺では、範囲の外側（データのない部分）が灰色で見える。
   7. **デモデータの座標を名古屋市天白区の周辺へ移す**。今の5か所（仮の値）と初期位置が東京にあり、範囲外になるため。相対的な位置関係は変えていない。
@@ -377,8 +379,8 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
 - **採用理由**
   1. 長方形なら判定が4つの比較で済み、フロントと API で同じ結果になる。県境の形で判定すると、境界のデータ（数MB）を両方に持つ必要がある。長方形は滋賀・長野・静岡などの一部を含むが、地図を見る範囲の制限としては十分。
   2. ズーム15は Protomaps の元データの最大で、公園の中の道や建物まで出る。観察地点を選ぶ地図なので細かさを優先した。R2 の無料枠（10GB）に対して小さい。
-  3. 独自ドメインがなく、R2 の公開 URL（`r2.dev`）は本番向けでない（速度制限あり）。バインディングを画面で設定すれば、R2 の準備（#14・#28）が終わる前でもデプロイが失敗しない。Range の解釈は自前の関数にし、開発サーバーと同じ動きにしてテストする。
-  4. 配信する Functions を、テストに通った commit のものに限れる（D23 の考え方と同じ）。checkout しないので、デプロイのジョブにリポジトリ全体が出てこない。
+  3. 独自ドメインがなく、R2 の公開 URL（`r2.dev`）は本番向けでない（速度制限あり）。バインディングは、バケットを作るまで書かなければ、R2 の準備（#14・#28）が終わる前でもデプロイが失敗しない（最初は Pages の画面で設定する形にして同じことをしていた）。Range の解釈は自前の関数にし、開発サーバーと同じ動きにしてテストする。
+  4. 配信する Worker のコードを、テストに通った commit のものに限れる（D23 の考え方と同じ）。checkout しないので、デプロイのジョブにリポジトリ全体が出てこない。
   5. 開発でも本番と同じ URL・同じ Range の読み方になり、設定の切り替えが要らない。
   6. 「地図の範囲の外へ動かせない」（MVP 3章）を守りつつ、全体を見渡せる。見える範囲を常に範囲の中に収める（灰色を出さない）と、パソコンの画面では名古屋市程度までしか縮小できず、場所を探しにくい。
   7. 範囲外だと、ピンが地図の外になり表示を確かめられない。主な場所は #23 で画面から編集するデータになり、幹部の一覧を受け取ったら置き換える。
@@ -387,7 +389,7 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - 範囲を県境の形で判定する：正確だが、境界データの用意と更新が増える。範囲外を選べてしまう面積は小さく、不採用。
   - ズーム14まで（158MB）：容量は半分以下だが、拡大したときに細い道や建物が出ず、地点を選びにくい。容量の差は無料枠の中なので不採用。
   - R2 の公開 URL（`r2.dev`）から直接読む：Functions が要らず一番簡単。ただし Cloudflare が本番での利用を勧めておらず、速度制限がある。独自ドメインを持ったら、カスタムドメインで直接公開する案に切り替えられる。
-  - `wrangler.toml` に R2 のバインディングを書く：設定をコードで管理できる。ただし、置くと Pages の画面の設定が使えなくなり、バケットができる前はデプロイが失敗する。#28 で Pages の設定を整理するときに再検討する。
+  - Pages の画面で R2 のバインディングを設定し、設定ファイルには書かない（最初の案）：バケットができる前でもデプロイが失敗しない。ただし Workers には画面でのバインディング設定がないため、Workers への移行（D42）で使えなくなった。今は `wrangler.jsonc` の `r2_buckets` に書き、バケットを作るまでは書かないことで同じ効果を得ている。設定がコードで管理される点はむしろ良くなった。
   - デプロイのジョブで checkout して `apps/web` から実行する：簡単だが、`wrangler-action` が `apps/web`（workspace）で wrangler を入れようとして、リポジトリ全体の依存を入れ直す。Artifact に入れる方が速く、配信物がテスト済みのものに限られる。
   - タイルごとに head と get を呼ぶ：単純だが、R2 の操作と待ち時間が2倍になり、差し替えの途中で大きさと中身が食い違うことがある。
   - ブラウザに1日キャッシュさせる（`max-age=86400`）：通信は減るが、差し替え後に古い部分と新しい部分が混ざり、PMTiles の読み込み側がやり直す。地図データは PMTiles の読み込み側がメモリに持つので、`no-cache` にした。
@@ -478,9 +480,9 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
 
 - **決定（2026-10-16、#34）**
   1. **流れ**：管理者画面の「地図データを更新」→ API（`POST /api/admin/map-data/refresh`、権限 `mapData.update`＝管理者だけ）→ GitHub の API でワークフロー `.github/workflows/map-data.yml` を起動（`workflow_dispatch`）→ Actions で Protomaps の最新ビルドから4県を切り出し → R2 に置く。
-  2. **切り替え**：R2 には実行ごとに別の名前（`survey-area-<ビルド日>-<実行ID>.pmtiles`）で置き、検査（範囲・最大ズーム・容量）に通ってから、参照先のファイル（`survey-area.json`）を書き換える。Pages Functions は `/map/survey-area.pmtiles` の要求を、参照先に書かれたファイルへつなぐ。参照先がないときは、今までどおり `survey-area.pmtiles` を返す（手作業で置いた最初のデータ）。
+  2. **切り替え**：R2 には実行ごとに別の名前（`survey-area-<ビルド日>-<実行ID>.pmtiles`）で置き、検査（範囲・最大ズーム・容量）に通ってから、参照先のファイル（`survey-area.json`）を書き換える。Worker（`apps/web/worker/map/`、最初は Pages Functions。D42）は `/map/survey-area.pmtiles` の要求を、参照先に書かれたファイルへつなぐ。参照先がないときは、今までどおり `survey-area.pmtiles` を返す（手作業で置いた最初のデータ）。
   3. **古いデータ**：今のものと1つ前のものだけ残し、それより古いものは消す。1つ前に戻すときは、参照先を書き換える（手順は docs/MAP_DATA.md）。
-  4. **状態の表示**：API（`GET /api/admin/map-data/status`）が、GitHub の API でこのワークフローの最新の実行を調べ、「実行中・完了・失敗」と開始時刻を返す。画面は実行中だけ15秒ごとに読み直す。今の地図データのビルド日は、Functions が返す `/map/survey-area.json` から読む。
+  4. **状態の表示**：API（`GET /api/admin/map-data/status`）が、GitHub の API でこのワークフローの最新の実行を調べ、「実行中・完了・失敗」と開始時刻を返す。画面は実行中だけ15秒ごとに読み直す。今の地図データのビルド日は、Worker が返す `/map/survey-area.json` から読む。
   5. **二重の実行を防ぐ**：実行中（待ち・実行中）なら API は 409 を返して起動しない。起動した直後は GitHub の一覧に新しい実行がまだ出ないことがあるので、API は起動した実行を覚え、一覧に出るまで（最大2分）は「更新中」として扱う。取り消された実行（concurrency で置き換えられたものなど）は失敗として表示しない。ワークフローにも `concurrency` を付ける。
   6. **GitHub の鍵**：API は、このリポジトリの Actions だけを読み書きできる fine-grained personal access token（`GITHUB_MAP_DATA_TOKEN`、Cloud Run の Secret）で呼ぶ。R2 への書き込みは、R2 の API トークン（このバケットだけ、読み書き）を GitHub の Secret に置き、Actions から S3 互換の API（aws cli）で行う。
   7. **権限チェック**：#11 の `requirePermission(mapData.update)` を使う。#11 がマージされるまでは、`createApp` に権限チェックを外から渡す形にして、渡されなければ必ず 403 にする（仮の実装で誰でも通れる状態を作らない）。
@@ -501,7 +503,7 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - 状態を DB に保存する：画面の表示は速くなるが、Actions の結果を DB に書き戻す仕組み（Webhook など）が要る。GitHub に問い合わせれば足りる。
 - **注意**
   - aws cli の新しい版は、R2 が対応していない検査用の値（checksum）を既定で付けることがある。ワークフローでは `AWS_REQUEST_CHECKSUM_CALCULATION=when_required` と `AWS_RESPONSE_CHECKSUM_VALIDATION=when_required` を付ける。最初の実行で、アップロードできることを確かめる。
-  - Functions は参照先を10秒、ファイルの大きさと ETag を60秒覚える。切り替えの直後の10秒ほどは、isolate によって新旧のファイルが返り、画面の地図の読み込みがやり直しになることがある。参照先を毎回読めばなくせるが、タイルごとに R2 の読み出しが1回増えるので、10秒で十分とした。
+  - Worker は参照先を10秒、ファイルの大きさと ETag を60秒覚える。切り替えの直後の10秒ほどは、isolate によって新旧のファイルが返り、画面の地図の読み込みがやり直しになることがある。参照先を毎回読めばなくせるが、タイルごとに R2 の読み出しが1回増えるので、10秒で十分とした。
   - 同じビルドでも実行ごとに名前を変えるのは、切り出し直したとき（force）に、表示中のファイルを上書きせず、1つ前のファイルも消さないため。
 
 ## D35. 生き物・観察会・観察記録の API とフロントの読み込み：TanStack Query、記録一覧はカーソル式のページング
@@ -654,7 +656,7 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
 - **採用（2026-10-16 ユーザーの決定、案B）**：画面のファイル（`apps/web/dist`）を Workers の静的アセットとして配信し、`/map/*` だけを Worker（`apps/web/worker/index.ts`）に通して R2 の地図データを返す。
   - 設定は `apps/web/wrangler.jsonc`。`not_found_handling: "single-page-application"` で画面のパスの直接アクセスに index.html を返し、`run_worker_first: ["/map/*"]` で Worker を通すパスを限る。
   - CI は main で `wrangler deploy`（本番）、PR で `wrangler versions upload --preview-alias pr-<番号>`（本番を変えずに版だけ上げる）。URL は `yamon-site.<サブドメイン>.workers.dev` と `pr-<番号>-yamon-site.<サブドメイン>.workers.dev`。
-  - 地図配信の中身（`functions/map/` の `serveMapData`・`servePointer`）はそのまま使い、Worker の入口から呼ぶ。場所の移動は #25 に任せる。
+  - 地図配信の中身（`functions/map/` の `serveMapData`・`servePointer`）はそのまま使い、Worker の入口から呼ぶ。場所の移動は #25 に任せる。→ #54 で `apps/web/worker/map/` に移し、Pages の入口（`onRequestGet`）を消した（D29 の3）。
   - R2 のバインディング（`MAP_DATA`）は `wrangler.jsonc` の `r2_buckets` に書く。バケットを作るまでは書かない（書くとデプロイが失敗する）。その間 `/map/*` は今までどおり 503 を返す。
 - **採用理由**
   - 10年以上の運用が前提（MVP）。Cloudflare が新規には勧めず、wrangler も新しい仕組みへ回し始めた Pages で始めると、近いうちに移行が要る可能性が高い。画面が7つ・地図配信が1ファイルの今なら、移す手間が一番小さい。

@@ -44,7 +44,7 @@
 
 ## 3. 本番（Cloudflare R2）に置く
 
-本番では `GET /map/<名前>.pmtiles` を Pages Functions（`apps/web/functions/map/[[path]].ts`）が受け、R2 のファイルを Range 付きで返します。独自ドメインがなく、R2 を直接公開できないためです。
+本番では `GET /map/<名前>.pmtiles` を Cloudflare Workers（`apps/web/worker/index.ts` → `worker/map/serve.ts`）が受け、R2 のファイルを Range 付きで返します。独自ドメインがなく、R2 を直接公開できないためです（D29・D42）。
 
 ### 初回の設定
 
@@ -54,13 +54,18 @@
    npx wrangler r2 bucket create yamon-map
    ```
 
-2. Cloudflare の画面で、Pages のプロジェクト →「Settings → Bindings」→「R2 bucket」を追加する
-   - Variable name：`MAP_DATA`
-   - R2 bucket：手順1のバケット
-   - Production と Preview の両方に設定する
-3. バインディングを変えたあとは、次のデプロイから有効になる。CI を手動実行（Run workflow）する
+2. `apps/web/wrangler.jsonc` に、R2 のバインディングを足す PR を出す（バケット名は手順1のもの）
 
-バインディングがない間、`/map/survey-area.pmtiles` は 503 を返し、地図の背景だけが出ません。
+   ```jsonc
+   "r2_buckets": [{ "binding": "MAP_DATA", "bucket_name": "yamon-map" }]
+   ```
+
+   - **バケットを作る前に書かない**。バケットがないとデプロイが失敗する
+   - Workers には、Pages のような画面でのバインディング設定はない（設定はこのファイルだけ）
+3. PR がマージされると、CI の本番デプロイ（`wrangler deploy`）からバインディングが有効になる
+
+- バインディングがない間、`/map/survey-area.pmtiles` は 503 を返し、地図の背景だけが出ません。
+- PR のプレビュー（`wrangler versions upload`）も本番と同じバインディングで動くため、**PR の版も本番の R2 を読みます**。プレビューから R2 を書き換える処理はないので、読むだけです。
 
 ### ファイルを置く・差し替える
 
@@ -79,7 +84,7 @@
 1. Protomaps の最新のビルドから、`SURVEY_BOUNDS` の範囲・ズーム15で切り出す（今と同じビルドなら何もしない）
 2. 範囲・最大ズーム・容量（100MB〜2GB）・構造を検査する。合わなければ失敗にして、切り替えない
 3. R2 に `survey-area-<ビルド日>-<実行ID>.pmtiles` の名前で置き、大きさを確かめる
-4. 参照先 `survey-area.json` を書き換える（ここで切り替わる。Functions が覚えている分を含め、10秒ほどで反映）
+4. 参照先 `survey-area.json` を書き換える（ここで切り替わる。Worker が覚えている分を含め、10秒ほどで反映）
 5. 今のものと1つ前のもの以外の `survey-area-<日付>-<実行ID>.pmtiles` を消す
 
 画面には「更新中・完了・失敗」と開始時刻が出ます。失敗したときは「記録を見る」から Actions のログで理由を確かめます。Actions の画面（Actions → Map data → Run workflow）からも実行できます。同じビルドでも切り出し直すときは `force` に印を付けます。
@@ -105,7 +110,7 @@
 
 1. Cloudflare の画面（R2 → バケット）で、`survey-area-<日付>-<実行ID>.pmtiles` のうち1つ前のものの名前を確かめる
 2. `survey-area.json` をダウンロードし、`key` と `build` を1つ前のものに書き換えてアップロードする
-3. 1分ほど待ってから（Functions が覚えている分）、マップ画面で地図が表示されることを確かめる
+3. 1分ほど待ってから（Worker が覚えている分）、マップ画面で地図が表示されることを確かめる
 
 参照先を消すと、手作業で置いた `survey-area.pmtiles` に戻ります。
 

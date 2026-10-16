@@ -1,6 +1,6 @@
 import type { ApiErrorBody, MapDataInfo, MapDataStatus } from '@yamon/shared';
 
-/** 地図データの更新（D34）の API・Functions とのやりとり。失敗は画面に出す日本語のメッセージにして投げる */
+/** 地図データの更新（D34）の API・Worker（/map/*）とのやりとり。失敗は画面に出す日本語のメッセージにして投げる */
 
 export const MAP_DATA_INFO_URL = '/map/survey-area.json';
 const STATUS_URL = '/api/admin/map-data/status';

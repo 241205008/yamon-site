@@ -22,7 +22,7 @@ env:
   PMTILES_VERSION: 1.31.2
   # https://github.com/protomaps/go-pmtiles/releases の go-pmtiles_<版>_Linux_x86_64.tar.gz の sha256
   PMTILES_SHA256: 3ed7dbf4ec2e6dfe5e25b6f70d1ffc932729f93c86db353bf514dd71010a312f
-  # 地図データの名前。画面は /map/<名前>.pmtiles を読み、Functions（apps/web/functions/map）は <名前>.json を参照先として読む
+  # 地図データの名前。画面は /map/<名前>.pmtiles を読み、Worker（apps/web/worker/map）は <名前>.json を参照先として読む
   MAP_NAME: survey-area
   MAX_ZOOM: 15
   # 切り出した結果がこの範囲の外なら、壊れているとみなして切り替えない（4県で約380MB）

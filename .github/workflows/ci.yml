@@ -45,19 +45,17 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      # テストに通ったビルドと Worker（worker/ と、地図データの配信 functions/map/。D42）を、そのままデプロイに使う。
-      # 共通の親（apps/web）からの相対パスで入るので、Artifact の中は dist/・worker/・functions/・wrangler.jsonc になる
+      # テストに通ったビルドと Worker（worker/。地図データの配信 worker/map/ を含む。D42）を、そのままデプロイに使う。
+      # 共通の親（apps/web）からの相対パスで入るので、Artifact の中は dist/・worker/・wrangler.jsonc になる
       - uses: actions/upload-artifact@v4
         with:
           name: site
           path: |
             apps/web/dist
             apps/web/worker
-            apps/web/functions
             apps/web/wrangler.jsonc
             !apps/web/**/*.test.ts
             !apps/web/worker/tsconfig.json
-            !apps/web/functions/tsconfig.json
           if-no-files-found: error
           retention-days: 7
 
@@ -138,7 +136,7 @@ jobs:
           echo "command=versions upload --preview-alias $alias" >> "$GITHUB_OUTPUT"
 
       # checkout はしない。Artifact を展開した場所の wrangler.jsonc を読み、worker/index.ts を束ねてデプロイする。
-      # node_modules がないため、worker/ と functions/map/ からは相対パスのファイルだけを import できる
+      # node_modules がないため、worker/ からは相対パスのファイルだけを import できる
       # （npm のパッケージや @yamon/shared を値として import すると失敗する。import type は可）
       - uses: actions/download-artifact@v4
         with:

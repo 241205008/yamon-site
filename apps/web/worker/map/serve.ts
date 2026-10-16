@@ -1,11 +1,7 @@
-// CI のデプロイは node_modules なしで functions/ を束ねる（ci.yml）。ここからは相対パスのファイルだけを
+// 地図データの配信（D28・D29・D34）。worker/index.ts が /map/* のリクエストをここへつなぐ。
+// CI のデプロイは node_modules なしで worker/ を束ねる（ci.yml、D42）。ここからは相対パスのファイルだけを
 // import する。npm のパッケージや @yamon/shared を値として import するとデプロイが失敗する（import type は可）
 import { parseRange } from './range';
-
-interface Env {
-  /** 地図データを置いた R2 バケット。Pages のプロジェクト設定でバインドする（docs/MAP_DATA.md） */
-  MAP_DATA?: R2Bucket;
-}
 
 /** 返してよい地図データの名前。バケットの中のほかのオブジェクトは返さない */
 const NAME_PATTERN = /^[a-z0-9-]+\.pmtiles$/;
@@ -39,17 +35,6 @@ export interface MapDataPointer {
   bounds: number[];
   updatedAt: string;
 }
-
-/**
- * GET /map/<名前>.pmtiles：R2 の地図データを Range 付きで返す（D28）。
- * GET /map/<名前>.json：今の地図データのビルド日などを返す（管理者画面の表示用、D34）。
- * 独自ドメインがなく R2 を直接公開できないため、Pages Functions を通す
- */
-export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {
-  const path = Array.isArray(params.path) ? params.path.join('/') : String(params.path ?? '');
-  if (POINTER_PATTERN.test(path)) return servePointer(env.MAP_DATA, path);
-  return serveMapData(request, env.MAP_DATA, path);
-};
 
 async function readPointer(bucket: R2Bucket, pointerName: string): Promise<MapDataPointer | null> {
   const object = await bucket.get(pointerName);
@@ -87,6 +72,10 @@ async function loadMeta(bucket: R2Bucket, key: string, refresh: boolean): Promis
   return meta;
 }
 
+/**
+ * GET /map/<名前>.pmtiles：R2 の地図データを Range 付きで返す（D28）。
+ * 独自ドメインがなく R2 を直接公開できないため、Worker を通す（D29・D42）
+ */
 export async function serveMapData(
   request: Request,
   bucket: R2Bucket | undefined,
@@ -133,7 +122,7 @@ export async function serveMapData(
   return new Response('地図データが更新中です。再読み込みしてください', { status: 503 });
 }
 
-/** 今の地図データの情報（ビルド日・大きさ・更新日時）。参照先がなければ 404 */
+/** GET /map/<名前>.json：今の地図データの情報（ビルド日・大きさ・更新日時。管理者画面の表示用、D34）。参照先がなければ 404 */
 export async function servePointer(bucket: R2Bucket | undefined, pointerName: string): Promise<Response> {
   if (!POINTER_PATTERN.test(pointerName)) return new Response('Not Found', { status: 404 });
   if (!bucket) return new Response('地図データの保存先（MAP_DATA）が設定されていません', { status: 503 });

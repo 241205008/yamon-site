@@ -3,11 +3,11 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { createReadStream, statSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
-import { parseRange } from './functions/map/range';
+import { parseRange } from './worker/map/range';
 
 /**
  * 開発サーバーで、手元の地図データ（map-data/*.pmtiles、Git には入れない）を /map/ から返す。
- * 本番では同じ URL を Pages Functions（functions/map）が R2 から返す。手順は docs/MAP_DATA.md
+ * 本番では同じ URL を Worker（worker/map）が R2 から返す。手順は docs/MAP_DATA.md
  */
 function localMapData(): Plugin {
   const dir = fileURLToPath(new URL('./map-data/', import.meta.url));

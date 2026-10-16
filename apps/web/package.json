@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && tsc --noEmit -p functions && tsc --noEmit -p worker && vite build",
+    "build": "tsc --noEmit && tsc --noEmit -p worker && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p functions && tsc --noEmit -p worker"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p worker"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.3",
