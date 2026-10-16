@@ -13,7 +13,7 @@ export interface AppDeps {
   db: Db;
   /** リクエストごとにログを出す（サーバーの起動時だけ。テストでは出さない） */
   log?: boolean;
-  /** 地図データの更新（D33）。GitHub の鍵と権限チェック。なければ 503 / 403 を返す */
+  /** 地図データの更新（D34）。GitHub の鍵と権限チェック。なければ 503 / 403 を返す */
   mapData?: MapDataDeps;
 }
 

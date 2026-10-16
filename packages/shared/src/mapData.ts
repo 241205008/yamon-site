@@ -1,4 +1,4 @@
-/** 地図データの更新（D33）の状態。API が返し、管理者画面が表示する */
+/** 地図データの更新（D34）の状態。API が返し、管理者画面が表示する */
 export const MAP_DATA_STATES = ['idle', 'running', 'succeeded', 'failed'] as const;
 export type MapDataState = (typeof MAP_DATA_STATES)[number];
 

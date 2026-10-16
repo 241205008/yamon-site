@@ -23,7 +23,7 @@ const STATE_STYLES: Record<MapDataStatus['state'], string> = {
 const toMessage = (e: unknown) => (e instanceof MapDataApiError ? e.message : '処理に失敗しました');
 
 /**
- * 管理者画面の「地図データ」：今の地図データのビルド日と、更新ボタン・更新の状態（D33）。
+ * 管理者画面の「地図データ」：今の地図データのビルド日と、更新ボタン・更新の状態（D34）。
  * 更新は GitHub Actions で数分かかる。その間も今の地図は表示され続ける
  */
 export function MapDataPanel() {

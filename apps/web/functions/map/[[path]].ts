@@ -25,7 +25,7 @@ const metaCache = new Map<string, Meta>();
 /** 地図データの名前 → 実際に返すファイル名（参照先がなければ名前そのもの） */
 const keyCache = new Map<string, { key: string; at: number }>();
 
-/** 参照先のファイル（地図データの更新のワークフローが書く。D33） */
+/** 参照先のファイル（地図データの更新のワークフローが書く。D34） */
 export interface MapDataPointer {
   key: string;
   build: string;
@@ -37,7 +37,7 @@ export interface MapDataPointer {
 
 /**
  * GET /map/<名前>.pmtiles：R2 の地図データを Range 付きで返す（D28）。
- * GET /map/<名前>.json：今の地図データのビルド日などを返す（管理者画面の表示用、D33）。
+ * GET /map/<名前>.json：今の地図データのビルド日などを返す（管理者画面の表示用、D34）。
  * 独自ドメインがなく R2 を直接公開できないため、Pages Functions を通す
  */
 export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {

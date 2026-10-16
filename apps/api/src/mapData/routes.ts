@@ -10,7 +10,7 @@ export interface MapDataDeps {
   workflow?: MapDataWorkflow;
   /**
    * 管理者だけを通すミドルウェア（#11 の requirePermission('mapData.update')）。
-   * 渡されなければ、誰も通さない（仮の実装で誰でも更新できる状態を作らない。D33 の7）
+   * 渡されなければ、誰も通さない（仮の実装で誰でも更新できる状態を作らない。D34 の7）
    */
   authorize?: MiddlewareHandler<AppEnv>;
 }
@@ -22,7 +22,7 @@ function toStatus(run: MapDataRun | null): MapDataStatus {
   return { state: run ? run.state : 'idle', run };
 }
 
-/** /api/admin/map-data：管理者が地図データを更新する（D33） */
+/** /api/admin/map-data：管理者が地図データを更新する（D34） */
 export function mapDataRoutes({ workflow, authorize = denyAll }: MapDataDeps) {
   const routes = new Hono<AppEnv>();
   routes.use('*', authorize);

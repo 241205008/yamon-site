@@ -1,6 +1,6 @@
 import type { MapDataRun } from '@yamon/shared';
 
-/** 地図データの更新のワークフロー（.github/workflows/map-data.yml）を起動・確認する口（D33） */
+/** 地図データの更新のワークフロー（.github/workflows/map-data.yml）を起動・確認する口（D34） */
 export interface MapDataWorkflow {
   /** いちばん新しい実行。まだ一度もなければ null */
   latestRun(): Promise<MapDataRun | null>;

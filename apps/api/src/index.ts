@@ -25,7 +25,7 @@ async function connect(): Promise<DbHandle> {
 }
 
 const handle = await connect();
-// 地図データの更新（D33）。鍵がなければ、更新の API は 503 を返す。権限チェックは #11 の requirePermission を渡す
+// 地図データの更新（D34）。鍵がなければ、更新の API は 503 を返す。権限チェックは #11 の requirePermission を渡す
 const mapDataToken = process.env.GITHUB_MAP_DATA_TOKEN;
 const mapDataWorkflow = mapDataToken
   ? createGitHubWorkflow({

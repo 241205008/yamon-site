@@ -1,6 +1,6 @@
 name: Map data
 
-# 地図データ（Protomaps の4県）を最新のビルドから切り出し直し、R2 の参照先を切り替える（DECISIONS D33、docs/MAP_DATA.md）。
+# 地図データ（Protomaps の4県）を最新のビルドから切り出し直し、R2 の参照先を切り替える（DECISIONS D34、docs/MAP_DATA.md）。
 # 管理者画面の「地図データを更新」から API 経由で起動する。Actions の画面から手動でも実行できる。
 on:
   workflow_dispatch:
@@ -92,7 +92,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
-          # 新しい aws cli は R2 が対応していない checksum を既定で付けるため、必要なときだけにする（D33）
+          # 新しい aws cli は R2 が対応していない checksum を既定で付けるため、必要なときだけにする（D34）
           AWS_REQUEST_CHECKSUM_CALCULATION: when_required
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
           FORCE: ${{ inputs.force }}

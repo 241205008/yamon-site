@@ -129,7 +129,7 @@ const pointer = (key: string) => ({
   updatedAt: '2026-10-16T00:00:00Z',
 });
 
-describe('参照先（survey-area.json）による切り替え（D33）', () => {
+describe('参照先（survey-area.json）による切り替え（D34）', () => {
   it('参照先があれば、そこに書かれた日付付きのファイルを返す', async () => {
     fake.replace('survey-area-20261015.pmtiles', new Uint8Array(30).fill(5), 'v15');
     fake.point('survey-area.json', pointer('survey-area-20261015.pmtiles'));
