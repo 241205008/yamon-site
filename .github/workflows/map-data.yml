@@ -29,10 +29,11 @@ env:
   MIN_BYTES: 100000000
   MAX_BYTES: 2000000000
 
+# runner は ubuntu-24.04 に固定する（ubuntu-latest は 2026-10-19 から Ubuntu 26.04 に順に切り替わる。D43）
 jobs:
   update:
     name: Update map data
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Check secrets
@@ -52,11 +53,11 @@ jobs:
           fi
 
       # 範囲（SURVEY_BOUNDS）を読むためのファイルだけを取り出す
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: packages/shared/src/area.ts
           sparse-checkout-cone-mode: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
