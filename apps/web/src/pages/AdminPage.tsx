@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, Clock, Copy, Mail, Shield, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
+import { MainLocationPanel } from '../components/MainLocationPanel';
 import { MapDataPanel } from '../components/MapDataPanel';
 import { BackBar, Card, ErrorText, inputClass, Modal, PageBackground, StatCard } from '../components/ui';
 import {
@@ -160,6 +161,9 @@ export function AdminPage() {
           <StatCard label="招待中" value={pendingCount} color="yellow" />
           <StatCard label="管理者数" value={db.users.filter((u) => u.role === 'admin').length} color="purple" />
         </div>
+
+        {/* 主な場所の追加・編集は管理者だけ（API でも同じ権限を確かめる、D27） */}
+        {can(me.role, 'mainLocations.manage') && <MainLocationPanel />}
 
         {/* 地図データの更新は管理者だけ（API でも同じ権限を確かめる、D34） */}
         {can(me.role, 'mapData.update') && <MapDataPanel />}

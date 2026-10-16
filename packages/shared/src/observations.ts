@@ -59,6 +59,16 @@ export const recordInputSchema = z
   });
 export type RecordInput = z.input<typeof recordInputSchema>;
 
+/** 主な場所の追加・編集（管理者だけ、D27）。座標は4県の範囲内に限る */
+export const mainLocationInputSchema = z.object({
+  name: z.string().trim().min(1, '場所の名前を入力してください').max(50),
+  lat: latSchema,
+  lng: lngSchema,
+  /** false にすると「使わない」場所になり、選択肢から外れる */
+  isActive: z.boolean().default(true),
+});
+export type MainLocationInput = z.input<typeof mainLocationInputSchema>;
+
 export const eventInputSchema = z
   .object({
     name: z.string().trim().min(1, '観察会名を入力してください').max(100),
@@ -118,6 +128,8 @@ export interface MainLocationView {
   lng: number;
   /** false なら「使わない」場所。選択肢には出さず、過去の記録の表示には残す（D27） */
   isActive: boolean;
+  /** この場所の記録の件数（記録がある場所は削除できない、D27） */
+  recordCount: number;
 }
 
 export interface RecordView {

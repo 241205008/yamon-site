@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "node scripts/drizzle-kit.mjs generate",
     "db:migrate": "tsx src/migrate.ts",
-    "db:seed": "tsx src/seed.ts"
+    "db:seed": "tsx src/seed.ts",
+    "db:import-locations": "tsx src/importLocations.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.5",
