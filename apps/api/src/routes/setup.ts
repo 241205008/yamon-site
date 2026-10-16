@@ -1,10 +1,9 @@
-import { timingSafeEqual } from 'node:crypto';
 import { setupInputSchema, type MeResponse, type SetupStatus } from '@yamon/shared';
 import { and, count, eq, gt, lte, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { AppEnv } from '../app';
 import { hashPassword } from '../auth/password';
-import { createSession, setSessionCookie, sha256 } from '../auth/session';
+import { createSession, sameSecret, setSessionCookie, sha256 } from '../auth/session';
 import { schema, type Db } from '../db/client';
 import { errorBody } from '../errors';
 import { validate } from '../validator';
@@ -25,11 +24,6 @@ export const MAX_SETUP_ATTEMPTS = 10;
 async function userCount(db: Db) {
   const [{ n }] = await db.select({ n: count() }).from(users);
   return n;
-}
-
-/** 長さの違いや一致した文字数で時間が変わらないよう、ハッシュにそろえてから比べる */
-function sameToken(input: string, expected: string) {
-  return timingSafeEqual(Buffer.from(sha256(input), 'hex'), Buffer.from(sha256(expected), 'hex'));
 }
 
 /**
@@ -69,7 +63,7 @@ export const setupRoutes = new Hono<AppEnv>()
         429,
       );
     }
-    if (!sameToken(token, expected)) {
+    if (!sameSecret(token, expected)) {
       return c.json(errorBody('invalid_setup_token', 'セットアップ用トークンが正しくありません'), 403);
     }
 

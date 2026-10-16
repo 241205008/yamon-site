@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { SESSION_MAX_AGE_SECONDS, type SessionUser } from '@yamon/shared';
 import { eq, lte } from 'drizzle-orm';
 import type { Context } from 'hono';
@@ -12,6 +12,11 @@ export const SESSION_COOKIE = 'yamon_session';
 
 /** トークン（Cookie の値・招待・再設定）の SHA-256。DB にはこれだけを保存する（D18） */
 export const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+
+/** 秘密の値を比べる。長さの違いや一致した文字数で時間が変わらないよう、ハッシュにそろえてから比べる */
+export function sameSecret(input: string, expected: string) {
+  return timingSafeEqual(Buffer.from(sha256(input), 'hex'), Buffer.from(sha256(expected), 'hex'));
+}
 
 /** 推測できない乱数のトークン（256 ビット） */
 export const newToken = () => randomBytes(32).toString('base64url');

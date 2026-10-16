@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
+import { sameSecret } from './auth/session';
 import type { Db } from './db/client';
 import { consoleMailer, type Mailer } from './mail';
 import { errorBody, handleError } from './errors';
@@ -49,7 +50,15 @@ export interface AppDeps {
   setupToken?: string;
   /** 地図データの更新（D34）。GitHub の鍵と権限チェック。なければ 503 / 403 を返す */
   mapData?: MapDataDeps;
+  /**
+   * Cloudflare の Worker と共有する秘密の値（環境変数 PROXY_SECRET、D44）。
+   * 渡したときは、PROXY_SECRET_HEADER に同じ値が付いたリクエストだけを受け付ける（Cloud Run への直接のアクセスを断る）
+   */
+  proxySecret?: string;
 }
+
+/** Worker（apps/web/worker/api/proxy.ts）が秘密の値を入れるヘッダー。名前は Worker 側と同じにする */
+export const PROXY_SECRET_HEADER = 'x-yamon-proxy-secret';
 
 /** 状態を変えるメソッド。CSRF 対策で、本文は JSON に限る */
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -66,11 +75,22 @@ export function createApp({
   appUrl,
   setupToken,
   mapData = {},
+  proxySecret,
 }: AppDeps) {
   const app = new Hono<AppEnv>().basePath('/api');
 
   if (log) app.use(logger());
   app.use(secureHeaders());
+  // 入口を Worker 経由に限る（D44）。ヘルスチェックも含めて、すべてのパスで確かめる
+  if (proxySecret) {
+    app.use(async (c, next) => {
+      const received = c.req.header(PROXY_SECRET_HEADER);
+      if (received === undefined || !sameSecret(received, proxySecret)) {
+        return c.json(errorBody('forbidden', '直接のアクセスは受け付けていません'), 403);
+      }
+      await next();
+    });
+  }
   app.use(async (c, next) => {
     c.set('db', db);
     c.set('cookieSecure', cookieSecure);

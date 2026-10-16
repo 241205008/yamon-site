@@ -47,6 +47,12 @@ const setupToken = setupTokenEnv && setupTokenEnv.length >= MIN_SETUP_TOKEN_LENG
 if (setupTokenEnv && !setupToken) {
   console.warn(`SETUP_TOKEN が短すぎるため（${MIN_SETUP_TOKEN_LENGTH}文字未満）、初回セットアップはできません`);
 }
+// Worker と共有する秘密の値（D44）。本番では必須にし、Cloud Run の URL に直接来たリクエストを断る
+const MIN_PROXY_SECRET_LENGTH = 32;
+const proxySecret = process.env.PROXY_SECRET?.trim() || undefined;
+if (isProduction && (!proxySecret || proxySecret.length < MIN_PROXY_SECRET_LENGTH)) {
+  throw new Error(`PROXY_SECRET（${MIN_PROXY_SECRET_LENGTH}文字以上）が設定されていません`);
+}
 const app = createApp({
   db: handle.db,
   log: true,
@@ -55,6 +61,7 @@ const app = createApp({
   appUrl: process.env.APP_URL,
   setupToken,
   mapData: { workflow: mapDataWorkflow, authorize: requirePermission('mapData.update') },
+  proxySecret,
 });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
