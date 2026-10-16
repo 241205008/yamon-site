@@ -9,6 +9,10 @@ import { errorBody, handleError } from './errors';
 import { adminRoutes } from './routes/admin';
 import { authRoutes } from './routes/auth';
 import { invitationRoutes } from './routes/invitations';
+import { creatureRoutes } from './routes/creatures';
+import { eventRoutes } from './routes/events';
+import { mainLocationRoutes, statsRoutes } from './routes/locations';
+import { recordRoutes } from './routes/records';
 import { mapDataRoutes, type MapDataDeps } from './mapData/routes';
 
 export interface AppEnv {
@@ -83,6 +87,11 @@ export function createApp({
   app.get('/health', (c) => c.json({ status: 'ok' }));
 
   app.route('/auth', authRoutes);
+  app.route('/creatures', creatureRoutes);
+  app.route('/events', eventRoutes);
+  app.route('/records', recordRoutes);
+  app.route('/main-locations', mainLocationRoutes);
+  app.route('/stats', statsRoutes);
   app.route('/invitations', invitationRoutes);
   // /admin/map-data を先につなぐ（後の /admin の users.manage のチェックより先に、地図データの権限で判定する）
   app.route('/admin/map-data', mapDataRoutes(mapData));

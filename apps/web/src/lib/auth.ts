@@ -1,7 +1,7 @@
 import type { InvitationAcceptInput, InvitationInfo, MeResponse, SessionUser } from '@yamon/shared';
 import { useSyncExternalStore } from 'react';
 import { apiFetch, setUnauthorizedHandler } from './api';
-import { syncSessionUser } from './store';
+import { queryClient } from './queries';
 
 /**
  * ログイン状態。正本は API のセッション（HttpOnly の Cookie、D18）で、ブラウザには保存しない。
@@ -16,10 +16,9 @@ function subscribe(listener: () => void) {
 }
 
 function setUser(user: SessionUser | null) {
+  // ログアウトしたり別の人に替わったりしたら、前の人の権限で読んだデータを残さない
+  if (currentUser?.id !== user?.id || currentUser?.role !== user?.role) queryClient.clear();
   currentUser = user;
-  // 記録などのデータは、まだ localStorage のストアにある（#13 で API に移す）。
-  // ストアの操作はユーザー ID で本人を確かめるので、ログイン中のユーザーをストアにも入れておく
-  if (user) syncSessionUser(user);
   listeners.forEach((l) => l());
 }
 

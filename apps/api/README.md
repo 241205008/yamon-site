@@ -1,6 +1,6 @@
 # @yamon/api
 
-バックエンド（Hono ＋ Drizzle ORM ＋ PostgreSQL）。技術選定の理由は [docs/DECISIONS.md](../../docs/DECISIONS.md) の D14〜D18・D22・D30・D31・D33・D35 を参照。
+バックエンド（Hono ＋ Drizzle ORM ＋ PostgreSQL）。技術選定の理由は [docs/DECISIONS.md](../../docs/DECISIONS.md) の D14〜D18・D22・D30・D31・D33・D35・D36 を参照。
 
 ## 起動
 
@@ -17,7 +17,7 @@
 | `SMTP_HOST` / `SMTP_PORT` | 既定は `smtp.gmail.com` / `465` |
 | `MAIL_FROM` | 送信元の表示。既定は `やもんサイト <SMTP_USER>` |
 
-開発用のアカウントは `npm run db:seed -w @yamon/api` で作る（リポジトリ直下の README の「開発用のアカウント」）。
+開発用のアカウントとデモデータは `npm run db:seed -w @yamon/api` で入れる（リポジトリ直下の README の「開発用のアカウント」）。
 
 ## ルートを足すとき
 

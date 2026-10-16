@@ -1,5 +1,5 @@
 /**
- * メール送信（D22・D34）。送り方はこのインターフェースの裏に隠し、Gmail（SMTP）と Resend などを差し替えられるようにする。
+ * メール送信（D22・D36）。送り方はこのインターフェースの裏に隠し、Gmail（SMTP）と Resend などを差し替えられるようにする。
  * ルートは c.get('mailer') で受け取る。テストでは送ったメールを配列にためる mailer を渡す
  */
 export interface MailMessage {

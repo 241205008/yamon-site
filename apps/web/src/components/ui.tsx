@@ -138,16 +138,62 @@ export function usePaged<T>(items: T[], pageSize = 20) {
   };
 }
 
-export function ShowMoreButton({ rest, onClick }: { rest: number; onClick: () => void }) {
+export function ShowMoreButton({ rest, onClick, loading = false }: { rest: number; onClick: () => void; loading?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="mt-3 w-full rounded-lg border border-gray-200 py-2 text-sm text-gray-600 hover:bg-gray-50"
+      disabled={loading}
+      className="mt-3 w-full rounded-lg border border-gray-200 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-60"
     >
-      さらに表示（残り{rest}件）
+      {loading ? '読み込み中…' : `さらに表示（残り${rest}件）`}
     </button>
   );
+}
+
+type QueryLike = { isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
+
+/** 複数の読み込みのうち、まだ使えないもの（エラーを優先、次に読み込み中）を返す。すべて読めていれば最後のもの */
+export function firstUnready(...queries: QueryLike[]): QueryLike {
+  return queries.find((q) => q.isError) ?? queries.find((q) => q.isPending) ?? queries[queries.length - 1];
+}
+
+/**
+ * API からの読み込みの状態（読み込み中・エラー）。読み込めていれば children を出す。
+ * エラーのときは「もう一度読み込む」ボタンを出す
+ */
+export function QueryState({
+  query,
+  children,
+  label = 'データ',
+}: {
+  query: QueryLike;
+  children: ReactNode;
+  label?: string;
+}) {
+  if (query.isPending) {
+    return (
+      <p role="status" className="py-8 text-center text-sm text-gray-500">
+        {label}を読み込み中…
+      </p>
+    );
+  }
+  if (query.isError) {
+    const message = query.error instanceof Error ? query.error.message : '読み込みに失敗しました';
+    return (
+      <div className="space-y-2 py-4">
+        <ErrorText message={`${label}を読み込めませんでした。${message}`} />
+        <button
+          type="button"
+          onClick={() => void query.refetch()}
+          className="rounded-lg bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
+        >
+          もう一度読み込む
+        </button>
+      </div>
+    );
+  }
+  return <>{children}</>;
 }
 
 export const inputClass =

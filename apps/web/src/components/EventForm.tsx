@@ -1,18 +1,21 @@
 import { Calendar, MapPin, Navigation } from 'lucide-react';
 import { useState } from 'react';
 import { getCurrentPosition } from '../lib/geo';
-import { MAIN_LOCATIONS, findMainLocation, todayJst } from '@yamon/shared';
-import { StoreError, type EventInput } from '../lib/store';
+import { todayJst, type EventInput, type MainLocationView } from '@yamon/shared';
+import { errorMessage } from '../lib/queries';
 import { ErrorText, inputClass } from './ui';
 
 const STEPS = ['観察会名', '場所', '日時'];
 
 /** 観察会作成の3ステップウィザード */
 export function EventForm({
+  mainLocations,
   onCreate,
   onCancel,
 }: {
-  onCreate: (input: EventInput) => void;
+  mainLocations: MainLocationView[];
+  /** 失敗したら例外を投げる（入力内容は消さずにエラーを出す） */
+  onCreate: (input: EventInput) => Promise<void>;
   onCancel: () => void;
 }) {
   const [step, setStep] = useState(0);
@@ -24,8 +27,9 @@ export function EventForm({
   const [date, setDate] = useState(todayJst());
   const [time, setTime] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const locationLabel = findMainLocation(mainLocationId)?.name ?? otherName.trim();
+  const locationLabel = mainLocations.find((l) => l.id === mainLocationId)?.name ?? otherName.trim();
   const canNext = step === 0 ? !!name.trim() : step === 1 ? !!locationLabel : !!date && !!time;
 
   const toggleGps = async () => {
@@ -44,10 +48,11 @@ export function EventForm({
     }
   };
 
-  const submit = () => {
+  const submit = async () => {
     setError(null);
+    setSubmitting(true);
     try {
-      onCreate({
+      await onCreate({
         name,
         mainLocationId,
         otherLocationName: otherName,
@@ -57,7 +62,9 @@ export function EventForm({
         time,
       });
     } catch (e) {
-      setError(e instanceof StoreError ? e.message : '作成に失敗しました');
+      setError(errorMessage(e, '作成に失敗しました'));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -111,7 +118,7 @@ export function EventForm({
         <div className="space-y-4">
           <p className="text-sm text-gray-700">主な場所</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {MAIN_LOCATIONS.map((l) => (
+            {mainLocations.filter((l) => l.isActive).map((l) => (
               <button
                 key={l.id}
                 type="button"
@@ -214,11 +221,11 @@ export function EventForm({
         )}
         <button
           type="button"
-          disabled={!canNext}
-          onClick={() => (step < 2 ? setStep(step + 1) : submit())}
+          disabled={!canNext || submitting}
+          onClick={() => (step < 2 ? setStep(step + 1) : void submit())}
           className="flex-1 rounded-lg bg-orange-600 py-2.5 text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {step < 2 ? '次へ' : '観察会を作成'}
+          {step < 2 ? '次へ' : submitting ? '作成中…' : '観察会を作成'}
         </button>
       </div>
     </div>

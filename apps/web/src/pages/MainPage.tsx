@@ -1,58 +1,64 @@
 import { Calendar, Database as DbIcon, List, LogOut, Map as MapIcon, MapPin, Pencil, Shield } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { CreatureManager } from '../components/CreatureManager';
 import { EventForm } from '../components/EventForm';
 import { RecordCard } from '../components/RecordCard';
 import { RecordForm } from '../components/RecordForm';
-import { ErrorText, PageBackground } from '../components/ui';
-import { compareRecordsDesc, useCreatureMap } from '../lib/selectors';
-import {
-  addRecord,
-  createEvent,
-  deleteRecord,
-  StoreError,
-  updateRecord,
-  useDb,
-} from '../lib/store';
-import { can } from '@yamon/shared';
+import { ErrorText, PageBackground, QueryState, firstUnready } from '../components/ui';
+import { can, type RecordView } from '@yamon/shared';
 import { logout, useCurrentUser } from '../lib/auth';
-import type { ObservationRecord } from '../lib/types';
+import {
+  errorMessage,
+  useCreateEvent,
+  useCreateRecord,
+  useCreatures,
+  useDeleteRecord,
+  useMainLocations,
+  useRecordPages,
+  useUpdateRecord,
+} from '../lib/queries';
 
 const RECENT_LIMIT = 10;
 
 const navBtn = 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-white transition-colors';
 
 export function MainPage() {
-  const db = useDb();
   const user = useCurrentUser()!;
   const navigate = useNavigate();
-  const creatureMap = useCreatureMap(db);
+  // OB・OG（閲覧のみ）には追加・編集の操作を出さない（API でも拒否する、MVP 2章）
+  const canCreateRecord = can(user.role, 'records.create');
+  const canEditOwn = can(user.role, 'records.editOwn');
+  const canCreateEvent = can(user.role, 'events.create');
+
+  const creatures = useCreatures();
+  const mainLocations = useMainLocations();
+  const recentQuery = useRecordPages({ limit: RECENT_LIMIT });
+  const recent = recentQuery.data?.pages[0]?.records ?? [];
+  const createRecord = useCreateRecord();
+  const updateRecord = useUpdateRecord();
+  const deleteRecord = useDeleteRecord();
+  const createEvent = useCreateEvent();
 
   const [showEventForm, setShowEventForm] = useState(false);
   const [showCreatures, setShowCreatures] = useState(false);
-  const [editing, setEditing] = useState<ObservationRecord | null>(null);
+  const [editing, setEditing] = useState<RecordView | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
-  const recent = useMemo(
-    () => [...db.records].sort(compareRecordsDesc).slice(0, RECENT_LIMIT),
-    [db.records],
-  );
-
-  const startEdit = (r: ObservationRecord) => {
+  const startEdit = (r: RecordView) => {
     setEditing(r);
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const remove = (r: ObservationRecord) => {
+  const remove = async (r: RecordView) => {
     setListError(null);
     if (!window.confirm('この記録を削除しますか？')) return;
     try {
-      deleteRecord(user.id, r.id);
+      await deleteRecord.mutateAsync(r.id);
       if (editing?.id === r.id) setEditing(null);
     } catch (e) {
-      setListError(e instanceof StoreError ? e.message : '削除に失敗しました');
+      setListError(errorMessage(e, '削除に失敗しました'));
     }
   };
 
@@ -113,7 +119,7 @@ export function MainPage() {
 
       <main className="mx-auto max-w-2xl space-y-6 px-4 py-8">
 
-        {!showEventForm ? (
+        {!canCreateEvent ? null : !showEventForm ? (
           <button
             type="button"
             onClick={() => setShowEventForm(true)}
@@ -124,22 +130,24 @@ export function MainPage() {
           </button>
         ) : (
           <EventForm
+            mainLocations={mainLocations.data ?? []}
             onCancel={() => setShowEventForm(false)}
-            onCreate={(input) => {
-              const ev = createEvent(user.id, input);
+            onCreate={async (input) => {
+              const ev = await createEvent.mutateAsync(input);
               navigate(`/event-detail/${ev.id}`);
             }}
           />
         )}
 
-        {showCreatures && <CreatureManager db={db} actorId={user.id} />}
+        {showCreatures && <CreatureManager canManage={can(user.role, 'creatures.manage')} />}
 
+        {canCreateRecord && (
         <div ref={formRef} className="scroll-mt-4 space-y-4">
           {editing && (
             <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
               <span className="flex items-center gap-2">
                 <Pencil className="h-4 w-4" />
-                記録を編集中：{creatureMap.get(editing.creatureId)?.name}（{editing.date} {editing.time}）
+                記録を編集中：{editing.creatureName}（{editing.date} {editing.time}）
               </span>
               <button type="button" onClick={() => setEditing(null)} className="text-blue-700 underline">
                 編集をやめる
@@ -147,30 +155,35 @@ export function MainPage() {
             </div>
           )}
           <div className="rounded-xl bg-white p-6 shadow-md">
-            <RecordForm
-              key={editing?.id ?? 'new'}
-              actorId={user.id}
-              creatures={db.creatures}
-              initialRecord={editing ?? undefined}
-              title={editing ? '観察記録を編集' : '観察記録を追加'}
-              onCancel={editing ? () => setEditing(null) : undefined}
-              onSubmit={(input) => {
-                if (editing) {
-                  updateRecord(user.id, editing.id, input);
-                  setEditing(null);
-                } else {
-                  addRecord(user.id, input);
-                }
-              }}
-            />
+            <QueryState query={firstUnready(creatures, mainLocations)} label="入力の選択肢">
+              <RecordForm
+                key={editing?.id ?? 'new'}
+                creatures={creatures.data ?? []}
+                mainLocations={mainLocations.data ?? []}
+                canAddCreature={can(user.role, 'creatures.manage')}
+                initialRecord={editing ?? undefined}
+                title={editing ? '観察記録を編集' : '観察記録を追加'}
+                onCancel={editing ? () => setEditing(null) : undefined}
+                onSubmit={async (input) => {
+                  if (editing) {
+                    await updateRecord.mutateAsync({ id: editing.id, input });
+                    setEditing(null);
+                  } else {
+                    await createRecord.mutateAsync(input);
+                  }
+                }}
+              />
+            </QueryState>
           </div>
         </div>
+        )}
 
         <section className="rounded-xl bg-white p-6 shadow-md">
           <h2 className="mb-4 text-xl font-bold text-gray-900">最近の記録</h2>
           <div className="mb-3">
             <ErrorText message={listError} />
           </div>
+          <QueryState query={recentQuery} label="記録">
           {recent.length === 0 ? (
             <p className="py-8 text-center text-gray-500">まだ記録がありません</p>
           ) : (
@@ -179,15 +192,16 @@ export function MainPage() {
                 <RecordCard
                   key={r.id}
                   record={r}
-                  creature={creatureMap.get(r.creatureId)}
                   isMine={r.userId === user.id}
+                  canEdit={r.userId === user.id && canEditOwn}
                   isEditing={editing?.id === r.id}
                   onEdit={() => startEdit(r)}
-                  onDelete={() => remove(r)}
+                  onDelete={() => void remove(r)}
                 />
               ))}
             </div>
           )}
+          </QueryState>
         </section>
       </main>
     </PageBackground>
