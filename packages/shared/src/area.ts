@@ -10,7 +10,7 @@ export const SURVEY_BOUNDS = {
   east: 137.95,
 } as const;
 
-/** 保護対象の生き物の位置を丸める単位（度）。0.01度は緯度で約1.1km、この辺りの経度で約0.9km（D38） */
+/** 保護対象の生き物の位置を丸める単位（度）。0.01度は緯度で約1.1km、この辺りの経度で約0.9km（D39） */
 export const PROTECTED_GRID_DEGREES = 0.01;
 
 /**

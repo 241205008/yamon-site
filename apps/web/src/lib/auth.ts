@@ -1,4 +1,11 @@
-import type { InvitationAcceptInput, InvitationInfo, MeResponse, SessionUser } from '@yamon/shared';
+import type {
+  InvitationAcceptInput,
+  InvitationInfo,
+  MeResponse,
+  SessionUser,
+  SetupInput,
+  SetupStatus,
+} from '@yamon/shared';
 import { useSyncExternalStore } from 'react';
 import { apiFetch, setUnauthorizedHandler } from './api';
 import { queryClient } from './queries';
@@ -76,6 +83,18 @@ export function lookupInvitation(token: string): Promise<InvitationInfo> {
 /** 招待リンクから登録する。登録したらそのままログインした状態になる */
 export async function acceptInvitation(input: InvitationAcceptInput): Promise<SessionUser> {
   const { user } = await apiFetch<MeResponse>('/api/invitations/accept', { method: 'POST', body: input });
+  setUser(user);
+  return user!;
+}
+
+/** 初回セットアップが必要か（ユーザーが1人もいないか）と、サーバーで登録できるか */
+export function fetchSetupStatus(): Promise<SetupStatus> {
+  return apiFetch<SetupStatus>('/api/setup');
+}
+
+/** 初回セットアップで最初の管理者を登録する。登録したらそのままログインした状態になる */
+export async function setupFirstAdmin(input: SetupInput): Promise<SessionUser> {
+  const { user } = await apiFetch<MeResponse>('/api/setup', { method: 'POST', body: input });
   setUser(user);
   return user!;
 }

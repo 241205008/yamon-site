@@ -2,7 +2,7 @@
 
 自然観察会の記録管理 Web アプリ（プロトタイプ）。招待制で、観察記録・観察会・生き物・場所を API（Hono）と PostgreSQL に保存します。
 
-> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D37 を参照してください。
+> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D38 を参照してください。
 
 ## 起動
 
@@ -34,6 +34,10 @@ API の DB は、`DATABASE_URL` がなければ PGlite（WebAssembly 版の Post
 特定のパッケージだけ動かすときは `-w` を付けます（例：`npm test -w @yamon/shared`）。
 
 > TLS 検査のあるネットワークで `npm install` が証明書エラーになる場合は、`NODE_OPTIONS=--use-system-ca` を付けて実行してください。
+
+## 初回セットアップ（本番）
+
+ユーザーが1人もいない状態でサイトを開くと、`/setup`（初回セットアップ）が表示されます。API の環境変数 `SETUP_TOKEN`（20文字以上。`openssl rand -base64 32` などで作る）と同じトークンを入力した人だけが、最初の管理者を登録できます（D38）。登録後は、管理者画面から他のメンバーを招待します。
 
 ## 開発用のアカウント
 

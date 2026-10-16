@@ -98,3 +98,20 @@ export const USER_STATUS_LABELS: Record<UserStatus, string> = {
   disabled: '無効化',
   withdrawn: '退会',
 };
+
+/** 初回セットアップ（ユーザーが0人のときだけ）。最初の管理者を登録する（MVP 3章、#4） */
+export const setupInputSchema = z.object({
+  /** サーバーの環境変数 SETUP_TOKEN と同じ値（デプロイした人だけが知っている） */
+  token: z.string().trim().min(1, 'セットアップ用トークンを入力してください').max(200),
+  name: requiredText(MAX_NAME_LENGTH),
+  email: emailSchema,
+  password: newPasswordSchema,
+});
+export type SetupInput = z.input<typeof setupInputSchema>;
+
+/** GET /api/setup：初回セットアップが必要か（ユーザーが1人もいないか） */
+export interface SetupStatus {
+  needed: boolean;
+  /** サーバーにセットアップ用トークン（SETUP_TOKEN）が設定されているか。なければ登録できない */
+  available: boolean;
+}
