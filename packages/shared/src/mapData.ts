@@ -27,7 +27,7 @@ export interface MapDataStatus {
   run: MapDataRun | null;
 }
 
-/** /map/<名前>.json（今の地図データの情報。Pages Functions が返す） */
+/** /map/<名前>.json（今の地図データの情報。Worker が返す） */
 export interface MapDataInfo {
   key: string;
   build: string;

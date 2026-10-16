@@ -103,7 +103,7 @@ apps/
     src/components/   共通 UI、RecordForm、EventForm、地図ピッカーなど
     src/pages/        各画面
     worker/           Cloudflare Workers の入口（/map/* を地図配信へ、それ以外は画面のファイル）
-    functions/map/    地図データの配信（R2 のファイルを Range 付きで返す。worker/ から呼ぶ）
+    worker/map/       地図データの配信（R2 のファイルを Range 付きで返す。worker/index.ts から呼ぶ）
     wrangler.jsonc    Cloudflare Workers の設定
     map-data/         開発用の地図データ（Git に入れない）
   api/                バックエンド（@yamon/api）。Hono ＋ Drizzle ORM ＋ PostgreSQL

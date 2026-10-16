@@ -1,7 +1,7 @@
 // Cloudflare Workers の入口（D42）。wrangler.jsonc の run_worker_first に書いたパス（/map/*）は必ずここを通る。
 // ほかに、どの静的ファイルにも当たらないリクエスト（古いファイル名の /assets/*.js など）もここに来る。
 // CI のデプロイは node_modules なしで束ねるため、相対パスのファイルだけを import する（import type は可）
-import { serveMapData, servePointer } from '../functions/map/[[path]]';
+import { serveMapData, servePointer } from './map/serve';
 
 export interface Env {
   /** 画面のファイル（dist/）。wrangler.jsonc の assets */

@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { MapContainer, TileLayer, ZoomControl, useMap } from 'react-leaflet';
 import { SURVEY_BOUNDS } from '@yamon/shared';
 
-/** 基本の地図（Protomaps の4県）。開発では vite.config.ts、本番では Pages Functions（functions/map）が返す */
+/** 基本の地図（Protomaps の4県）。開発では vite.config.ts、本番では Worker（apps/web/worker/map）が R2 から返す */
 export const MAP_TILES_URL: string = import.meta.env.VITE_MAP_TILES_URL || '/map/survey-area.pmtiles';
 /** 地図データの読み込み口。ヘッダーと目次のキャッシュを、すべての地図と切り替えで使い回すため1つだけ作る */
 const mapSource = new PMTiles(MAP_TILES_URL);

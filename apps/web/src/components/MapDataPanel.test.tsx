@@ -15,7 +15,7 @@ const run = (state: 'running' | 'succeeded' | 'failed', id = 1) => ({
   url: 'https://github.com/o/r/actions/runs/1',
 });
 
-/** API と Functions の偽物。status・info を書き換えて状態を作り、呼ばれた回数を数える */
+/** API と Worker（/map/*）の偽物。status・info を書き換えて状態を作り、呼ばれた回数を数える */
 const server = {
   status: { state: 'idle', run: null } as MapDataStatus,
   info: { status: 404, body: null as unknown },
