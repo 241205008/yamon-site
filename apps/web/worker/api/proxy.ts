@@ -5,8 +5,8 @@
 export const PROXY_SECRET_HEADER = 'x-yamon-proxy-secret';
 
 /**
- * 転送先と秘密の値。本番の Worker にだけ Secret として登録する（README の「デプロイ」）。
- * PR のプレビュー（wrangler preview）は本番の Secret を引き継がないので、どちらもなく、API にはつながらない（D44）
+ * 転送先と秘密の値。本番の Worker にだけ Secret として登録する（docs/DEPLOY_API.md）。
+ * PR のプレビュー（wrangler preview）は本番の Secret を引き継がないので、どちらもなく、API にはつながらない（D45）
  */
 export interface ApiProxyConfig {
   /** Cloud Run のサービスの URL（例 https://yamon-api-xxxx.asia-southeast1.run.app） */

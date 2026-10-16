@@ -81,6 +81,8 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      # 本番（NODE_ENV=production）の API は PROXY_SECRET がないと起動しない（D44）。CI だけの値
+      PROXY_SECRET: ci-only-proxy-secret-0123456789abcdef
     steps:
       - uses: actions/checkout@v7
       - name: Build
@@ -91,30 +93,109 @@ jobs:
           docker run --rm --network host -e DATABASE_URL yamon-api node dist/migrate.js
       - name: Start and call /api/health
         run: |
-          docker run -d --name api --network host -e DATABASE_URL yamon-api
+          docker run -d --name api --network host -e DATABASE_URL -e PROXY_SECRET yamon-api
+          ok=""
           for i in $(seq 1 20); do
-            if curl -fsS http://localhost:8080/api/health; then exit 0; fi
+            if curl -fsS -H "x-yamon-proxy-secret: $PROXY_SECRET" http://localhost:8080/api/health; then ok=1; break; fi
             sleep 1
           done
-          docker logs api
-          exit 1
+          if [ -z "$ok" ]; then docker logs api; exit 1; fi
+          # 秘密のヘッダーがなければ断る（Cloud Run の URL に直接来たリクエスト）
+          status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/health)
+          if [ "$status" != "403" ]; then echo "::error::ヘッダーなしで $status が返りました（403 のはず）"; exit 1; fi
+
+  # API を Cloud Run へ出す（main だけ、D44）。本番の DB にマイグレーションを流してから、新しいイメージに切り替える（D30）。
+  # Google Cloud の準備（docs/DEPLOY_API.md）が終わるまでは、Variable の GCP_PROJECT_ID がないので実行しない
+  deploy-api:
+    name: Deploy API (Cloud Run)
+    needs: [check, api-image]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.GCP_PROJECT_ID != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # DATABASE_URL は production 環境の Secret（main からしか使えない）。Google Cloud への認証も production 環境に限る
+    environment: production
+    permissions:
+      contents: read
+      # Workload Identity 連携（鍵を GitHub に置かない）で Google Cloud にログインするため
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: asia-southeast1
+      SERVICE: yamon-api
+      IMAGE: asia-southeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/yamon/api:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+      - name: Build and push image
+        run: |
+          gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+          docker build -f apps/api/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+      # 新しいテーブル定義を先に入れる。失敗したら API は前のイメージのまま動き続ける。
+      # マイグレーションは、前のイメージの API がそのまま動ける形（列の追加など）にする
+      - name: Migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::production 環境の Secret の DATABASE_URL が未設定です（docs/DEPLOY_API.md）"
+            exit 1
+          fi
+          docker run --rm -e DATABASE_URL "$IMAGE" node dist/migrate.js
+      # 設定はすべてここに書き、デプロイのたびに同じ状態にする。秘密の値は Secret Manager から渡す（実値は GitHub にない）
+      # - インスタンスは最大1台（想定外の課金を防ぐ）。アクセスがなければ0台になる
+      # - 誰でも呼べる設定（--no-invoker-iam-check）にするが、PROXY_SECRET の付いたリクエスト（Worker 経由）以外は API が 403 で断る
+      - name: Deploy
+        env:
+          APP_URL: https://yamon-site.yamonken.workers.dev
+          SMTP_USER: ${{ vars.SMTP_USER }}
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE" \
+            --region "$GCP_REGION" \
+            --service-account "yamon-api-runtime@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+            --no-invoker-iam-check \
+            --min-instances 0 \
+            --max-instances 1 \
+            --concurrency 80 \
+            --cpu 1 \
+            --memory 512Mi \
+            --timeout 60 \
+            --set-env-vars "APP_URL=${APP_URL},SMTP_USER=${SMTP_USER}" \
+            --set-secrets "DATABASE_URL=yamon-database-url:latest,PROXY_SECRET=yamon-proxy-secret:latest,SETUP_TOKEN=yamon-setup-token:latest,SMTP_PASS=yamon-smtp-pass:latest,GITHUB_MAP_DATA_TOKEN=yamon-github-map-data-token:latest" \
+            --quiet
+          url=$(gcloud run services describe "$SERVICE" --region "$GCP_REGION" --format 'value(status.url)')
+          {
+            echo "### API のデプロイ完了"
+            echo "- イメージ: \`$IMAGE\`"
+            echo "- Cloud Run の URL: $url（直接開くと 403。Worker の Secret の API_ORIGIN に登録する）"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     name: Deploy (Cloudflare Workers)
-    needs: check
+    needs: [check, api-image, deploy-api]
     # main への push・main の手動実行は本番、それ以外（同じリポジトリからの PR など）はプレビュー。
     # フォークや Dependabot の PR には Secret が渡らないため、deploy-ready が false になり実行しない。
-    if: needs.check.outputs.deploy-ready == 'true'
+    # API のデプロイ（main だけ）が成功したか、実行しなかったときに動く。API が失敗したら、画面だけ先に出さない
+    if: >-
+      always() &&
+      needs.check.result == 'success' && needs.api-image.result == 'success' &&
+      needs.check.outputs.deploy-ready == 'true' &&
+      (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
       name: ${{ (github.event_name != 'pull_request' && github.ref == 'refs/heads/main') && 'production' || 'preview' }}
       url: ${{ steps.deploy.outputs.deployment-url }}
     steps:
-      # main（push・手動実行）は本番へ wrangler deploy。それ以外はプレビューとして版だけ上げる（本番は変わらない）。
+      # main（push・手動実行）は本番へ wrangler deploy。それ以外は Workers Previews（wrangler preview）に出す。
+      # プレビューは本番の Secret（API_ORIGIN・PROXY_SECRET）を引き継がず、API につながらない（D45）。
       # PR は pr-<番号> の名前にする（head が main でも本番に出ないように）。
-      # それ以外の Branch 名は、コマンドに埋め込む前に英小文字・数字・ハイフンだけにし、URL に収まる長さに切る。
-      # Worker がまだない（初回の本番デプロイ前の）ときは、プレビューの版を上げられず失敗する
+      # それ以外の Branch 名は、コマンドに埋め込む前に英小文字・数字・ハイフンだけにし、URL に収まる長さに切る
       - name: Resolve command
         id: target
         env:
@@ -127,14 +208,13 @@ jobs:
             exit 0
           fi
           if [ -n "$PR_NUMBER" ]; then
-            alias="pr-$PR_NUMBER"
+            name="pr-$PR_NUMBER"
           else
-            # 別名は英字で始める必要があるので、Branch 名の前に b- を付ける
-            alias="b-$(printf '%s' "$RAW_BRANCH" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9-' '-' | cut -c1-38)"
-            alias=$(printf '%s' "$alias" | sed 's/-*$//')
+            # 名前は英字で始める必要があるので、Branch 名の前に b- を付ける
+            name="b-$(printf '%s' "$RAW_BRANCH" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9-' '-' | cut -c1-38)"
+            name=$(printf '%s' "$name" | sed 's/-*$//')
           fi
-          echo "alias=$alias" >> "$GITHUB_OUTPUT"
-          echo "command=versions upload --preview-alias $alias" >> "$GITHUB_OUTPUT"
+          echo "command=preview --name $name" >> "$GITHUB_OUTPUT"
 
       # checkout はしない。Artifact を展開した場所の wrangler.jsonc を読み、worker/index.ts を束ねてデプロイする。
       # node_modules がないため、worker/ からは相対パスのファイルだけを import できる
@@ -150,20 +230,31 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # wrangler preview は 4.136.3 以降が要る。版を固定して、実行ごとに変わらないようにする
+          wranglerVersion: "4.151.0"
           workingDirectory: site
           command: ${{ steps.target.outputs.command }}
+
+      # 本番では、Worker 経由で API のヘルスチェックを呼び、転送と秘密のヘッダーがつながっているかを確かめる。
+      # API の準備前（deploy-api を実行しなかったとき）は確かめない
+      - name: Check API through Worker
+        if: needs.deploy-api.result == 'success'
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          # Cloud Run が0台から起動するまで待つ（数秒〜十数秒）
+          for i in $(seq 1 10); do
+            if curl -fsS "$DEPLOYMENT_URL/api/health"; then exit 0; fi
+            sleep 3
+          done
+          echo "::error::Worker 経由で /api/health に届きません。Worker の Secret（API_ORIGIN・PROXY_SECRET）と Cloud Run の PROXY_SECRET を確かめてください（docs/DEPLOY_API.md）"
+          exit 1
 
       - name: Summary
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
-          COMMAND_OUTPUT: ${{ steps.deploy.outputs.command-output }}
-          ALIAS: ${{ steps.target.outputs.alias }}
         run: |
           {
             echo "### デプロイ完了"
             echo "- URL: $DEPLOYMENT_URL"
-            if [ -n "$ALIAS" ]; then
-              alias_url=$(printf '%s' "$COMMAND_OUTPUT" | grep -oE "https://${ALIAS}-[a-z0-9.-]+\.workers\.dev" | head -n 1)
-              if [ -n "$alias_url" ]; then echo "- プレビュー（${ALIAS}）の URL: $alias_url"; fi
-            fi
           } >> "$GITHUB_STEP_SUMMARY"

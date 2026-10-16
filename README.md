@@ -125,12 +125,14 @@ docs/
 
 ## デプロイ
 
-GitHub Actions（`.github/workflows/ci.yml`）で、型チェック・テスト・ビルドが通ったあとに Cloudflare Workers へデプロイします。画面のファイルは静的アセットとして配信し、`/map/*`（地図データ）だけ Worker を通します。理由と他の案は [docs/DECISIONS.md の D42・D23](docs/DECISIONS.md) を参照してください。
+GitHub Actions（`.github/workflows/ci.yml`）で、型チェック・テスト・ビルドが通ったあとに Cloudflare Workers へデプロイします。画面のファイルは静的アセットとして配信し、`/map/*`（地図データ）と `/api/*`（API。Cloud Run へ転送する）だけ Worker を通します。main では、画面の前に API を Cloud Run へデプロイします。理由と他の案は [docs/DECISIONS.md の D42・D23・D44・D45](docs/DECISIONS.md) を参照してください。
+
+API・DB・メール（Cloud Run・Neon・Gmail）の準備は [docs/DEPLOY_API.md](docs/DEPLOY_API.md) を参照してください。準備が終わるまで（GitHub の Variable `GCP_PROJECT_ID` がない間）は、API のデプロイを省略します。
 
 | きっかけ | デプロイ先 |
 |---|---|
 | main への push（PR の Merge） | 本番（`https://yamon-site.<サブドメイン>.workers.dev`） |
-| 同じリポジトリからの PR | プレビュー（`https://pr-<PR番号>-yamon-site.<サブドメイン>.workers.dev`。本番は変わらない。URL は Actions の実行結果の Summary に出る） |
+| 同じリポジトリからの PR | プレビュー（Workers Previews、`https://pr-<PR番号>-yamon-site.<サブドメイン>.workers.dev`。本番は変わらない。URL は Actions の実行結果の Summary に出る）。プレビューは本番の API につながらず、ログインやデータの表示はできない（D45） |
 | Actions 画面からの手動実行（Run workflow） | main なら本番、それ以外はプレビュー（`b-<Branch名>-yamon-site...`） |
 
 Secret が未設定の間は、デプロイだけ警告付きで省略されます（CI は失敗しません）。
@@ -157,7 +159,7 @@ Cloudflare のアカウントは、サークルの Gmail で作ったものを�
 
    アカウント ID は「Workers & Pages」の右側に表示されている
 
-4. **最初の本番デプロイ**：Actions 画面で CI を main に対して手動実行する（Worker はここで作られる。Worker がないうちは PR のプレビューが失敗するので、先に本番を1回出す）。Summary の URL を開き、画面が表示されることを確かめる。ログの途中に出る `npx canceled due to missing packages` は、wrangler-action が wrangler の有無を確かめたときのもので、そのあと入れ直して進むので問題ない
+4. **最初の本番デプロイ**：Actions 画面で CI を main に対して手動実行する（Worker はここで作られる）。Summary の URL を開き、画面が表示されることを確かめる。ログの途中に出る `npx canceled due to missing packages` は、wrangler-action が wrangler の有無を確かめたときのもので、そのあと入れ直して進むので問題ない
 
 地図データ（R2）の準備は [docs/MAP_DATA.md](docs/MAP_DATA.md) を参照してください。R2 のバケットができるまでは、`/map/*` が 503 を返し、背景の地図（Protomaps）だけが表示されません。
 
