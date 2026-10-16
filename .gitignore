@@ -5,3 +5,6 @@ dist
 .claude/
 .vscode/*
 !.vscode/extensions.json
+
+# API のローカル開発用 DB（PGlite）
+.data/

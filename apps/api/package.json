@@ -3,5 +3,32 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "バックエンド（Hono）。中身は #10 で作る"
+  "description": "バックエンド（Hono ＋ Drizzle ＋ PostgreSQL）",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "node build.mjs",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "node scripts/drizzle-kit.mjs generate",
+    "db:migrate": "tsx src/migrate.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@hono/zod-validator": "^0.9.1",
+    "@yamon/shared": "*",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "@types/node": "^26.6.5",
+    "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "5.8",
+    "vitest": "^4.1.11"
+  }
 }
