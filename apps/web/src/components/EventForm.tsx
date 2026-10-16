@@ -1,31 +1,43 @@
 import { Calendar, MapPin, Navigation } from 'lucide-react';
 import { useState } from 'react';
 import { getCurrentPosition } from '../lib/geo';
-import { todayJst, type EventInput, type MainLocationView } from '@yamon/shared';
+import { todayJst, type EventInput, type EventView, type MainLocationView } from '@yamon/shared';
 import { errorMessage } from '../lib/queries';
 import { ErrorText, inputClass } from './ui';
 
 const STEPS = ['観察会名', '場所', '日時'];
 
-/** 観察会作成の3ステップウィザード */
+/** 観察会の3ステップウィザード。initial を渡すと編集（#7）になり、今の値が入った状態で始まる */
 export function EventForm({
   mainLocations,
+  initial,
   onCreate,
   onCancel,
 }: {
   mainLocations: MainLocationView[];
+  /** 編集するときの今の観察会 */
+  initial?: EventView;
   /** 失敗したら例外を投げる（入力内容は消さずにエラーを出す） */
   onCreate: (input: EventInput) => Promise<void>;
   onCancel: () => void;
 }) {
+  const isEdit = !!initial;
+  const initialMain = mainLocations.find((l) => l.id === initial?.mainLocationId);
   const [step, setStep] = useState(0);
-  const [name, setName] = useState('');
-  const [mainLocationId, setMainLocationId] = useState<string | null>(null);
-  const [otherName, setOtherName] = useState('');
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [name, setName] = useState(initial?.name ?? '');
+  const [mainLocationId, setMainLocationId] = useState<string | null>(initial?.mainLocationId ?? null);
+  const [otherName, setOtherName] = useState(initial && !initial.mainLocationId ? initial.locationName : '');
+  // 主な場所そのものの座標なら、現在位置は使っていないものとして扱う
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(() => {
+    if (!initial || initial.lat === null || initial.lng === null) return null;
+    if (initialMain && initialMain.lat === initial.lat && initialMain.lng === initial.lng) return null;
+    return { lat: initial.lat, lng: initial.lng };
+  });
   const [locating, setLocating] = useState(false);
-  const [date, setDate] = useState(todayJst());
-  const [time, setTime] = useState('');
+  const [date, setDate] = useState(initial?.date ?? todayJst());
+  const [time, setTime] = useState(initial?.time ?? '');
+  // 「使わない」場所は選択肢に出さない。編集中の観察会の場所だけは残す
+  const locationOptions = mainLocations.filter((l) => l.isActive || l.id === initial?.mainLocationId);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -62,7 +74,7 @@ export function EventForm({
         time,
       });
     } catch (e) {
-      setError(errorMessage(e, '作成に失敗しました'));
+      setError(errorMessage(e, isEdit ? '保存に失敗しました' : '作成に失敗しました'));
     } finally {
       setSubmitting(false);
     }
@@ -73,10 +85,10 @@ export function EventForm({
       <div className="mb-6 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">
           <Calendar className="h-5 w-5 text-orange-600" />
-          新しい観察会を作成
+          {isEdit ? '観察会を編集' : '新しい観察会を作成'}
         </h2>
         <button type="button" onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-800">
-          閉じる
+          {isEdit ? 'キャンセル' : '閉じる'}
         </button>
       </div>
 
@@ -118,7 +130,7 @@ export function EventForm({
         <div className="space-y-4">
           <p className="text-sm text-gray-700">主な場所</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {mainLocations.filter((l) => l.isActive).map((l) => (
+            {locationOptions.map((l) => (
               <button
                 key={l.id}
                 type="button"
@@ -225,7 +237,7 @@ export function EventForm({
           onClick={() => (step < 2 ? setStep(step + 1) : void submit())}
           className="flex-1 rounded-lg bg-orange-600 py-2.5 text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {step < 2 ? '次へ' : submitting ? '作成中…' : '観察会を作成'}
+          {step < 2 ? '次へ' : submitting ? '保存中…' : isEdit ? '変更を保存' : '観察会を作成'}
         </button>
       </div>
     </div>
