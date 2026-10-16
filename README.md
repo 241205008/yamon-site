@@ -2,7 +2,7 @@
 
 自然観察会の記録管理 Web アプリ（プロトタイプ）。招待制で、観察記録・観察会・生き物・場所を API（Hono）と PostgreSQL に保存します。
 
-> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D36 を参照してください。
+> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D37 を参照してください。
 
 ## 起動
 
@@ -29,6 +29,7 @@ API の DB は、`DATABASE_URL` がなければ PGlite（WebAssembly 版の Post
 | `npm run db:generate -w @yamon/api` | `apps/api/src/db/schema.ts` の変更からマイグレーションを作る（`apps/api/drizzle/` に出力。一緒にコミットする） |
 | `npm run db:migrate -w @yamon/api` | `DATABASE_URL` の DB にマイグレーションを流す |
 | `npm run db:seed -w @yamon/api` | 開発用のアカウントとデモデータを入れる（下記。表ごとに空のときだけ。ローカルの PGlite 専用で、`DATABASE_URL` があるときは動かない） |
+| `npm run db:import-locations -w @yamon/api -- <CSV> [--apply]` | 主な場所の一覧（名前,緯度,経度）を DB に入れる（下記。`--apply` なしは確認だけ） |
 
 特定のパッケージだけ動かすときは `-w` を付けます（例：`npm test -w @yamon/shared`）。
 
@@ -50,6 +51,16 @@ npm run db:seed -w @yamon/api
 | OB・OG | obog@example.com | password123 |
 
 同じコマンドで、主な場所（仮の5か所）と、デモの生き物・観察会・記録も入ります（それぞれの表が空のときだけ）。データを作り直したいときは、API を止めて `apps/api/.data/pglite` を消してから、もう一度実行します。
+
+## 主な場所の初期データ
+
+幹部から届いた主な場所の一覧は、CSV（1行に `名前,緯度,経度`。1行目は見出しでもよい）にして入れます。`DATABASE_URL` があればその DB（本番は Neon）、なければローカルの PGlite に入ります（PGlite のときは API を止めてから実行します）。
+
+```bash
+npm run db:import-locations -w @yamon/api -- 主な場所.csv
+```
+
+まず確認だけが表示されます（DB は変わりません）。内容がよければ、`--apply` を付けてもう一度実行します。同じ名前の場所は飛ばし、1行でも誤り（4県の範囲外など）があれば何も入れません。登録した後の追加・編集・「使わない」は、管理者画面の「主な場所」で行います（D37）。
 
 ## 画面
 
