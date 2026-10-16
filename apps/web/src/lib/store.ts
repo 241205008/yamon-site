@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import { findMainLocation, isInSurveyArea } from '@yamon/shared';
-import { hashPassword, MIN_PASSWORD_LENGTH, newSalt, verifyPassword } from './password';
+import { findMainLocation, isInSurveyArea, type SessionUser } from '@yamon/shared';
+import { hashPassword, MIN_PASSWORD_LENGTH, newSalt } from './password';
 import { createSeedDatabase } from './seed';
 import type {
   AdminTransfer,
@@ -16,7 +16,6 @@ import type {
 } from './types';
 
 export const DB_KEY = 'yamon:db:v1';
-export const SESSION_KEY = 'yamon:session';
 
 export const INVITATION_TTL_MS = 48 * 60 * 60 * 1000;
 export const TRANSFER_REVERT_MS = 60 * 60 * 1000;
@@ -29,7 +28,6 @@ export class StoreError extends Error {}
 // ---------------------------------------------------------------------------
 
 let db: Database | null = null;
-let sessionUserId: string | null = null;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -46,15 +44,6 @@ export function getDb(): Database {
   return db;
 }
 
-function readSession(): string | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as { userId: string }).userId : null;
-  } catch {
-    return null;
-  }
-}
-
 /** localStorage から読み込む。なければデモデータを作って保存する */
 export async function initStore(): Promise<void> {
   let loaded: Database | null = null;
@@ -69,16 +58,12 @@ export async function initStore(): Promise<void> {
     localStorage.setItem(DB_KEY, JSON.stringify(loaded));
   }
   db = loaded;
-  sessionUserId = readSession();
 
   if (typeof window !== 'undefined') {
     // 別タブでの変更を反映する
     window.addEventListener('storage', (e) => {
       if (e.key === DB_KEY && e.newValue) {
         db = JSON.parse(e.newValue) as Database;
-        emit();
-      } else if (e.key === SESSION_KEY) {
-        sessionUserId = readSession();
         emit();
       }
     });
@@ -87,9 +72,8 @@ export async function initStore(): Promise<void> {
 }
 
 /** テスト用：任意のデータで初期化する */
-export function resetStoreForTest(data: Database, userId: string | null = null) {
+export function resetStoreForTest(data: Database) {
   db = structuredClone(data);
-  sessionUserId = userId;
   localStorage.clear();
   localStorage.setItem(DB_KEY, JSON.stringify(db));
 }
@@ -111,43 +95,36 @@ export function useDb(): Database {
 }
 
 // ---------------------------------------------------------------------------
-// セッション
+// ログイン中のユーザー（ログインは API で行う。lib/auth.ts）
 // ---------------------------------------------------------------------------
 
-export function getSessionUser(): User | null {
-  if (!sessionUserId || !db) return null;
-  const user = db.users.find((u) => u.id === sessionUserId);
-  // 無効化されたユーザーはセッションが残っていてもログアウト扱い
-  return user && user.isActive ? user : null;
-}
-
-export function useCurrentUser(): User | null {
-  useSyncExternalStore(subscribe, getDb);
-  useSyncExternalStore(subscribe, () => sessionUserId);
-  return getSessionUser();
-}
-
-function setSession(userId: string | null) {
-  sessionUserId = userId;
-  if (userId) localStorage.setItem(SESSION_KEY, JSON.stringify({ userId }));
-  else localStorage.removeItem(SESSION_KEY);
-  emit();
+/**
+ * API でログインしたユーザーを、このストアのユーザー一覧にも入れる（#13 で記録などを API に移すまでのつなぎ）。
+ * ストアの操作は actorId で本人を確かめ、記録者の名前もここから引くため
+ */
+export function syncSessionUser(user: SessionUser) {
+  const d = getDb();
+  const role = user.role === 'admin' ? 'admin' : 'user';
+  const existing = d.users.find((u) => u.id === user.id);
+  if (existing && existing.name === user.name && existing.email === user.email && existing.role === role && existing.isActive) {
+    return;
+  }
+  const next: User = {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role,
+    isActive: true,
+    // パスワードは API だけが持つ
+    passwordHash: '',
+    passwordSalt: '',
+    createdAt: existing?.createdAt ?? nowIso(),
+  };
+  const others = d.users.filter((u) => u.id !== user.id);
+  commit({ ...d, users: [...others, next] });
 }
 
 const normEmail = (email: string) => email.trim().toLowerCase();
-
-export async function login(email: string, password: string): Promise<User> {
-  const user = getDb().users.find((u) => u.email === normEmail(email));
-  const ok = user ? await verifyPassword(password, user.passwordSalt, user.passwordHash) : false;
-  if (!user || !ok) throw new StoreError('メールアドレスまたはパスワードが正しくありません');
-  if (!user.isActive) throw new StoreError('このアカウントは無効化されています。管理者に連絡してください');
-  setSession(user.id);
-  return user;
-}
-
-export function logout() {
-  setSession(null);
-}
 
 // ---------------------------------------------------------------------------
 // 操作者の検証
@@ -461,7 +438,6 @@ export async function registerWithInvitation(token: string, name: string, passwo
     users: [...d.users, user],
     invitations: d.invitations.map((i) => (i.id === inv.id ? { ...i, status: 'accepted' } : i)),
   });
-  setSession(user.id);
   return user;
 }
 

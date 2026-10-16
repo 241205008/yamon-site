@@ -5,7 +5,8 @@ import { RecordCard } from '../components/RecordCard';
 import { RecordForm } from '../components/RecordForm';
 import { BackBar, Card, ErrorText, PageBackground, ShowMoreButton, usePaged } from '../components/ui';
 import { compareRecordsDesc, useCreatureMap } from '../lib/selectors';
-import { addRecord, deleteRecord, StoreError, updateRecord, useCurrentUser, useDb } from '../lib/store';
+import { useCurrentUser } from '../lib/auth';
+import { addRecord, deleteRecord, StoreError, updateRecord, useDb } from '../lib/store';
 import type { ObservationRecord } from '../lib/types';
 
 export function EventDetailPage() {

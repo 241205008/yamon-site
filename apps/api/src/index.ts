@@ -24,7 +24,8 @@ async function connect(): Promise<DbHandle> {
 }
 
 const handle = await connect();
-const app = createApp({ db: handle.db, log: true });
+// 開発（http://localhost）では Cookie に Secure を付けない
+const app = createApp({ db: handle.db, log: true, cookieSecure: isProduction });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`API: http://localhost:${info.port}/api/health`);

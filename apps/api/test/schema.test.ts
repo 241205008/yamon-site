@@ -41,6 +41,7 @@ describe('マイグレーション', () => {
       'creatures',
       'events',
       'invitations',
+      'login_failures',
       'main_locations',
       'observation_records',
       'password_reset_tokens',
