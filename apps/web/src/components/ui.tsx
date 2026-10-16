@@ -1,20 +1,29 @@
 import { ArrowLeft, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
+import { PrivacyFooter } from './PrivacyNotice';
 
-/** 画面共通の背景（緑〜青のグラデーション） */
+/** 画面共通の背景（緑〜青のグラデーション）。下に「個人情報の扱い」へのリンクを出す（#35） */
 export function PageBackground({
   children,
   tone = 'green',
+  footer = true,
 }: {
   children: ReactNode;
   tone?: 'green' | 'purple';
+  /** 個人情報の扱いの画面自身では出さない */
+  footer?: boolean;
 }) {
   const bg =
     tone === 'purple'
       ? 'bg-gradient-to-br from-purple-50 via-indigo-50/60 to-blue-50'
       : 'bg-gradient-to-br from-green-50 via-emerald-50/40 to-blue-50';
-  return <div className={`min-h-screen ${bg}`}>{children}</div>;
+  return (
+    <div className={`min-h-screen ${bg}`}>
+      {children}
+      {footer && <PrivacyFooter />}
+    </div>
+  );
 }
 
 /** 「ホームに戻る」などの上部バー */

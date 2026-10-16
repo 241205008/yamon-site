@@ -7,6 +7,7 @@ import { LocationsPage } from './pages/LocationsPage';
 import { LoginPage } from './pages/LoginPage';
 import { MainPage } from './pages/MainPage';
 import { MapPage } from './pages/MapPage';
+import { PrivacyPage } from './pages/PrivacyPage';
 import { SetupPage } from './pages/SetupPage';
 
 export function App() {
@@ -15,6 +16,7 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/setup" element={<SetupPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route element={<RequireAuth />}>
           <Route path="/" element={<MainPage />} />
           <Route path="/map" element={<MapPage />} />

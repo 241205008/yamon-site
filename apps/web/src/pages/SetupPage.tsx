@@ -2,6 +2,7 @@ import { MAX_NAME_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, type SetupSt
 import { ShieldCheck } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router';
+import { PrivacyNotice } from '../components/PrivacyNotice';
 import { ErrorText, inputClass } from '../components/ui';
 import { ApiError } from '../lib/api';
 import { fetchSetupStatus, setupFirstAdmin, useCurrentUser } from '../lib/auth';
@@ -143,6 +144,7 @@ export function SetupPage() {
                   className={inputClass}
                 />
               </div>
+              <PrivacyNotice />
               <ErrorText message={error} />
               <button
                 type="submit"
