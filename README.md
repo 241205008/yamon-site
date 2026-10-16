@@ -137,7 +137,7 @@ Secret が未設定の間は、デプロイだけ警告付きで省略されま�
 
 ### 初回の設定
 
-Cloudflare のアカウントは、サークルの Gmail で作ったものを使います（D21）。作業は、メンバーに招待した個人のアカウントで行って構いません。
+Cloudflare のアカウントは、サークルの Gmail で作ったものを使います（D21）。作業は、メンバーに招待した個人のアカウントで行って構いません。ただし、アカウントの API トークン（手順2）を作れるのは Super Administrator（または API Token Provisioning の権限を持つ人）だけです。
 
 1. **workers.dev のサブドメインを決める**（アカウントで1回だけ）：Cloudflare の画面の「Workers & Pages」を開き、案内に従ってサブドメインを登録する（「Account Settings」の「workers.dev subdomain」から変更もできる）。URL の `<サブドメイン>` の部分になる
 2. **API トークンを作る**：「Manage Account → Account API Tokens」（アカウントが持つトークン。メンバーを外しても使えなくならない）で「Create Token」→ テンプレート「Edit Cloudflare Workers」を選び、Account Resources をこのアカウントだけ、Zone Resources を「All zones from an account」（このアカウント）に絞る

@@ -658,7 +658,7 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - R2 のバインディング（`MAP_DATA`）は `wrangler.jsonc` の `r2_buckets` に書く。バケットを作るまでは書かない（書くとデプロイが失敗する）。その間 `/map/*` は今までどおり 503 を返す。
 - **採用理由**
   - 10年以上の運用が前提（MVP）。Cloudflare が新規には勧めず、wrangler も新しい仕組みへ回し始めた Pages で始めると、近いうちに移行が要る可能性が高い。画面が7つ・地図配信が1ファイルの今なら、移す手間が一番小さい。
-  - 費用は変わらない。静的アセットの配信は無料・無制限で、Worker を通る `/map/*`（今後は `/api/*` も）だけが Workers の無料枠（1日10万リクエスト）を使う。Pages Functions と同じ枠の使い方になる。
+  - 費用は変わらない。静的アセットの配信は無料・無制限で、Worker を通る `/map/*`（今後は `/api/*` も）と、どの静的ファイルにも当たらないリクエストだけが Workers の無料枠（1日10万リクエスト）を使う。Pages Functions と同じ枠の使い方になる。
   - 設定（R2 のバインディングなど）が `wrangler.jsonc` としてリポジトリに残る。Pages では画面で設定する必要があり、引き継ぎ（D21）のときに設定の漏れが起きやすかった。
   - 本番は `wrangler deploy` の1回で切り替わり、前の版へ戻すのも Cloudflare の画面（Deployments）から1操作でできる。
 - **比較した案**
@@ -669,4 +669,5 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - URL が `○○.pages.dev` から `yamon-site.<サブドメイン>.workers.dev` になる（D22 の「`○○.pages.dev` を使う」を読み替える）。サブドメインは Cloudflare のアカウントで1回だけ決める。
   - API トークンの権限は `Cloudflare Pages: Edit` から、Workers のデプロイ用（「Edit Cloudflare Workers」のテンプレート）に変わる。
   - `/api/*` を Cloud Run へ転送する仕組み（D15）は、Pages Functions ではなく、この Worker に `/api/*` を足して作る（#14）。`run_worker_first` に `/api/*` を加える。
+  - PR のプレビュー（`versions upload` の版）は、本番と同じバインディング・設定で動く。Pages のプレビュー環境のように別の設定を持たない。今は R2 も API もつないでいないので問題ないが、#14 で `/api/*` の転送や R2 を足すと、PR のコードが本番の API・R2 につながった公開 URL で動く。#14 で、プレビューの扱い（Cloudflare Access で守る、プレビューでは転送しない など）を決める。
 - **再検討する条件**：Workers の無料枠（1日10万リクエスト）に近づいたとき。そのときは、地図データを独自ドメインの R2 から直接配信する（D29 の比較案）か、Workers Paid（月$5）を検討する。

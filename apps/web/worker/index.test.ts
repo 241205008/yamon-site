@@ -43,10 +43,19 @@ describe('Worker の入口', () => {
     expect(assetPaths).toEqual([]);
   });
 
-  it('/map/ は GET 以外を受け付けない', async () => {
+  it('/map/ は GET と HEAD 以外を受け付けない', async () => {
     const { env } = fakeEnv();
     const res = await call(env, '/map/survey-area.pmtiles', { method: 'POST' });
     expect(res.status).toBe(405);
+  });
+
+  it('/map/ への HEAD は GET と同じ状態で、本文を返さない', async () => {
+    const pointer = { key: 'survey-area-20261016-1.pmtiles', build: '20261016', size: 1, maxzoom: 15, bounds: [], updatedAt: '' };
+    const { env } = fakeEnv({ get: vi.fn(async () => ({ json: async () => pointer })) } as unknown as R2Bucket);
+    const res = await call(env, '/map/survey-area.json', { method: 'HEAD' });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('application/json');
+    expect(await res.text()).toBe('');
   });
 
   it('それ以外のパスは静的アセットを返す', async () => {

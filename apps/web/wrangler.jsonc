@@ -12,7 +12,8 @@
     "binding": "ASSETS",
     // 画面のパス（/event-detail/xxx など）を直接開いたり再読み込みしたりしたときは index.html を返す
     "not_found_handling": "single-page-application",
-    // ここに書いたパスだけ Worker を先に通す。それ以外の静的ファイルは Worker を通らず、無料枠のリクエスト数も使わない
+    // ここに書いたパスは、静的ファイルより先に必ず Worker を通す。静的ファイルに当たったリクエストは Worker を通らず、
+    // 無料枠のリクエスト数も使わない（どのファイルにも当たらないリクエストは Worker に来る）
     "run_worker_first": ["/map/*"]
   }
   // R2 の地図データ（MAP_DATA）は、バケットを作ってから r2_buckets を足す（docs/MAP_DATA.md）。
