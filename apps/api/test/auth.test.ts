@@ -96,6 +96,17 @@ describe('POST /api/auth/login', () => {
     expect((await postLogin({ email: other.email, password: other.password })).status).toBe(200);
   });
 
+  it('同時に大量に送られても、制限の回数を超えて試せない', async () => {
+    const user = await createUser(ctx.db);
+    const results = await Promise.all(
+      Array.from({ length: 12 }, () => postLogin({ email: user.email, password: 'wrong-password' })),
+    );
+    const statuses = results.map((r) => r.status);
+    // パスワードを確かめるのは最大で MAX_LOGIN_FAILURES 回まで（残りは 429）
+    expect(statuses.filter((s) => s === 401).length).toBeLessThanOrEqual(MAX_LOGIN_FAILURES);
+    expect(statuses.filter((s) => s === 429).length).toBeGreaterThanOrEqual(12 - MAX_LOGIN_FAILURES);
+  });
+
   it('失敗から15分たてば、またログインできる', async () => {
     const user = await createUser(ctx.db);
     for (let i = 0; i < MAX_LOGIN_FAILURES; i++) await postLogin({ email: user.email, password: 'wrong-password' });

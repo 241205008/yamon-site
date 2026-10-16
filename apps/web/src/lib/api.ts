@@ -38,7 +38,13 @@ export async function apiFetch<T>(path: string, options: { method?: string; body
   }
 
   if (res.ok) {
-    return (res.status === 204 ? undefined : await res.json()) as T;
+    if (res.status === 204) return undefined as T;
+    try {
+      return (await res.json()) as T;
+    } catch {
+      // API ではないもの（API がまだない環境の index.html など）が返ってきた
+      throw new ApiError(res.status, 'invalid_response', 'サーバーに接続できません。しばらくしてからもう一度お試しください');
+    }
   }
 
   const body = (await res.json().catch(() => null)) as ApiErrorBody | null;

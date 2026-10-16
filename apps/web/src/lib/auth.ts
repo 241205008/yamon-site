@@ -58,11 +58,12 @@ export async function login(email: string, password: string): Promise<SessionUse
   return user!;
 }
 
+/** 失敗しても例外にしない。通信に失敗しても、この画面ではログアウトした状態にする */
 export async function logout(): Promise<void> {
   try {
     await apiFetch('/api/auth/logout', { method: 'POST' });
-  } finally {
-    // 通信に失敗しても、この画面ではログアウトした状態にする
-    setUser(null);
+  } catch {
+    // セッションは8時間で切れる。サーバーに残っても、この画面からは使わない
   }
+  setUser(null);
 }

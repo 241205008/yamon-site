@@ -28,7 +28,7 @@ API の DB は、`DATABASE_URL` がなければ PGlite（WebAssembly 版の Post
 | `npm run typecheck` | 型チェックのみ |
 | `npm run db:generate -w @yamon/api` | `apps/api/src/db/schema.ts` の変更からマイグレーションを作る（`apps/api/drizzle/` に出力。一緒にコミットする） |
 | `npm run db:migrate -w @yamon/api` | `DATABASE_URL` の DB にマイグレーションを流す |
-| `npm run db:seed -w @yamon/api` | 開発用のアカウントを作る（下記。ユーザーが0人のときだけ。本番では動かない） |
+| `npm run db:seed -w @yamon/api` | 開発用のアカウントを作る（下記。ユーザーが0人のときだけ。ローカルの PGlite 専用で、`DATABASE_URL` があるときは動かない） |
 
 特定のパッケージだけ動かすときは `-w` を付けます（例：`npm test -w @yamon/shared`）。
 

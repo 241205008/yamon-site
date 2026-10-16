@@ -1,15 +1,16 @@
 /**
  * 開発用のアカウントを入れる：`npm run db:seed -w @yamon/api`（API サーバーを止めてから実行する。PGlite は同時に1つしか開けない）
- * ユーザーが1人もいないときだけ、役割ごとに1人ずつ作る。本番（NODE_ENV=production）では動かさない。
+ * ユーザーが1人もいないときだけ、役割ごとに1人ずつ作る。ローカルの PGlite 専用で、DATABASE_URL があるときは動かさない。
  * 本番の最初の管理者は、初回セットアップ（#4）で作る
  */
 import type { Role } from '@yamon/shared';
 import { count } from 'drizzle-orm';
 import { hashPassword } from './auth/password';
-import { connectPglite, connectPostgres, schema } from './db/client';
+import { connectPglite, schema } from './db/client';
 
-if (process.env.NODE_ENV === 'production') {
-  console.error('本番では開発用のアカウントを作りません');
+// 本番の DB に、パスワードが知られたアカウントを作らない。PGlite（ローカル）にだけ入れる
+if (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL) {
+  console.error('開発用のアカウントは、ローカルの PGlite にだけ作ります（NODE_ENV=production や DATABASE_URL があるときは作りません）');
   process.exit(1);
 }
 
@@ -22,10 +23,7 @@ export const DEV_ACCOUNTS: { email: string; name: string; role: Role }[] = [
 ];
 const DEV_PASSWORD = 'password123';
 
-const databaseUrl = process.env.DATABASE_URL;
-const handle = databaseUrl
-  ? await connectPostgres(databaseUrl, { migrate: true })
-  : await connectPglite(process.env.PGLITE_DIR ?? '.data/pglite');
+const handle = await connectPglite(process.env.PGLITE_DIR ?? '.data/pglite');
 
 try {
   const [{ users }] = await handle.db.select({ users: count() }).from(schema.users);

@@ -19,7 +19,7 @@ import { validate } from '../validator';
 
 const { users, loginFailures } = schema;
 
-/** 同じメールアドレスへのログインの失敗が、この時間に MAX_LOGIN_FAILURES 回を超えたら受け付けない */
+/** 同じメールアドレスへのログインの失敗が、この時間に MAX_LOGIN_FAILURES 回に達したら受け付けない */
 export const LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 export const MAX_LOGIN_FAILURES = 5;
 
@@ -32,13 +32,15 @@ export const authRoutes = new Hono<AppEnv>()
     const emailHash = sha256(email);
     const windowStart = new Date(Date.now() - LOGIN_FAILURE_WINDOW_MS);
 
-    // 総当たり対策：失敗が続いているアドレスは、パスワードを確かめる前に断る
+    // 総当たり対策：先に今回の試行を1行記録してから数える（同時に大量に送られても、数える前にすり抜けない）。
+    // 成功したら、このアドレスの行をすべて消す
     await db.delete(loginFailures).where(lte(loginFailures.createdAt, windowStart));
-    const [{ failures }] = await db
-      .select({ failures: count() })
+    await db.insert(loginFailures).values({ emailHash });
+    const [{ attempts }] = await db
+      .select({ attempts: count() })
       .from(loginFailures)
       .where(and(eq(loginFailures.emailHash, emailHash), gt(loginFailures.createdAt, windowStart)));
-    if (failures >= MAX_LOGIN_FAILURES) {
+    if (attempts > MAX_LOGIN_FAILURES) {
       return c.json(
         errorBody('too_many_attempts', 'ログインの失敗が続いたため、一時的にログインできません。15分ほど待ってからやり直してください'),
         429,
@@ -53,7 +55,6 @@ export const authRoutes = new Hono<AppEnv>()
       .limit(1);
     const ok = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : await verifyDummyPassword(password);
     if (!user || !user.email || !ok) {
-      await db.insert(loginFailures).values({ emailHash });
       return c.json(errorBody('invalid_credentials', INVALID_CREDENTIALS), 401);
     }
     // 無効化されていることは、パスワードが合っているときだけ伝える
