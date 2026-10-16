@@ -32,7 +32,7 @@ describe('validate（zod の入力チェック）', () => {
     expect(body.error.issues?.map((i) => i.path).sort()).toEqual(['category', 'name']);
   });
 
-  it('東海3県の範囲外の座標は 400', async () => {
+  it('観察の範囲（4県）の外の座標は 400', async () => {
     const res = await post(JSON.stringify({ name: 'スズメ', category: 'バーダー', lat: 35.68, lng: 139.77 }));
     expect(res.status).toBe(400);
   });

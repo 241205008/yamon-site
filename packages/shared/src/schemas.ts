@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TOKAI_BOUNDS } from './area';
+import { SURVEY_BOUNDS } from './area';
 import { CATEGORIES, LOCATION_TYPES } from './master';
 
 /**
@@ -15,16 +15,16 @@ export const dateSchema = z.iso.date();
 /** "HH:MM"（JST の時刻、D10） */
 export const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, '時刻は HH:MM で入力してください');
 
-/** 範囲は地図と同じ東海3県を囲む長方形（area.ts の TOKAI_BOUNDS、D28）。範囲外の座標は API でも受け付けない */
+/** 範囲は地図と同じ4県（愛知・岐阜・三重・滋賀）を囲む長方形（area.ts の SURVEY_BOUNDS、D28）。範囲外の座標は API でも受け付けない */
 export const latSchema = z
   .number()
-  .min(TOKAI_BOUNDS.south, '東海3県の範囲外の座標です')
-  .max(TOKAI_BOUNDS.north, '東海3県の範囲外の座標です');
+  .min(SURVEY_BOUNDS.south, '観察の範囲（愛知・岐阜・三重・滋賀）の外の座標です')
+  .max(SURVEY_BOUNDS.north, '観察の範囲（愛知・岐阜・三重・滋賀）の外の座標です');
 
 export const lngSchema = z
   .number()
-  .min(TOKAI_BOUNDS.west, '東海3県の範囲外の座標です')
-  .max(TOKAI_BOUNDS.east, '東海3県の範囲外の座標です');
+  .min(SURVEY_BOUNDS.west, '観察の範囲（愛知・岐阜・三重・滋賀）の外の座標です')
+  .max(SURVEY_BOUNDS.east, '観察の範囲（愛知・岐阜・三重・滋賀）の外の座標です');
 
 /** 座標。片方だけの指定は受け付けない（座標がないときは両方 null、D3） */
 export const optionalCoordinatesSchema = z.union([

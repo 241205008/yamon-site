@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { dateSchema, optionalCoordinatesSchema, requiredText, timeSchema } from './schemas';
 
 describe('座標', () => {
-  it('東海3県の範囲内（名古屋駅）は通る', () => {
+  it('4県の範囲内（名古屋駅・大津駅）は通る', () => {
     expect(optionalCoordinatesSchema.safeParse({ lat: 35.1709, lng: 136.8815 }).success).toBe(true);
+    expect(optionalCoordinatesSchema.safeParse({ lat: 35.0036, lng: 135.8645 }).success).toBe(true);
   });
 
   it('範囲外（東京駅）は通らない', () => {
