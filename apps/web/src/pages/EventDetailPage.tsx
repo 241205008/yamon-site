@@ -79,10 +79,12 @@ export function EventDetailPage() {
   const removeEvent = async () => {
     if (!event) return;
     setEventError(null);
+    // 開いている間に他の人が記録を足していることがあるので、件数を読み直してから確かめる
+    const latest = (await eventQuery.refetch()).data ?? event;
     const message =
-      `観察会「${event.name}」を削除しますか？\n\n` +
-      (event.recordCount > 0
-        ? `この観察会の観察記録${event.recordCount}件は削除されず、「観察会なし」の記録としてホーム・マップ・場所別に残ります。` +
+      `観察会「${latest.name}」を削除しますか？\n\n` +
+      (latest.recordCount > 0
+        ? `この観察会の観察記録${latest.recordCount}件は削除されず、「観察会なし」の記録としてホーム・マップ・場所別に残ります。` +
           'ただし、どの観察会の記録だったかは分からなくなります。'
         : 'この観察会には観察記録がありません。');
     if (!window.confirm(message)) return;

@@ -172,15 +172,24 @@ export const useUpdateEvent = () =>
     apiFetch<EventView>(`/api/events/${id}`, { method: 'PUT', body: input }),
   );
 
-/** 削除した観察会の詳細は読み直さない（404 になるだけなので）。紐づいていた記録は「観察会なし」で残る */
+/**
+ * 削除した観察会の詳細と、その観察会の記録一覧は読み直さない（開いている画面が 404・空の一覧を一瞬出すだけなので）。
+ * 紐づいていた記録は「観察会なし」で残る
+ */
 export function useDeleteEvent() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/api/events/${id}`, { method: 'DELETE' }),
-    onSuccess: (_, id) => {
-      client.removeQueries({ queryKey: keys.event(id) });
-      return client.invalidateQueries({ queryKey: [OBS], predicate: (q) => q.queryKey[2] !== id });
-    },
+    onSuccess: (_, id) =>
+      client.invalidateQueries({
+        queryKey: [OBS],
+        predicate: (q) => {
+          const [, kind, arg] = q.queryKey as [string, string, unknown];
+          if (kind === 'events' && arg === id) return false;
+          if (kind === 'records' && (arg as { eventId?: string | null } | undefined)?.eventId === id) return false;
+          return true;
+        },
+      }),
   });
 }
 
