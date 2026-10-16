@@ -28,7 +28,7 @@ API の DB は、`DATABASE_URL` がなければ PGlite（WebAssembly 版の Post
 | `npm run typecheck` | 型チェックのみ |
 | `npm run db:generate -w @yamon/api` | `apps/api/src/db/schema.ts` の変更からマイグレーションを作る（`apps/api/drizzle/` に出力。一緒にコミットする） |
 | `npm run db:migrate -w @yamon/api` | `DATABASE_URL` の DB にマイグレーションを流す |
-| `npm run db:seed -w @yamon/api` | 開発用のアカウントを作る（下記。ユーザーが0人のときだけ。ローカルの PGlite 専用で、`DATABASE_URL` があるときは動かない） |
+| `npm run db:seed -w @yamon/api` | 開発用のアカウントとデモデータを入れる（下記。表ごとに空のときだけ。ローカルの PGlite 専用で、`DATABASE_URL` があるときは動かない） |
 
 特定のパッケージだけ動かすときは `-w` を付けます（例：`npm test -w @yamon/shared`）。
 
@@ -49,7 +49,9 @@ npm run db:seed -w @yamon/api
 | 部員 | member@example.com | password123 |
 | OB・OG | obog@example.com | password123 |
 
-記録などのデモデータは、これまでどおり初回起動時に localStorage に作られます（#13 で API に移すまで）。戻したいときは、ブラウザの開発者ツールで localStorage の `yamon:db:v1` を削除して再読み込みします。
+同じコマンドで、主な場所（仮の5か所）と、デモの生き物・観察会・記録も入ります（それぞれの表が空のときだけ）。データを作り直したいときは、API を止めて `apps/api/.data/pglite` を消してから、もう一度実行します。
+
+招待・ユーザー管理の画面のデモデータは、まだ初回起動時に localStorage に作られます（#12 で API に移すまで）。
 
 ## 画面
 
