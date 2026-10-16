@@ -56,9 +56,13 @@ export async function createSmtpMailer(options: SmtpOptions): Promise<Mailer> {
 export async function mailerFromEnv(env: NodeJS.ProcessEnv, isProduction: boolean): Promise<Mailer> {
   const { SMTP_USER: user, SMTP_PASS: pass } = env;
   if (user && pass) {
+    const port = Number(env.SMTP_PORT ?? 465);
+    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+      throw new Error(`SMTP_PORT が正しいポート番号ではありません：${env.SMTP_PORT}`);
+    }
     return createSmtpMailer({
       host: env.SMTP_HOST ?? 'smtp.gmail.com',
-      port: Number(env.SMTP_PORT ?? 465),
+      port,
       user,
       pass,
       from: env.MAIL_FROM ?? `やもんサイト <${user}>`,

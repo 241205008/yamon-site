@@ -1,5 +1,6 @@
 import {
   AUDIT_ACTION_LABELS,
+  can,
   INVITATION_STATUS_LABELS,
   INVITATION_TTL_HOURS,
   isoToJstDate,
@@ -28,7 +29,7 @@ import {
   withdrawUser,
 } from '../lib/admin';
 import { ApiError } from '../lib/api';
-import { refresh, useCurrentUser } from '../lib/auth';
+import { getCurrentUser, refresh, useCurrentUser } from '../lib/auth';
 
 const toMessage = (e: unknown) => (e instanceof ApiError ? e.message : '処理に失敗しました');
 
@@ -300,8 +301,12 @@ function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => 
     setBusyId(u.id);
     try {
       await fn();
-      // 自分の役割を変えたら、ログイン中のユーザーも読み直す（管理者でなくなれば、この画面から出る）
-      if (u.id === me.id) await refresh();
+      // 自分の役割を変えたら、ログイン中のユーザーも読み直す。管理者でなくなれば、この画面から出るので読み直さない
+      if (u.id === me.id) {
+        await refresh();
+        const now = getCurrentUser();
+        if (!now || !can(now.role, 'users.manage')) return;
+      }
       await onChanged();
     } catch (e) {
       setError(toMessage(e));

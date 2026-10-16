@@ -26,6 +26,9 @@ async function connect(): Promise<DbHandle> {
 
 const handle = await connect();
 // 開発（http://localhost）では Cookie に Secure を付けない
+if (isProduction && !process.env.APP_URL) {
+  console.warn('APP_URL がないため、メールのリンクは画面からのリクエストの Origin から作ります（本番では APP_URL を設定してください）');
+}
 const app = createApp({
   db: handle.db,
   log: true,

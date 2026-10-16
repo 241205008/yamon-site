@@ -173,7 +173,7 @@ describe('招待から登録まで', () => {
       },
     });
     const email = nextEmail();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await failing.request('/api/admin/invitations', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },
@@ -183,5 +183,28 @@ describe('招待から登録まで', () => {
     expect(await errorCode(res)).toBe('mail_failed');
     const [row] = await ctx.db.select().from(schema.invitations).where(eq(schema.invitations.email, email));
     expect(row.revokedAt).not.toBeNull();
+    consoleError.mockRestore();
+  });
+
+  it('再送でメールを送れなかったら、古いリンクはそのまま使える', async () => {
+    const { id, token } = await invite(nextEmail());
+    const failing = createApp({
+      db: ctx.db,
+      appUrl: TEST_APP_URL,
+      mailer: {
+        async send() {
+          throw new Error('SMTP error');
+        },
+      },
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await failing.request(`/api/admin/invitations/${id}/resend`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: '{}',
+    });
+    consoleError.mockRestore();
+    expect(res.status).toBe(502);
+    expect((await lookup(token)).status).toBe(200);
   });
 });

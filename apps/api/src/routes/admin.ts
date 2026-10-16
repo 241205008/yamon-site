@@ -1,4 +1,5 @@
 import {
+  can,
   idSchema,
   invitationInputSchema,
   roleChangeInputSchema,
@@ -42,11 +43,25 @@ const conflict = (message: string) => new HTTPException(409, { message });
 
 /**
  * ユーザーの状態を変える操作を、管理者のロックを取ったトランザクションで行う。
- * 対象の行を読み直してから fn に渡すので、別の管理者の操作と重なっても、古い状態で判断しない
+ * 操作する人と対象の行をロックの中で読み直してから fn に渡すので、別の管理者の操作と重なっても、古い状態で判断しない
+ * （例：自分が降格された直後に、降格前の権限で操作が通ることはない）
  */
-async function withUserLocked<T>(db: Db, userId: string, fn: (tx: Tx, target: typeof users.$inferSelect) => Promise<T>) {
+async function withUserLocked<T>(
+  db: Db,
+  actor: SessionUser,
+  userId: string,
+  fn: (tx: Tx, target: typeof users.$inferSelect) => Promise<T>,
+) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(${ADMIN_GUARD_LOCK})`);
+    const [current] = await tx
+      .select({ role: users.role, status: users.status })
+      .from(users)
+      .where(eq(users.id, actor.id))
+      .limit(1);
+    if (!current || current.status !== 'active' || !can(current.role, 'users.manage')) {
+      throw new HTTPException(403, { message: 'この操作をする権限がありません' });
+    }
     const [target] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
     if (!target) throw notFound();
     return fn(tx, target);
@@ -105,7 +120,7 @@ export const adminRoutes = new Hono<AuthedEnv>()
     const actor = c.get('user');
     const { id } = c.req.valid('param');
     const { role } = c.req.valid('json');
-    const user = await withUserLocked(c.get('db'), id, async (tx, target) => {
+    const user = await withUserLocked(c.get('db'), actor, id, async (tx, target) => {
       if (target.status === 'withdrawn') throw conflict('退会したユーザーの役割は変えられません');
       if (target.role === role) return target;
       if (role !== 'admin') await assertNotLastAdmin(tx, target);
@@ -120,7 +135,7 @@ export const adminRoutes = new Hono<AuthedEnv>()
     const actor = c.get('user');
     const { id } = c.req.valid('param');
     assertNotSelf(actor, id);
-    const user = await withUserLocked(c.get('db'), id, async (tx, target) => {
+    const user = await withUserLocked(c.get('db'), actor, id, async (tx, target) => {
       if (target.status !== 'active') throw conflict('このユーザーは無効化できる状態ではありません');
       await assertNotLastAdmin(tx, target);
       const [updated] = await tx.update(users).set({ status: 'disabled' }).where(eq(users.id, id)).returning();
@@ -135,7 +150,7 @@ export const adminRoutes = new Hono<AuthedEnv>()
   .post('/users/:id/enable', idParam, async (c) => {
     const actor = c.get('user');
     const { id } = c.req.valid('param');
-    const user = await withUserLocked(c.get('db'), id, async (tx, target) => {
+    const user = await withUserLocked(c.get('db'), actor, id, async (tx, target) => {
       if (target.status !== 'disabled') throw conflict('このユーザーは有効化できる状態ではありません');
       const [updated] = await tx.update(users).set({ status: 'active' }).where(eq(users.id, id)).returning();
       await audit(tx, actor, id, 'enabled');
@@ -149,7 +164,7 @@ export const adminRoutes = new Hono<AuthedEnv>()
     const actor = c.get('user');
     const { id } = c.req.valid('param');
     assertNotSelf(actor, id);
-    const user = await withUserLocked(c.get('db'), id, async (tx, target) => {
+    const user = await withUserLocked(c.get('db'), actor, id, async (tx, target) => {
       if (target.status === 'withdrawn') throw conflict('このユーザーはすでに退会しています');
       await assertNotLastAdmin(tx, target);
       const [updated] = await tx
@@ -236,17 +251,18 @@ export const adminRoutes = new Hono<AuthedEnv>()
     if (!inv) throw new HTTPException(404, { message: '招待が見つかりません' });
     const status = invitationStatus(inv);
     if (status === 'used' || status === 'revoked') throw conflict('この招待は再送できません');
+    // 送れてから新しいトークンに入れ替える（送れなかったときに、相手の手元の古いリンクまで使えなくしない）
     const token = newToken();
-    await db
-      .update(invitations)
-      .set({ tokenHash: sha256(token), expiresAt: invitationExpiresAt() })
-      .where(eq(invitations.id, id));
     try {
       await c.get('mailer').send(invitationMail(inv.email, invitationUrl(c.get('appUrl'), c.req, token)));
     } catch (err) {
       console.error(err);
       return c.json(errorBody('mail_failed', '招待メールを送れませんでした。しばらくしてからもう一度お試しください'), 502);
     }
+    await db
+      .update(invitations)
+      .set({ tokenHash: sha256(token), expiresAt: invitationExpiresAt() })
+      .where(eq(invitations.id, id));
     return c.json({ id });
   })
 
