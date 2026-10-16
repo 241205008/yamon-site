@@ -21,6 +21,8 @@ interface Props {
   mainLocations: MainLocationView[];
   /** 生き物をその場で登録できるか（creatures.manage） */
   canAddCreature: boolean;
+  /** その場で登録する生き物に「位置を保護する」印を付けられるか（creatures.protect、管理者・幹部） */
+  canProtect?: boolean;
   /** 観察会に紐付ける場合の ID */
   eventId?: string | null;
   /** 編集時の初期値 */
@@ -45,6 +47,7 @@ export function RecordForm({
   creatures,
   mainLocations,
   canAddCreature,
+  canProtect = false,
   eventId = null,
   initialRecord,
   defaults,
@@ -64,6 +67,7 @@ export function RecordForm({
   const [newName, setNewName] = useState('');
   const [newCategory, setNewCategory] = useState<Category>(CATEGORIES[0]);
   const [newMemo, setNewMemo] = useState('');
+  const [newProtected, setNewProtected] = useState(false);
   const [newError, setNewError] = useState<string | null>(null);
 
   const initialLocationType: LocationType =
@@ -117,12 +121,18 @@ export function RecordForm({
   const registerCreature = async () => {
     setNewError(null);
     try {
-      const c = await createCreature.mutateAsync({ name: newName, category: newCategory, memo: newMemo });
+      const c = await createCreature.mutateAsync({
+        name: newName,
+        category: newCategory,
+        memo: newMemo,
+        ...(canProtect ? { locationProtected: newProtected } : {}),
+      });
       setCreatureId(c.id);
       setSearch('');
       setNewOpen(false);
       setNewName('');
       setNewMemo('');
+      setNewProtected(false);
     } catch (e) {
       setNewError(errorMessage(e, '登録に失敗しました'));
     }
@@ -213,6 +223,12 @@ export function RecordForm({
             💬 {selected.memo}
           </p>
         )}
+        {selected?.locationProtected && (
+          <p role="note" className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            🔒 この生き物は位置を保護しています。部員と OB・OG には約1km単位のおおよその位置で表示されます（あなたと管理者・幹部には正確な位置）。
+            場所を残したくないときは、下の「場所を指定しない」を選んで記録できます。
+          </p>
+        )}
 
         {!canAddCreature ? null : !newOpen ? (
           <button
@@ -250,6 +266,17 @@ export function RecordForm({
               rows={2}
               className={`${inputClass} bg-white`}
             />
+            {canProtect && (
+              <label className="flex items-center gap-2 text-sm text-red-800">
+                <input
+                  type="checkbox"
+                  checked={newProtected}
+                  onChange={(e) => setNewProtected(e.target.checked)}
+                  className="h-4 w-4 accent-red-600"
+                />
+                位置を保護する（レッドデータブックの絶滅危惧種）
+              </label>
+            )}
             <ErrorText message={newError} />
             <div className="flex gap-2">
               <button

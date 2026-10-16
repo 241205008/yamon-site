@@ -134,6 +134,7 @@ export function EventDetailPage() {
                   creatures={creatures.data ?? []}
                   mainLocations={mainLocations.data ?? []}
                   canAddCreature={can(user.role, 'creatures.manage')}
+                canProtect={can(user.role, 'creatures.protect')}
                   eventId={event.id}
                   initialRecord={editing ?? undefined}
                   defaults={{

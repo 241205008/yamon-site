@@ -33,6 +33,11 @@ export const creatureInputSchema = z.object({
   name: z.string().trim().min(1, '生き物の名前を入力してください').max(50),
   category: categorySchema,
   memo: optionalText(500),
+  /**
+   * 位置を保護する（D24）。変えられるのは creatures.protect の権限がある人（管理者・幹部）だけ。
+   * 省くと、登録では false、編集では今のまま
+   */
+  locationProtected: z.boolean().optional(),
 });
 export type CreatureInput = z.input<typeof creatureInputSchema>;
 
@@ -144,9 +149,11 @@ export interface RecordView {
   mainLocationId: string | null;
   /** 表示用の場所名。主な場所は今の名前を返す（名前を直すと過去の記録にも反映される） */
   locationName: string;
-  /** 座標がない記録は null */
+  /** 座標がない記録は null。approximate のときは約1km単位に丸めた座標 */
   lat: number | null;
   lng: number | null;
+  /** 保護対象の生き物で、見る人の役割に応じて位置を丸めてあるか（D24・D39） */
+  approximate: boolean;
   date: string;
   time: string;
   memo: string;
