@@ -11,13 +11,15 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "node scripts/drizzle-kit.mjs generate",
-    "db:migrate": "tsx src/migrate.ts"
+    "db:migrate": "tsx src/migrate.ts",
+    "db:seed": "tsx src/seed.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.5",
     "@hono/zod-validator": "^0.9.1",
     "@yamon/shared": "*",
     "drizzle-orm": "^0.45.4",
+    "hash-wasm": "^4.12.0",
     "hono": "^4.13.13",
     "postgres": "^3.4.9",
     "zod": "^4.6.7"

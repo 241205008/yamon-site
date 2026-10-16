@@ -2,7 +2,7 @@
 
 自然観察会の記録管理 Web アプリ（プロトタイプ）。招待制で、観察記録・観察会・生き物・場所をブラウザの localStorage に保存します。
 
-> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D29 を参照してください。
+> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D33 を参照してください。
 
 ## 起動
 
@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-http://localhost:5173 を開きます。フロント（Vite、5173番）と API（Hono、8787番）が同時に起動し、`/api/*` は Vite から API へ転送されます（http://localhost:5173/api/health で確認できます）。画面はまだ localStorage で動いており、API への切り替えは [#11](https://github.com/241205008/yamon-site/issues/11)・[#13](https://github.com/241205008/yamon-site/issues/13) で行います。
+http://localhost:5173 を開きます。フロント（Vite、5173番）と API（Hono、8787番）が同時に起動し、`/api/*` は Vite から API へ転送されます（http://localhost:5173/api/health で確認できます）。ログインは API で行います（[#11](https://github.com/241205008/yamon-site/issues/11)）。記録・観察会・生き物などのデータはまだ localStorage にあり、API への切り替えは [#13](https://github.com/241205008/yamon-site/issues/13) で行います。
 
 API の DB は、`DATABASE_URL` がなければ PGlite（WebAssembly 版の PostgreSQL）を `apps/api/.data/pglite` に作って使います。Docker や PostgreSQL のインストールは要りません。DB を空に戻したいときは、API を止めて `apps/api/.data/` を削除します。
 
@@ -28,28 +28,34 @@ API の DB は、`DATABASE_URL` がなければ PGlite（WebAssembly 版の Post
 | `npm run typecheck` | 型チェックのみ |
 | `npm run db:generate -w @yamon/api` | `apps/api/src/db/schema.ts` の変更からマイグレーションを作る（`apps/api/drizzle/` に出力。一緒にコミットする） |
 | `npm run db:migrate -w @yamon/api` | `DATABASE_URL` の DB にマイグレーションを流す |
+| `npm run db:seed -w @yamon/api` | 開発用のアカウントを作る（下記。ユーザーが0人のときだけ。本番では動かない） |
 
 特定のパッケージだけ動かすときは `-w` を付けます（例：`npm test -w @yamon/shared`）。
 
 > TLS 検査のあるネットワークで `npm install` が証明書エラーになる場合は、`NODE_OPTIONS=--use-system-ca` を付けて実行してください。
 
-## 初期アカウント（デモ用）
+## 開発用のアカウント
 
-初回起動時にデモデータが localStorage に作られます。
+ログインは API の DB で確かめます。最初に、API を止めた状態で次を1回実行します（PGlite は同時に1つのプロセスしか開けません）。
+
+```bash
+npm run db:seed -w @yamon/api
+```
 
 | 役割 | メールアドレス | パスワード |
 |---|---|---|
-| 管理者 | admin@example.com | admin1234 |
-| 一般 | user1@example.com | user1234 |
-| 一般 | user2@example.com | user1234 |
+| 管理者 | admin@example.com | password123 |
+| 幹部 | officer@example.com | password123 |
+| 部員 | member@example.com | password123 |
+| OB・OG | obog@example.com | password123 |
 
-デモデータに戻したいときは、ブラウザの開発者ツールで localStorage の `yamon:db:v1` と `yamon:session` を削除して再読み込みします。
+記録などのデモデータは、これまでどおり初回起動時に localStorage に作られます（#13 で API に移すまで）。戻したいときは、ブラウザの開発者ツールで localStorage の `yamon:db:v1` を削除して再読み込みします。
 
 ## 画面
 
 | パス | 画面 |
 |---|---|
-| `/login` | ログイン・招待トークンでの新規登録（`/login?invite=<token>` で自動入力） |
+| `/login` | ログイン（招待リンクからの登録は [#12](https://github.com/241205008/yamon-site/issues/12) で API に切り替えるまで準備中） |
 | `/` | 観察記録の追加・編集・削除、観察会作成、生き物管理 |
 | `/map` | 座標付き記録の地図表示（生き物・月・時間帯で絞り込み） |
 | `/locations` | 主な場所ごとの生き物一覧 |
@@ -57,7 +63,7 @@ API の DB は、`DATABASE_URL` がなければ PGlite（WebAssembly 版の Post
 | `/event-detail/:eventId` | 観察会内の記録管理 |
 | `/admin` | 招待・ユーザー管理・管理者権限の移譲（管理者のみ） |
 
-`/login` 以外はログインが必要です。`/admin` に一般ユーザーが入るとホームへ戻ります。
+`/login` 以外はログインが必要です。ログインしたままでいられるのは最大8時間です。`/admin` に管理者以外が入るとホームへ戻ります（権限は API でも確かめます）。
 
 ## 招待の流れ
 

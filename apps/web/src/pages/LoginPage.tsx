@@ -2,18 +2,10 @@ import { LogIn, UserPlus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ErrorText, inputClass } from '../components/ui';
-import { MIN_PASSWORD_LENGTH } from '../lib/password';
-import {
-  findUsableInvitation,
-  login,
-  logout,
-  registerWithInvitation,
-  StoreError,
-  useCurrentUser,
-} from '../lib/store';
-import type { Invitation } from '../lib/types';
+import { ApiError } from '../lib/api';
+import { login, logout, useCurrentUser } from '../lib/auth';
 
-const toMessage = (e: unknown) => (e instanceof StoreError ? e.message : '処理に失敗しました');
+const toMessage = (e: unknown) => (e instanceof ApiError ? e.message : '処理に失敗しました');
 
 export function LoginPage() {
   const user = useCurrentUser();
@@ -43,7 +35,7 @@ export function LoginPage() {
             </button>
             <button
               type="button"
-              onClick={() => logout()}
+              onClick={() => void logout()}
               className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
             >
               ログアウトして登録
@@ -69,11 +61,7 @@ export function LoginPage() {
         {mode === 'login' ? (
           <LoginForm onDone={() => navigate(from, { replace: true })} onRegister={() => setMode('register')} />
         ) : (
-          <RegisterForm
-            initialToken={inviteParam ?? ''}
-            onDone={() => navigate('/', { replace: true })}
-            onBack={() => setMode('login')}
-          />
+          <RegisterPending onBack={() => setMode('login')} />
         )}
       </div>
     </div>
@@ -169,141 +157,16 @@ function LoginForm({ onDone, onRegister }: { onDone: () => void; onRegister: () 
   );
 }
 
-function RegisterForm({
-  initialToken,
-  onDone,
-  onBack,
-}: {
-  initialToken: string;
-  onDone: () => void;
-  onBack: () => void;
-}) {
-  const [token, setToken] = useState(initialToken);
-  const [invitation, setInvitation] = useState<Invitation | null>(() => {
-    if (!initialToken) return null;
-    try {
-      return findUsableInvitation(initialToken);
-    } catch {
-      return null;
-    }
-  });
-  const [name, setName] = useState(invitation?.name ?? '');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [error, setError] = useState<string | null>(() => {
-    if (!initialToken) return null;
-    try {
-      findUsableInvitation(initialToken);
-      return null;
-    } catch (e) {
-      return toMessage(e);
-    }
-  });
-  const [busy, setBusy] = useState(false);
-
-  const checkToken = (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    try {
-      const inv = findUsableInvitation(token);
-      setInvitation(inv);
-      setName(inv.name);
-    } catch (err) {
-      setError(toMessage(err));
-    }
-  };
-
-  const register = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (password !== confirm) {
-      setError('確認用パスワードが一致しません');
-      return;
-    }
-    setBusy(true);
-    try {
-      await registerWithInvitation(token, name, password);
-      onDone();
-    } catch (err) {
-      setError(toMessage(err));
-      // 入力中にトークンが使えなくなった場合は、トークン入力に戻して入れ直せるようにする
-      try {
-        findUsableInvitation(token);
-      } catch {
-        setInvitation(null);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
+/**
+ * 招待リンクからの登録は、#12 で API に切り替える。それまでは案内だけを出す
+ * （ログインが API になったため、ブラウザの中だけで登録しても、そのアカウントではログインできない）
+ */
+function RegisterPending({ onBack }: { onBack: () => void }) {
   return (
     <>
-      {!invitation ? (
-        <form onSubmit={checkToken} className="space-y-6">
-          <div>
-            <label htmlFor="token" className="mb-2 block text-sm text-gray-700">招待トークン</label>
-            <input
-              id="token"
-              required
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="招待メールに記載されたトークン"
-              className={`${inputClass} font-mono text-sm`}
-            />
-            <p className="mt-1 text-xs text-gray-500">招待メールのリンクから開いた場合は自動で入力されます。</p>
-          </div>
-          <ErrorText message={error} />
-          <button type="submit" className="w-full rounded-lg bg-green-600 py-3 text-white transition-colors hover:bg-green-700">
-            次へ
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={register} className="space-y-6">
-          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-            招待を確認しました：<span className="font-medium">{invitation.email}</span>
-          </div>
-          <div>
-            <label htmlFor="name" className="mb-2 block text-sm text-gray-700">ユーザー名</label>
-            <input id="name" required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label htmlFor="new-password" className="mb-2 block text-sm text-gray-700">
-              パスワード（{MIN_PASSWORD_LENGTH}文字以上）
-            </label>
-            <input
-              id="new-password"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={MIN_PASSWORD_LENGTH}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="confirm-password" className="mb-2 block text-sm text-gray-700">パスワード（確認）</label>
-            <input
-              id="confirm-password"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <ErrorText message={error} />
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-lg bg-green-600 py-3 text-white transition-colors hover:bg-green-700 disabled:opacity-60"
-          >
-            {busy ? '登録中…' : '登録してはじめる'}
-          </button>
-        </form>
-      )}
+      <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+        招待リンクからの登録は準備中です。登録できるようになるまで、管理者にお問い合わせください。
+      </div>
       <p className="mt-6 text-center text-sm text-gray-600">
         アカウントをお持ちの方は{' '}
         <button type="button" onClick={onBack} className="text-green-600 hover:text-green-700">

@@ -28,6 +28,7 @@ const HTTP_ERROR_CODES: Partial<Record<number, string>> = {
   404: 'not_found',
   409: 'conflict',
   413: 'payload_too_large',
+  415: 'unsupported_media_type',
   429: 'too_many_requests',
 };
 
