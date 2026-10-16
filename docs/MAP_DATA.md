@@ -1,6 +1,8 @@
 # 地図データ（Protomaps・愛知・岐阜・三重・滋賀の4県）の用意と更新
 
-基本の地図は、Protomaps（OpenStreetMap のデータを1ファイルにまとめた PMTiles 形式）から4県（愛知・岐阜・三重・滋賀）を囲む範囲を切り出したファイル `survey-area.pmtiles` を使います。理由と他の案は [DECISIONS.md の D28・D29](DECISIONS.md) を参照してください。
+基本の地図は、Protomaps（OpenStreetMap のデータを1ファイルにまとめた PMTiles 形式）から4県（愛知・岐阜・三重・滋賀）を囲む範囲を切り出したファイル `survey-area.pmtiles` を使います。理由と他の案は [DECISIONS.md の D28・D29・D33](DECISIONS.md) を参照してください。
+
+**ふだんの更新は、管理者画面の「地図データを更新」ボタンで行います**（[4. 管理者画面から更新する](#4-管理者画面から更新する)）。下の 1〜3 は、最初の用意と、ボタンが使えないときの手作業の手順です。
 
 ファイルは数百MBあるため、**Git には入れません**（`.gitignore` 済み）。本番は Cloudflare R2 に置き、開発では手元のファイルを使います。
 
@@ -66,8 +68,46 @@
 
 - オブジェクト名：`survey-area.pmtiles`（バケットの直下）
 - 差し替えるときも同じ名前で上書きする。ETag が変わるので、開いている画面も次の読み込みで新しいデータに切り替わる
+- ボタンで一度でも更新したあとは、参照先（`survey-area.json`）に書かれたファイルが使われ、`survey-area.pmtiles` は使われない。手作業で差し替えるときは、参照先を消すか書き換える（下の「1つ前のデータに戻す」）
 
 差し替えたら、本番のマップ画面で地図が表示されることを確かめます。
+
+## 4. 管理者画面から更新する
+
+管理者画面の「地図データ」で「地図データを更新」を押すと、GitHub Actions のワークフロー（`.github/workflows/map-data.yml`）が次を行います（D33）。数分かかり、その間も今の地図が表示されます。
+
+1. Protomaps の最新のビルドから、`SURVEY_BOUNDS` の範囲・ズーム15で切り出す（今と同じビルドなら何もしない）
+2. 範囲・最大ズーム・容量（100MB〜2GB）・構造を検査する。合わなければ失敗にして、切り替えない
+3. R2 に `survey-area-<ビルド日>.pmtiles` の名前で置き、大きさを確かめる
+4. 参照先 `survey-area.json` を書き換える（ここで切り替わる。Functions が覚えている分を含め、1分ほどで反映）
+5. 今のものと1つ前のもの以外の `survey-area-<日付>.pmtiles` を消す
+
+画面には「更新中・完了・失敗」と開始時刻が出ます。失敗したときは「記録を見る」から Actions のログで理由を確かめます。Actions の画面（Actions → Map data → Run workflow）からも実行できます。同じビルドでも切り出し直すときは `force` に印を付けます。
+
+### 自動更新の設定（初回のみ）
+
+| 置き場所 | 名前 | 中身 |
+|---|---|---|
+| GitHub の Secret | `R2_ACCESS_KEY_ID`・`R2_SECRET_ACCESS_KEY` | R2 の API トークン（Cloudflare の R2 →「Manage API tokens」。権限は Object Read & Write、対象は地図のバケットだけ） |
+| GitHub の Secret | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare のアカウント ID（デプロイと共通） |
+| GitHub の Variable | `MAP_DATA_BUCKET` | 地図のバケット名（例：`yamon-map`） |
+| Cloud Run の Secret（API） | `GITHUB_MAP_DATA_TOKEN` | GitHub の fine-grained personal access token。Repository access はこのリポジトリだけ、Permissions は **Actions: Read and write** だけ。期限を決め、切れる前に作り直す |
+| Cloud Run の環境変数（API、任意） | `GITHUB_REPOSITORY` | `owner/repo`（省略時は `241205008/yamon-site`） |
+
+- 実値はリポジトリ・Issue・PR に書かない
+- `GITHUB_MAP_DATA_TOKEN` がない間、API は 503 を返し、画面に「設定されていません」と出る
+- サークルへ引き継ぐときは、トークンをサークルのアカウントで作り直す（#16）
+- ボタンを押せるのは管理者だけ（API でも `mapData.update` の権限を確かめる。#11）
+
+### 1つ前のデータに戻す
+
+新しいデータに問題があったときは、参照先を1つ前のファイルに書き換えます（R2 には1つ前のものが残っています）。
+
+1. Cloudflare の画面（R2 → バケット）で、`survey-area-<日付>.pmtiles` のうち1つ前のものの名前を確かめる
+2. `survey-area.json` をダウンロードし、`key` と `build` を1つ前のものに書き換えてアップロードする
+3. 1分ほど待ってから、マップ画面で地図が表示されることを確かめる
+
+参照先を消すと、手作業で置いた `survey-area.pmtiles` に戻ります。
 
 ## 更新の目安
 

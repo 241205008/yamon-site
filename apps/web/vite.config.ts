@@ -18,7 +18,8 @@ function localMapData(): Plugin {
       server.middlewares.use('/map/', (req, res, next) => {
         // 名前は英小文字・数字・ハイフンだけなので、URL のデコードは要らない
         const name = (req.url ?? '').split('?')[0].replace(/^\//, '');
-        if (!/^[a-z0-9-]+\.pmtiles$/.test(name)) return next();
+        // 地図データ（.pmtiles）と、今の地図データの情報（.json、D33）。なければ 404
+        if (!/^[a-z0-9-]+\.(pmtiles|json)$/.test(name)) return next();
         let size: number;
         try {
           size = statSync(dir + name).size;
@@ -28,7 +29,7 @@ function localMapData(): Plugin {
           return;
         }
         res.setHeader('Accept-Ranges', 'bytes');
-        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Type', name.endsWith('.json') ? 'application/json' : 'application/octet-stream');
         const range = parseRange(req.headers.range ?? null, size);
         if (range === 'invalid') {
           res.statusCode = 416;
