@@ -3,17 +3,15 @@ import { useMemo, useState } from 'react';
 import { Marker, Tooltip, useMapEvents } from 'react-leaflet';
 import { pinIcon } from '../components/mapPins';
 import { SurveyMap } from '../components/SurveyMap';
-import { BackBar, CategoryBadge, Modal, PageBackground, inputClass } from '../components/ui';
-import { MAP_CENTER, getTimeOfDay, monthOf } from '@yamon/shared';
-import { compareRecordsDesc, hasCoords, useCreatureMap } from '../lib/selectors';
-import { useDb } from '../lib/store';
-import { TIMES_OF_DAY, type ObservationRecord, type TimeOfDay } from '../lib/types';
+import { BackBar, CategoryBadge, ErrorText, Modal, PageBackground, inputClass } from '../components/ui';
+import { MAP_CENTER, TIMES_OF_DAY, getTimeOfDay, type RecordView, type TimeOfDay } from '@yamon/shared';
+import { errorMessage, useCreatures, useMapRecords } from '../lib/queries';
 
 interface Group {
   key: string;
   lat: number;
   lng: number;
-  records: ObservationRecord[];
+  records: RecordView[];
 }
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -30,8 +28,7 @@ function CenterTracker({ onChange }: { onChange: (c: { lat: number; lng: number 
 }
 
 export function MapPage() {
-  const db = useDb();
-  const creatureMap = useCreatureMap(db);
+  const creaturesQuery = useCreatures();
   const [creatureSearch, setCreatureSearch] = useState('');
   const [creatureId, setCreatureId] = useState<string | null>(null);
   const [month, setMonth] = useState<number | null>(null);
@@ -40,23 +37,14 @@ export function MapPage() {
   const [openKey, setOpenKey] = useState<string | null>(null);
 
   const visibleCreatures = useMemo(() => {
+    const all = creaturesQuery.data ?? [];
     const q = creatureSearch.trim();
-    return q ? db.creatures.filter((c) => c.name.includes(q)) : db.creatures;
-  }, [db.creatures, creatureSearch]);
+    return q ? all.filter((c) => c.name.includes(q)) : all;
+  }, [creaturesQuery.data, creatureSearch]);
 
-  // 場所未指定・座標なしの記録はマップに出さない。各フィルターは AND 条件
-  const filtered = useMemo(
-    () =>
-      db.records.filter(
-        (r) =>
-          r.locationType !== 'none' &&
-          hasCoords(r) &&
-          (!creatureId || r.creatureId === creatureId) &&
-          (!month || monthOf(r.date) === month) &&
-          (!timeOfDay || getTimeOfDay(r.time) === timeOfDay),
-      ),
-    [db.records, creatureId, month, timeOfDay],
-  );
+  // 場所未指定・座標なしの記録は API が返さない。各フィルターは AND 条件で、API で絞り込む（新しい順）
+  const recordsQuery = useMapRecords({ creatureId, month, timeOfDay });
+  const filtered = useMemo(() => recordsQuery.data ?? [], [recordsQuery.data]);
 
   // 小数点3桁（約100m）で同じ地点をまとめる
   const groups = useMemo(() => {
@@ -69,7 +57,6 @@ export function MapPage() {
       if (g) g.records.push(r);
       else m.set(key, { key, lat, lng, records: [r] });
     });
-    m.forEach((g) => g.records.sort(compareRecordsDesc));
     return [...m.values()];
   }, [filtered]);
   // 別タブでの変更も反映されるよう、開いている地点は key で引き直す
@@ -94,6 +81,7 @@ export function MapPage() {
               className={`${inputClass} py-2 pl-10 text-sm`}
             />
           </div>
+          <ErrorText message={creaturesQuery.isError ? errorMessage(creaturesQuery.error, '生き物を読み込めませんでした') : null} />
           <div className="max-h-96 space-y-2 overflow-y-auto">
             <button type="button" className={filterBtn(creatureId === null)} onClick={() => setCreatureId(null)}>
               全て表示
@@ -155,7 +143,7 @@ export function MapPage() {
                     <p className="font-bold">{g.records[0].locationName}</p>
                     {g.records.slice(0, 3).map((r) => (
                       <p key={r.id}>
-                        {creatureMap.get(r.creatureId)?.name}・{r.date} {r.time}
+                        {r.creatureName}・{r.date} {r.time}
                       </p>
                     ))}
                     {g.records.length > 3 && <p>ほか{g.records.length - 3}件</p>}
@@ -189,12 +177,25 @@ export function MapPage() {
             <p className="mt-2 text-xs text-gray-500">{filtered.length}件の記録</p>
           </div>
 
-          {filtered.length === 0 && (
-            <div className="pointer-events-none absolute inset-0 z-[999] flex items-center justify-center">
-              <p className="rounded-lg bg-white/90 px-4 py-2 text-sm text-gray-600 shadow">
-                条件に合う記録がありません
-              </p>
+          {recordsQuery.isError ? (
+            <div className="absolute inset-x-4 top-20 z-[1000]">
+              <ErrorText message={`記録を読み込めませんでした。${errorMessage(recordsQuery.error)}`} />
+              <button
+                type="button"
+                onClick={() => void recordsQuery.refetch()}
+                className="mt-2 rounded-lg bg-white px-4 py-2 text-sm text-gray-700 shadow hover:bg-gray-50"
+              >
+                もう一度読み込む
+              </button>
             </div>
+          ) : (
+            (recordsQuery.isPending || filtered.length === 0) && (
+              <div className="pointer-events-none absolute inset-0 z-[999] flex items-center justify-center">
+                <p role="status" className="rounded-lg bg-white/90 px-4 py-2 text-sm text-gray-600 shadow">
+                  {recordsQuery.isPending ? '記録を読み込み中…' : '条件に合う記録がありません'}
+                </p>
+              </div>
+            )
           )}
         </section>
       </main>
@@ -203,12 +204,11 @@ export function MapPage() {
         {openGroup && (
           <div className="space-y-3">
             {openGroup.records.map((r) => {
-              const c = creatureMap.get(r.creatureId);
               return (
                 <div key={r.id} className="rounded-lg border border-gray-200 p-3">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-gray-900">{c?.name}</span>
-                    {c && <CategoryBadge category={c.category} />}
+                    <span className="font-bold text-gray-900">{r.creatureName}</span>
+                    <CategoryBadge category={r.category} />
                   </div>
                   <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
                     <dt className="text-gray-500">場所</dt>
@@ -217,6 +217,8 @@ export function MapPage() {
                     <dd className="text-gray-800">
                       {r.date} {r.time}（{getTimeOfDay(r.time)}）
                     </dd>
+                    <dt className="text-gray-500">記録者</dt>
+                    <dd className="text-gray-800">{r.recorderName}</dd>
                     <dt className="text-gray-500">座標</dt>
                     <dd className="text-gray-800">
                       {r.lat!.toFixed(4)}, {r.lng!.toFixed(4)}

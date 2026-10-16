@@ -1,18 +1,30 @@
 import { Clock, Plus, Search } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
-import { MAIN_LOCATIONS, findMainLocation, nowTimeJst, todayJst } from '@yamon/shared';
-import { addCreature, StoreError, type RecordInput } from '../lib/store';
-import { CATEGORIES, type Category, type Creature, type LocationType, type ObservationRecord } from '../lib/types';
+import {
+  CATEGORIES,
+  nowTimeJst,
+  todayJst,
+  type Category,
+  type CreatureView,
+  type LocationType,
+  type MainLocationView,
+  type RecordInput,
+  type RecordView,
+} from '@yamon/shared';
+import { errorMessage, useCreateCreature } from '../lib/queries';
 import { CoordinatePicker } from './CoordinatePicker';
 import { ErrorText, inputClass } from './ui';
 
 interface Props {
-  actorId: string;
-  creatures: Creature[];
+  creatures: CreatureView[];
+  /** 主な場所（「使わない」場所も含めて渡す。選択肢には使う場所と、編集中の記録の場所だけを出す） */
+  mainLocations: MainLocationView[];
+  /** 生き物をその場で登録できるか（creatures.manage） */
+  canAddCreature: boolean;
   /** 観察会に紐付ける場合の ID */
   eventId?: string | null;
   /** 編集時の初期値 */
-  initialRecord?: ObservationRecord;
+  initialRecord?: RecordView;
   /** 新規追加時の初期値（観察会の場所・日付など） */
   defaults?: {
     mainLocationId?: string | null;
@@ -21,7 +33,8 @@ interface Props {
     lng?: number | null;
     date?: string;
   };
-  onSubmit: (input: RecordInput) => void;
+  /** 失敗したら例外を投げる（入力内容は消さずにエラーを出す） */
+  onSubmit: (input: RecordInput) => Promise<void>;
   onCancel?: () => void;
   title?: string;
 }
@@ -29,8 +42,9 @@ interface Props {
 const radioClass = 'h-4 w-4 accent-blue-600';
 
 export function RecordForm({
-  actorId,
   creatures,
+  mainLocations,
+  canAddCreature,
   eventId = null,
   initialRecord,
   defaults,
@@ -40,10 +54,12 @@ export function RecordForm({
 }: Props) {
   const isEdit = !!initialRecord;
   const today = todayJst();
+  const findMainLocation = (id: string | null | undefined) => mainLocations.find((l) => l.id === id);
 
   const [search, setSearch] = useState('');
   const [creatureId, setCreatureId] = useState(initialRecord?.creatureId ?? '');
 
+  const createCreature = useCreateCreature();
   const [newOpen, setNewOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCategory, setNewCategory] = useState<Category>(CATEGORIES[0]);
@@ -87,6 +103,7 @@ export function RecordForm({
   const [time, setTime] = useState(initialRecord?.time ?? '');
   const [memo, setMemo] = useState(initialRecord?.memo ?? '');
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim();
@@ -94,18 +111,20 @@ export function RecordForm({
   }, [creatures, search]);
   const selected = creatures.find((c) => c.id === creatureId);
   const selectedMain = findMainLocation(mainLocationId);
+  // 「使わない」場所は選択肢に出さない。編集中の記録の場所だけは残す
+  const mainOptions = mainLocations.filter((l) => l.isActive || l.id === initialRecord?.mainLocationId);
 
-  const registerCreature = () => {
+  const registerCreature = async () => {
     setNewError(null);
     try {
-      const c = addCreature(actorId, { name: newName, category: newCategory, memo: newMemo });
+      const c = await createCreature.mutateAsync({ name: newName, category: newCategory, memo: newMemo });
       setCreatureId(c.id);
       setSearch('');
       setNewOpen(false);
       setNewName('');
       setNewMemo('');
     } catch (e) {
-      setNewError(e instanceof StoreError ? e.message : '登録に失敗しました');
+      setNewError(errorMessage(e, '登録に失敗しました'));
     }
   };
 
@@ -114,11 +133,16 @@ export function RecordForm({
     setCoords(null);
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    // サーバーでも確かめる。よくある入力漏れだけ、送る前に分かりやすく伝える
+    if (!creatureId) return setError('生き物を選択してください');
+    if (locationType === 'main' && !mainLocationId) return setError('主な場所を選択してください');
+    if (!time) return setError('時刻を入力してください');
+    setSubmitting(true);
     try {
-      onSubmit({
+      await onSubmit({
         creatureId,
         eventId,
         locationType,
@@ -138,12 +162,15 @@ export function RecordForm({
         setMemo('');
       }
     } catch (err) {
-      setError(err instanceof StoreError ? err.message : '保存に失敗しました');
+      // 入力内容は消さない
+      setError(errorMessage(err, '保存に失敗しました'));
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={(e) => void handleSubmit(e)} className="space-y-6">
       <h2 className="text-xl font-bold text-gray-900">{title}</h2>
 
       {/* 生き物 */}
@@ -187,7 +214,7 @@ export function RecordForm({
           </p>
         )}
 
-        {!newOpen ? (
+        {!canAddCreature ? null : !newOpen ? (
           <button
             type="button"
             onClick={() => {
@@ -227,10 +254,11 @@ export function RecordForm({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={registerCreature}
-                className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700"
+                onClick={() => void registerCreature()}
+                disabled={createCreature.isPending}
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-60"
               >
-                登録する
+                {createCreature.isPending ? '登録中…' : '登録する'}
               </button>
               <button
                 type="button"
@@ -286,9 +314,10 @@ export function RecordForm({
               className={inputClass}
             >
               <option value="">選択してください</option>
-              {MAIN_LOCATIONS.map((l) => (
+              {mainOptions.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
+                  {!l.isActive && '（使っていない場所）'}
                 </option>
               ))}
             </select>
@@ -399,10 +428,11 @@ export function RecordForm({
       <div className="flex gap-2">
         <button
           type="submit"
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 py-3 text-white transition-colors hover:bg-green-700"
+          disabled={submitting}
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 py-3 text-white transition-colors hover:bg-green-700 disabled:opacity-60"
         >
           <Plus className="h-5 w-5" />
-          {isEdit ? '記録を更新' : '記録を追加'}
+          {submitting ? '保存中…' : isEdit ? '記録を更新' : '記録を追加'}
         </button>
         {onCancel && (
           <button

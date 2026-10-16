@@ -1,20 +1,20 @@
 import { Pencil, Trash2 } from 'lucide-react';
-import { getTimeOfDay, monthOf } from '@yamon/shared';
-import type { Creature, ObservationRecord } from '../lib/types';
+import { getTimeOfDay, monthOf, type RecordView } from '@yamon/shared';
 import { CategoryBadge } from './ui';
 
 export function RecordCard({
   record,
-  creature,
   isMine,
+  canEdit,
   showTimeOfDay = false,
   isEditing = false,
   onEdit,
   onDelete,
 }: {
-  record: ObservationRecord;
-  creature: Creature | undefined;
+  record: RecordView;
   isMine: boolean;
+  /** 編集・削除のボタンを出すか（自分の記録で、records.editOwn がある） */
+  canEdit: boolean;
   showTimeOfDay?: boolean;
   isEditing?: boolean;
   onEdit: () => void;
@@ -29,8 +29,8 @@ export function RecordCard({
       <div className="flex gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-bold text-gray-900">{creature?.name ?? '（削除された生き物）'}</h3>
-            {creature && <CategoryBadge category={creature.category} />}
+            <h3 className="text-lg font-bold text-gray-900">{record.creatureName}</h3>
+            <CategoryBadge category={record.category} />
             {record.locationType === 'none' && (
               <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">場所未指定</span>
             )}
@@ -47,13 +47,17 @@ export function RecordCard({
               💬 {record.memo}
             </p>
           )}
-          {isMine && <p className="mt-1 text-xs text-blue-600">あなたの記録</p>}
+          {isMine ? (
+            <p className="mt-1 text-xs text-blue-600">あなたの記録</p>
+          ) : (
+            <p className="mt-1 text-xs text-gray-500">記録者：{record.recorderName}</p>
+          )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-3">
           <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs text-green-800">
             {monthOf(record.date)}月
           </span>
-          {isMine && (
+          {canEdit && (
             <div className="flex gap-1">
               <button
                 type="button"

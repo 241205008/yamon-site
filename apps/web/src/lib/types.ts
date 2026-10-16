@@ -1,55 +1,7 @@
-import type { Category } from '@yamon/shared';
-
-// 固定マスター（カテゴリ・時間帯・主な場所）はフロントとバックで共有するため @yamon/shared に置く
-export { CATEGORIES, TIMES_OF_DAY } from '@yamon/shared';
-export type { Category, MainLocation, TimeOfDay } from '@yamon/shared';
-
-export interface Creature {
-  id: string;
-  name: string;
-  category: Category;
-  memo: string;
-}
-
-/** 'main' = 主な場所 / 'other' = その他の場所 / 'none' = 場所を指定しない */
-export type LocationType = 'main' | 'other' | 'none';
-
 /**
- * 観察記録。観察会にはネストせず eventId で紐付ける。
- * 生き物は名前ではなく creatureId で参照する（改名しても記録が壊れない）。
- * month / timeOfDay は保存せず date / time から導出する。
+ * localStorage のストア（lib/store.ts）の型。招待・ユーザー管理を API に移すまで（#12）残す。
+ * 生き物・観察会・観察記録は API に移した（#13、型は @yamon/shared の CreatureView など）
  */
-export interface ObservationRecord {
-  id: string;
-  creatureId: string;
-  eventId: string | null;
-  locationType: LocationType;
-  /** locationType === 'main' のとき */
-  mainLocationId: string | null;
-  /** 表示用の場所名（'none' のときは空文字） */
-  locationName: string;
-  /** 座標がない記録は null（0,0 では表さない） */
-  lat: number | null;
-  lng: number | null;
-  date: string; // YYYY-MM-DD（JST）
-  time: string; // HH:MM
-  memo: string;
-  userId: string;
-  createdAt: string; // ISO
-}
-
-export interface ObservationEvent {
-  id: string;
-  name: string;
-  mainLocationId: string | null;
-  locationName: string;
-  lat: number | null;
-  lng: number | null;
-  date: string;
-  time: string;
-  createdBy: string;
-  createdAt: string;
-}
 
 export type Role = 'admin' | 'user';
 
@@ -90,9 +42,6 @@ export interface AdminTransfer {
 export interface Database {
   version: 1;
   users: User[];
-  creatures: Creature[];
-  events: ObservationEvent[];
-  records: ObservationRecord[];
   invitations: Invitation[];
   transfers: AdminTransfer[];
 }

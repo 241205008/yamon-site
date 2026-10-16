@@ -6,6 +6,10 @@ import { secureHeaders } from 'hono/secure-headers';
 import type { Db } from './db/client';
 import { errorBody, handleError } from './errors';
 import { authRoutes } from './routes/auth';
+import { creatureRoutes } from './routes/creatures';
+import { eventRoutes } from './routes/events';
+import { mainLocationRoutes, statsRoutes } from './routes/locations';
+import { recordRoutes } from './routes/records';
 
 export interface AppEnv {
   Variables: {
@@ -61,6 +65,11 @@ export function createApp({ db, log = false, cookieSecure = true }: AppDeps) {
   app.get('/health', (c) => c.json({ status: 'ok' }));
 
   app.route('/auth', authRoutes);
+  app.route('/creatures', creatureRoutes);
+  app.route('/events', eventRoutes);
+  app.route('/records', recordRoutes);
+  app.route('/main-locations', mainLocationRoutes);
+  app.route('/stats', statsRoutes);
 
   app.notFound((c) => c.json(errorBody('not_found', '見つかりません'), 404));
   app.onError(handleError);

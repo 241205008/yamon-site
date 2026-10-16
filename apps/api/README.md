@@ -13,7 +13,7 @@
 | `API_PORT` | 開発で待ち受けるポート。既定 8787（`apps/web/vite.config.ts` の転送先と同じ。変えたら `API_URL` も合わせる） |
 | `PGLITE_DIR` | 開発で PGlite のデータを置くフォルダ。既定 `.data/pglite` |
 
-開発用のアカウントは `npm run db:seed -w @yamon/api` で作る（リポジトリ直下の README の「開発用のアカウント」）。
+開発用のアカウントとデモデータは `npm run db:seed -w @yamon/api` で入れる（リポジトリ直下の README の「開発用のアカウント」）。
 
 ## ルートを足すとき
 

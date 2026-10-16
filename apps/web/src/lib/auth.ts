@@ -1,6 +1,7 @@
 import type { MeResponse, SessionUser } from '@yamon/shared';
 import { useSyncExternalStore } from 'react';
 import { apiFetch, setUnauthorizedHandler } from './api';
+import { queryClient } from './queries';
 import { syncSessionUser } from './store';
 
 /**
@@ -16,8 +17,10 @@ function subscribe(listener: () => void) {
 }
 
 function setUser(user: SessionUser | null) {
+  // ログアウトしたり別の人に替わったりしたら、前の人の権限で読んだデータを残さない
+  if (currentUser?.id !== user?.id || currentUser?.role !== user?.role) queryClient.clear();
   currentUser = user;
-  // 記録などのデータは、まだ localStorage のストアにある（#13 で API に移す）。
+  // 招待・ユーザー管理は、まだ localStorage のストアにある（#12 で API に移す）。
   // ストアの操作はユーザー ID で本人を確かめるので、ログイン中のユーザーをストアにも入れておく
   if (user) syncSessionUser(user);
   listeners.forEach((l) => l());
