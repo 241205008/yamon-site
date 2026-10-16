@@ -11,7 +11,9 @@ npm install
 npm run dev
 ```
 
-http://localhost:5173 を開きます。
+http://localhost:5173 を開きます。フロント（Vite、5173番）と API（Hono、8787番）が同時に起動し、`/api/*` は Vite から API へ転送されます（http://localhost:5173/api/health で確認できます）。画面はまだ localStorage で動いており、API への切り替えは [#11](https://github.com/241205008/yamon-site/issues/11)・[#13](https://github.com/241205008/yamon-site/issues/13) で行います。
+
+API の DB は、`DATABASE_URL` がなければ PGlite（WebAssembly 版の PostgreSQL）を `apps/api/.data/pglite` に作って使います。Docker や PostgreSQL のインストールは要りません。DB を空に戻したいときは、API を止めて `apps/api/.data/` を削除します。
 
 地図の背景（Protomaps の愛知・岐阜・三重・滋賀の4県、約380MB）は Git に入っていません。`apps/web/map-data/survey-area.pmtiles` に置くと表示されます。用意と更新の手順は [docs/MAP_DATA.md](docs/MAP_DATA.md) を参照してください（なくても、地図の背景以外は動きます）。
 
@@ -19,10 +21,13 @@ http://localhost:5173 を開きます。
 
 | コマンド | 内容 |
 |---|---|
-| `npm run dev` | フロントの開発サーバー（`apps/web`） |
-| `npm run build` | 型チェック＋本番ビルド（`apps/web/dist/`） |
-| `npm test` | 単体テスト（Vitest） |
+| `npm run dev` | フロントと API の開発サーバーを同時に起動 |
+| `npm run dev:web` / `npm run dev:api` | どちらか片方だけ起動 |
+| `npm run build` | 型チェック＋本番ビルド（`apps/web/dist/`、`apps/api/dist/`） |
+| `npm test` | 単体テスト（Vitest。API のテストは PGlite 上で動く） |
 | `npm run typecheck` | 型チェックのみ |
+| `npm run db:generate -w @yamon/api` | `apps/api/src/db/schema.ts` の変更からマイグレーションを作る（`apps/api/drizzle/` に出力。一緒にコミットする） |
+| `npm run db:migrate -w @yamon/api` | `DATABASE_URL` の DB にマイグレーションを流す |
 
 特定のパッケージだけ動かすときは `-w` を付けます（例：`npm test -w @yamon/shared`）。
 
@@ -74,10 +79,15 @@ apps/
     src/pages/        各画面
     functions/        Cloudflare Pages Functions（/map/*：R2 の地図データを返す）
     map-data/         開発用の地図データ（Git に入れない）
-  api/                バックエンド（@yamon/api）。中身は #10 で作る
+  api/                バックエンド（@yamon/api）。Hono ＋ Drizzle ORM ＋ PostgreSQL
+    src/app.ts        API の本体（ルートはここにつなぐ）
+    src/db/           テーブル定義（schema.ts）と DB への接続
+    drizzle/          マイグレーション（SQL）
+    test/             API のテスト（PGlite）
+    Dockerfile        Cloud Run 用のコンテナ
 packages/
   shared/             フロントとバックで共有するコード（@yamon/shared）
-                      固定マスター（カテゴリ・時間帯・主な場所）、日時（JST）、地図の範囲（愛知・岐阜・三重・滋賀の4県）
+                      固定マスター（カテゴリ・時間帯・役割・主な場所）、入力チェック（zod）、日時（JST）、地図の範囲（愛知・岐阜・三重・滋賀の4県）
 docs/
   MVP.md              合意した MVP
   DECISIONS.md        技術選定・仕様の解釈とその理由

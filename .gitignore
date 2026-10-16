@@ -6,6 +6,9 @@ dist
 .vscode/*
 !.vscode/extensions.json
 
+# API のローカル開発用 DB（PGlite）
+.data/
+
 # 地図データ（Protomaps の切り出し、数百MB）。R2 に置き、Git には入れない（docs/MAP_DATA.md）
 apps/web/map-data/
 *.pmtiles

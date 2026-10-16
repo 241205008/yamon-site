@@ -28,3 +28,25 @@ export const MAP_CENTER = { lat: 35.1347, lng: 136.9759 };
 export function findMainLocation(id: string | null | undefined): MainLocation | undefined {
   return MAIN_LOCATIONS.find((l) => l.id === id);
 }
+
+/**
+ * 役割（固定マスター、MVP 2章・D24）。値は DB と API でそのまま使う。
+ * 役割ごとにできることの対応表は #11 でここに足す。
+ */
+export const ROLES = ['admin', 'officer', 'member', 'viewer'] as const;
+export type Role = (typeof ROLES)[number];
+
+export const ROLE_LABELS: Record<Role, string> = {
+  admin: '管理者',
+  officer: '幹部',
+  member: '部員',
+  viewer: '閲覧のみ',
+};
+
+/** アカウントの状態（MVP 2章・D26）。閲覧のみは状態ではなく役割で表す */
+export const USER_STATUSES = ['active', 'disabled', 'withdrawn'] as const;
+export type UserStatus = (typeof USER_STATUSES)[number];
+
+/** 'main' = 主な場所 / 'other' = その他の場所 / 'none' = 場所を指定しない */
+export const LOCATION_TYPES = ['main', 'other', 'none'] as const;
+export type LocationType = (typeof LOCATION_TYPES)[number];
