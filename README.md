@@ -135,12 +135,16 @@ GitHub Actions（`.github/workflows/ci.yml`）で、型チェック・テスト�
 
 Secret が未設定の間は、デプロイだけ警告付きで省略されます（CI は失敗しません）。
 
+今の本番は https://yamon-site.yamonken.workers.dev です（サブドメインは `yamonken`。2026-10-16 に初回デプロイ）。
+
 ### 初回の設定
 
-Cloudflare のアカウントは、サークルの Gmail で作ったものを使います（D21）。作業は、メンバーに招待した個人のアカウントで行って構いません。ただし、アカウントの API トークン（手順2）を作れるのは Super Administrator（または API Token Provisioning の権限を持つ人）だけです。
+Cloudflare のアカウントは、サークルの Gmail で作ったものを使います（D21）。作業は、メンバーに招待した個人のアカウントで行って構いません。ただし、アカウントの API トークン（手順2）を作れるのは Super Administrator（または API Token Provisioning の権限を持つ人）だけです。サークルと個人のどちらのアカウントでログインしても、画面の左上でサークルのアカウントを選んで作業すれば、作ったもの（サブドメイン・トークン・Worker）はサークルのアカウントの持ち物になります。
 
-1. **workers.dev のサブドメインを決める**（アカウントで1回だけ）：Cloudflare の画面の「Workers & Pages」を開き、案内に従ってサブドメインを登録する（「Account Settings」の「workers.dev subdomain」から変更もできる）。URL の `<サブドメイン>` の部分になる
-2. **API トークンを作る**：「Manage Account → Account API Tokens」（アカウントが持つトークン。メンバーを外しても使えなくならない）で「Create Token」→ テンプレート「Edit Cloudflare Workers」を選び、Account Resources をこのアカウントだけ、Zone Resources を「All zones from an account」（このアカウント）に絞る
+1. **workers.dev のサブドメインを確かめる**：アカウントを作るとメールアドレスをもとに自動で付く（例：`yamonken07-meijo`）。「Workers & Pages」の「Account details」の「Subdomain」に表示され、鉛筆のアイコンから変えられる。URL の `<サブドメイン>` の部分になり、公開後に変えるとすべての URL（招待メールのリンクなど）が変わるので、最初のデプロイの前に決める
+2. **API トークンを作る**：「Manage Account → Account API Tokens」（アカウントが持つトークン。メンバーを外しても使えなくならない）で「Create Token」→ テンプレート「Edit Cloudflare Workers」を選ぶ。対象はこのアカウント（とそのゾーン）だけにし、「Full account and zone access」「Write all resources」は選ばない。名前は用途が分かるもの（例：`github-actions-deploy-yamon-site`）、有効期限は「No expiration」（期限が切れると自動デプロイが止まる）、IP の制限は空（GitHub Actions の IP は毎回変わる）にする
+   - 作成後の画面には、トークンのほかに **Access Key ID・Secret Access Key**（R2 を S3 互換で使うための鍵）も出るが、使わないので保存しない。R2 には専用のトークンを別に作る（D34）
+   - トークンは手順3で GitHub に登録したら、控えたメモを消す。値が要るときは作り直す（Roll）。どこかに貼ってしまったら Roll してから登録し直す
 3. **GitHub に登録する**（実値はリポジトリ・Issue・PR に書かない）。ターミナルで次を実行し、聞かれたら値を貼り付ける
 
    ```bash
@@ -153,7 +157,7 @@ Cloudflare のアカウントは、サークルの Gmail で作ったものを�
 
    アカウント ID は「Workers & Pages」の右側に表示されている
 
-4. **最初の本番デプロイ**：Actions 画面で CI を main に対して手動実行する（Worker はここで作られる。Worker がないうちは PR のプレビューが失敗するので、先に本番を1回出す）。Summary の URL を開き、画面が表示されることを確かめる
+4. **最初の本番デプロイ**：Actions 画面で CI を main に対して手動実行する（Worker はここで作られる。Worker がないうちは PR のプレビューが失敗するので、先に本番を1回出す）。Summary の URL を開き、画面が表示されることを確かめる。ログの途中に出る `npx canceled due to missing packages` は、wrangler-action が wrangler の有無を確かめたときのもので、そのあと入れ直して進むので問題ない
 
 地図データ（R2）の準備は [docs/MAP_DATA.md](docs/MAP_DATA.md) を参照してください。R2 のバケットができるまでは、`/map/*` が 503 を返し、背景の地図（Protomaps）だけが表示されません。
 
