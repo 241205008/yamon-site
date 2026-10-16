@@ -40,12 +40,20 @@ const mapDataWorkflow = mapDataToken
 if (isProduction && !process.env.APP_URL) {
   console.warn('APP_URL がないため、メールのリンクは画面からのリクエストの Origin から作ります（本番では APP_URL を設定してください）');
 }
+// 初回セットアップのトークン（D37）。推測されにくいよう、短いものは使わない
+const MIN_SETUP_TOKEN_LENGTH = 20;
+const setupTokenEnv = process.env.SETUP_TOKEN?.trim();
+const setupToken = setupTokenEnv && setupTokenEnv.length >= MIN_SETUP_TOKEN_LENGTH ? setupTokenEnv : undefined;
+if (setupTokenEnv && !setupToken) {
+  console.warn(`SETUP_TOKEN が短すぎるため（${MIN_SETUP_TOKEN_LENGTH}文字未満）、初回セットアップはできません`);
+}
 const app = createApp({
   db: handle.db,
   log: true,
   cookieSecure: isProduction,
   mailer: await mailerFromEnv(process.env, isProduction),
   appUrl: process.env.APP_URL,
+  setupToken,
   mapData: { workflow: mapDataWorkflow, authorize: requirePermission('mapData.update') },
 });
 

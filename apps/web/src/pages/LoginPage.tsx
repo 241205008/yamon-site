@@ -10,7 +10,7 @@ import {
   ROLE_LABELS,
   type InvitationInfo,
 } from '@yamon/shared';
-import { acceptInvitation, login, logout, lookupInvitation, useCurrentUser } from '../lib/auth';
+import { acceptInvitation, fetchSetupNeeded, login, logout, lookupInvitation, useCurrentUser } from '../lib/auth';
 
 const toMessage = (e: unknown) => (e instanceof ApiError ? e.message : '処理に失敗しました');
 
@@ -22,6 +22,15 @@ export function LoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const from = (location.state as { from?: string } | null)?.from ?? '/';
+  const [setupNeeded, setSetupNeeded] = useState(false);
+
+  // ユーザーが1人もいなければ、初回セットアップへ案内する（#4）
+  useEffect(() => {
+    if (user) return;
+    fetchSetupNeeded()
+      .then(setSetupNeeded)
+      .catch(() => {});
+  }, [user]);
 
   // ログイン中に招待リンクを開いた場合は、勝手にホームへ飛ばさず案内する
   if (user && inviteParam) {
@@ -53,6 +62,7 @@ export function LoginPage() {
     );
   }
   if (user) return <Navigate to={from} replace />;
+  if (setupNeeded) return <Navigate to="/setup" replace />;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 p-4">
