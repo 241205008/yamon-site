@@ -1,7 +1,8 @@
-import { Calendar, Clock, MapPin, Pencil, Plus } from 'lucide-react';
+import { Calendar, Clock, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { useParams } from 'react-router';
-import { can, type RecordView } from '@yamon/shared';
+import { useNavigate, useParams } from 'react-router';
+import { can, canActOn, type RecordView } from '@yamon/shared';
+import { EventForm } from '../components/EventForm';
 import { RecordCard } from '../components/RecordCard';
 import { RecordForm } from '../components/RecordForm';
 import { BackBar, Card, ErrorText, firstUnready, PageBackground, QueryState, ShowMoreButton } from '../components/ui';
@@ -11,10 +12,12 @@ import {
   errorMessage,
   useCreateRecord,
   useCreatures,
+  useDeleteEvent,
   useDeleteRecord,
   useEvent,
   useMainLocations,
   useRecordPages,
+  useUpdateEvent,
   useUpdateRecord,
 } from '../lib/queries';
 
@@ -36,6 +39,13 @@ export function EventDetailPage() {
   const createRecord = useCreateRecord();
   const updateRecord = useUpdateRecord();
   const deleteRecord = useDeleteRecord();
+  const updateEvent = useUpdateEvent();
+  const deleteEvent = useDeleteEvent();
+  const navigate = useNavigate();
+  // 観察会を編集・削除できるのは、作った本人と管理者（#7。API でも確かめる）
+  const canManageEvent = !!event && canActOn(user, event.createdBy, 'events.editOwn', 'events.editAny');
+  const [editingEvent, setEditingEvent] = useState(false);
+  const [eventError, setEventError] = useState<string | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<RecordView | null>(null);
@@ -66,6 +76,26 @@ export function EventDetailPage() {
     requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
+  const removeEvent = async () => {
+    if (!event) return;
+    setEventError(null);
+    // 開いている間に他の人が記録を足していることがあるので、件数を読み直してから確かめる
+    const latest = (await eventQuery.refetch()).data ?? event;
+    const message =
+      `観察会「${latest.name}」を削除しますか？\n\n` +
+      (latest.recordCount > 0
+        ? `この観察会の観察記録${latest.recordCount}件は削除されず、「観察会なし」の記録としてホーム・マップ・場所別に残ります。` +
+          'ただし、どの観察会の記録だったかは分からなくなります。'
+        : 'この観察会には観察記録がありません。');
+    if (!window.confirm(message)) return;
+    try {
+      await deleteEvent.mutateAsync(event.id);
+      navigate('/event-list', { replace: true });
+    } catch (e) {
+      setEventError(errorMessage(e, '削除に失敗しました'));
+    }
+  };
+
   const remove = async (r: RecordView) => {
     setListError(null);
     if (!window.confirm('この記録を削除しますか？')) return;
@@ -81,11 +111,47 @@ export function EventDetailPage() {
     <PageBackground>
       <BackBar to="/" label="ホームに戻る" />
       <main className="mx-auto max-w-4xl space-y-6 px-4 py-8">
+        {event && editingEvent ? (
+          <QueryState query={mainLocations} label="主な場所">
+            <EventForm
+              mainLocations={mainLocations.data ?? []}
+              initial={event}
+              onCancel={() => setEditingEvent(false)}
+              onCreate={async (input) => {
+                await updateEvent.mutateAsync({ id: event.id, input });
+                setEditingEvent(false);
+              }}
+            />
+          </QueryState>
+        ) : (
         <Card className="p-6">
           <QueryState query={eventQuery} label="観察会">
             {event && (
               <>
-                <h1 className="text-3xl font-bold text-gray-900">{event.name}</h1>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <h1 className="text-3xl font-bold text-gray-900">{event.name}</h1>
+                  {canManageEvent && (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingEvent(true)}
+                        className="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        編集
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void removeEvent()}
+                        disabled={deleteEvent.isPending}
+                        className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-60"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        削除
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <div className="mt-4 grid gap-2 text-gray-700 sm:grid-cols-3">
                   <span className="flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-green-600" />
@@ -103,10 +169,14 @@ export function EventDetailPage() {
                 <p className="mt-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-800">
                   この観察会では<span className="font-bold">{event.recordCount}件</span>の観察記録が登録されています
                 </p>
+                <div className="mt-3">
+                  <ErrorText message={eventError} />
+                </div>
               </>
             )}
           </QueryState>
         </Card>
+        )}
 
         {event && canCreateRecord && !formOpen && (
           <button
