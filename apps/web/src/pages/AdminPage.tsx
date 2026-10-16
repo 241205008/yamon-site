@@ -11,9 +11,9 @@ import {
   setUserActive,
   StoreError,
   transferAdmin,
-  useCurrentUser,
   useDb,
 } from '../lib/store';
+import { useCurrentUser } from '../lib/auth';
 import { formatRemaining, isoToJstDate, isoToJstDateTime } from '@yamon/shared';
 import type { Invitation, InvitationStatus, User } from '../lib/types';
 

@@ -85,6 +85,20 @@ export const sessions = pgTable(
   (t) => [index('sessions_user_id_idx').on(t.userId), index('sessions_expires_at_idx').on(t.expiresAt)],
 );
 
+/**
+ * ログインの失敗（総当たり対策）。同じメールアドレスへの失敗が続いたら、しばらくログインを受け付けない。
+ * メールアドレスは保存せず、SHA-256 のハッシュで持つ（個人情報を増やさない）。古い行はログインのたびに消す
+ */
+export const loginFailures = pgTable(
+  'login_failures',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    emailHash: text('email_hash').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('login_failures_email_hash_created_at_idx').on(t.emailHash, t.createdAt)],
+);
+
 /** 招待（48時間有効・1回限り）。トークンはハッシュで保存する（D18） */
 export const invitations = pgTable(
   'invitations',

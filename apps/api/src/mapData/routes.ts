@@ -1,7 +1,6 @@
 import type { MapDataRun, MapDataStatus } from '@yamon/shared';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
-import { HTTPException } from 'hono/http-exception';
-import type { AppEnv } from '../app';
+import type { AuthedEnv } from '../auth/middleware';
 import { errorBody } from '../errors';
 import { GitHubApiError, type MapDataWorkflow } from './github';
 
@@ -9,14 +8,14 @@ export interface MapDataDeps {
   /** なければ（GitHub の鍵が未設定なら）503 を返す */
   workflow?: MapDataWorkflow;
   /**
-   * 管理者だけを通すミドルウェア（#11 の requirePermission('mapData.update')）。
-   * 渡されなければ、誰も通さない（仮の実装で誰でも更新できる状態を作らない。D34 の7）
+   * 管理者だけを通すミドルウェア。本番は requirePermission('mapData.update')（src/index.ts）。
+   * 渡されなければ、誰も通さない（設定漏れで誰でも更新できる状態を作らない。D34 の7）
    */
-  authorize?: MiddlewareHandler<AppEnv>;
+  authorize?: MiddlewareHandler<AuthedEnv>;
 }
 
-const denyAll: MiddlewareHandler<AppEnv> = async (c) =>
-  c.json(errorBody('forbidden', '地図データを更新する権限の確認が、まだ用意されていません'), 403);
+const denyAll: MiddlewareHandler<AuthedEnv> = async (c) =>
+  c.json(errorBody('forbidden', 'この操作をする権限がありません'), 403);
 
 function toStatus(run: MapDataRun | null): MapDataStatus {
   return { state: run ? run.state : 'idle', run };
@@ -24,7 +23,7 @@ function toStatus(run: MapDataRun | null): MapDataStatus {
 
 /** /api/admin/map-data：管理者が地図データを更新する（D34） */
 export function mapDataRoutes({ workflow, authorize = denyAll }: MapDataDeps) {
-  const routes = new Hono<AppEnv>();
+  const routes = new Hono<AuthedEnv>();
   routes.use('*', authorize);
 
   routes.use('*', async (c, next) => {
@@ -36,7 +35,7 @@ export function mapDataRoutes({ workflow, authorize = denyAll }: MapDataDeps) {
 
   // GitHub の失敗は 502 にする（ハンドラーで投げた例外は、前段のミドルウェアでは捕まえられないため、ここで包む）
   const withGitHub =
-    (handler: (c: Context<AppEnv>, wf: MapDataWorkflow) => Promise<Response>) => async (c: Context<AppEnv>) => {
+    (handler: (c: Context<AuthedEnv>, wf: MapDataWorkflow) => Promise<Response>) => async (c: Context<AuthedEnv>) => {
       try {
         return await handler(c, workflow!);
       } catch (err) {
@@ -54,10 +53,7 @@ export function mapDataRoutes({ workflow, authorize = denyAll }: MapDataDeps) {
   routes.post(
     '/refresh',
     withGitHub(async (c, wf) => {
-      // フォームからの送信（CSRF）を通さないため、状態を変える API は JSON に限る（#11 と同じ決まり）
-      if (!c.req.header('Content-Type')?.startsWith('application/json')) {
-        throw new HTTPException(415, { message: 'Content-Type: application/json で送ってください' });
-      }
+      // JSON 以外の送信（CSRF）は、createApp の全体のミドルウェアが 415 にする（D33）
       const latest = await wf.latestRun();
       if (latest?.state === 'running') {
         return c.json(

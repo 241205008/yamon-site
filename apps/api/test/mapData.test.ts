@@ -1,10 +1,10 @@
 import type { MapDataRun } from '@yamon/shared';
 import type { MiddlewareHandler } from 'hono';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppEnv } from '../src/app';
+import { requirePermission, type AuthedEnv } from '../src/auth/middleware';
 import { errorBody } from '../src/errors';
 import { createGitHubWorkflow, GitHubApiError, type MapDataWorkflow } from '../src/mapData/github';
-import { setupTestApp, type TestContext } from './helpers';
+import { createUser, login, setupTestApp, type TestContext } from './helpers';
 
 /** ワークフローの偽物。latest を書き換えて状態を作り、dispatch が呼ばれた回数を数える */
 function fakeWorkflow() {
@@ -23,7 +23,7 @@ function fakeWorkflow() {
 }
 
 /** テスト用の権限チェック：x-test-role が admin なら通す（本番は #11 の requirePermission） */
-const testAuthorize: MiddlewareHandler<AppEnv> = async (c, next) => {
+const testAuthorize: MiddlewareHandler<AuthedEnv> = async (c, next) => {
   const role = c.req.header('x-test-role');
   if (!role) return c.json(errorBody('unauthorized', 'ログインしてください'), 401);
   if (role !== 'admin') return c.json(errorBody('forbidden', '権限がありません'), 403);
@@ -93,7 +93,7 @@ describe('/api/admin/map-data（権限チェックとワークフローあり）
     expect(fake.state.dispatched).toBe(0);
   });
 
-  it('JSON 以外で送られたら 415 で起動しない（CSRF 対策）', async () => {
+  it('JSON 以外で送られたら 415 で起動しない（CSRF 対策、全体のミドルウェア）', async () => {
     const res = await ctx.app.request('/api/admin/map-data/refresh', {
       method: 'POST',
       headers: { ...admin, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -194,5 +194,44 @@ describe('createGitHubWorkflow', () => {
     await expect(createGitHubWorkflow({ token: 't', repository: 'o/r', fetch: f.impl }).latestRun()).rejects.toBeInstanceOf(
       GitHubApiError,
     );
+  });
+});
+
+describe('/api/admin/map-data（#11 の requirePermission と Cookie のログイン）', () => {
+  let ctx: TestContext;
+  const fake = fakeWorkflow();
+  beforeAll(async () => {
+    ctx = await setupTestApp({
+      cookieSecure: false,
+      mapData: { workflow: fake.workflow, authorize: requirePermission('mapData.update') },
+    });
+  });
+  afterAll(() => ctx.close());
+
+  it('管理者は状態を見て起動でき、幹部・部員は 403、未ログインは 401', async () => {
+    const admin = await createUser(ctx.db, { role: 'admin' });
+    const officer = await createUser(ctx.db, { role: 'officer' });
+    const adminCookie = await login(ctx, admin.email, admin.password);
+    const officerCookie = await login(ctx, officer.email, officer.password);
+
+    expect((await ctx.app.request('/api/admin/map-data/status')).status).toBe(401);
+    expect((await ctx.app.request('/api/admin/map-data/status', { headers: { Cookie: officerCookie } })).status).toBe(403);
+    expect((await ctx.app.request('/api/admin/map-data/status', { headers: { Cookie: adminCookie } })).status).toBe(200);
+
+    const denied = await ctx.app.request('/api/admin/map-data/refresh', {
+      method: 'POST',
+      headers: { Cookie: officerCookie, ...json },
+      body: '{}',
+    });
+    expect(denied.status).toBe(403);
+    expect(fake.state.dispatched).toBe(0);
+
+    const res = await ctx.app.request('/api/admin/map-data/refresh', {
+      method: 'POST',
+      headers: { Cookie: adminCookie, ...json },
+      body: '{}',
+    });
+    expect(res.status).toBe(202);
+    expect(fake.state.dispatched).toBe(1);
   });
 });

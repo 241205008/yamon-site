@@ -36,4 +36,5 @@ export async function verifyPassword(password: string, saltHex: string, hashHex:
   return (await hashPassword(password, saltHex)) === hashHex;
 }
 
-export const MIN_PASSWORD_LENGTH = 8;
+// 長さのルールは API と同じもの（packages/shared）を使う
+export { MIN_PASSWORD_LENGTH } from '@yamon/shared';

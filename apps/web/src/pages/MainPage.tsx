@@ -12,14 +12,13 @@ import {
   canRevertTransfer,
   createEvent,
   deleteRecord,
-  logout,
   revertTransfer,
   StoreError,
   updateRecord,
-  useCurrentUser,
   useDb,
 } from '../lib/store';
-import { formatRemaining } from '@yamon/shared';
+import { can, formatRemaining } from '@yamon/shared';
+import { logout, useCurrentUser } from '../lib/auth';
 import type { ObservationRecord } from '../lib/types';
 
 const RECENT_LIMIT = 10;
@@ -73,7 +72,7 @@ export function MainPage() {
             </div>
           </div>
           <nav className="flex flex-wrap items-center gap-2">
-            {user.role === 'admin' && (
+            {can(user.role, 'users.manage') && (
               <Link to="/admin" className={`${navBtn} bg-purple-600 hover:bg-purple-700`}>
                 <Shield className="h-4 w-4" />
                 管理者画面
@@ -103,8 +102,7 @@ export function MainPage() {
             <button
               type="button"
               onClick={() => {
-                logout();
-                navigate('/login');
+                void logout().then(() => navigate('/login'));
               }}
               className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >

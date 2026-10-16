@@ -11,15 +11,13 @@ import {
   deleteRecord,
   findUsableInvitation,
   getDb,
-  getSessionUser,
   invitationStatus,
-  login,
   registerWithInvitation,
   resendInvitation,
   resetStoreForTest,
   revertTransfer,
   setUserActive,
-  StoreError,
+  syncSessionUser,
   transferAdmin,
   updateCreature,
   updateRecord,
@@ -60,23 +58,26 @@ describe('永続化', () => {
   });
 });
 
-describe('ログイン', () => {
-  it('正しいパスワードでログインでき、セッションが保存される', async () => {
-    const user = await login('ADMIN@example.com ', 'admin1234');
-    expect(user.id).toBe(ADMIN);
-    expect(getSessionUser()?.id).toBe(ADMIN);
-    expect(localStorage.getItem('yamon:session')).toContain(ADMIN);
+describe('ログイン中のユーザー（API）をストアに入れる', () => {
+  const apiUser = { id: 'api-user-1', name: '山田', email: 'yamada@example.com', role: 'officer' as const };
+
+  it('ストアにいなければ足し、記録を追加できるようにする', () => {
+    syncSessionUser(apiUser);
+    expect(getDb().users.find((u) => u.id === apiUser.id)).toMatchObject({ name: '山田', role: 'user', isActive: true });
+    expect(() => addRecord(apiUser.id, baseRecord)).not.toThrow();
   });
 
-  it('パスワードが違うと失敗する', async () => {
-    await expect(login('admin@example.com', 'wrong')).rejects.toThrow(StoreError);
+  it('名前や役割が変わっていれば上書きする（同じ ID は1人だけ）', () => {
+    syncSessionUser(apiUser);
+    syncSessionUser({ ...apiUser, name: '山田太郎', role: 'admin' });
+    const matches = getDb().users.filter((u) => u.id === apiUser.id);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ name: '山田太郎', role: 'admin' });
   });
 
-  it('無効化されたユーザーはログインできず、既存セッションも無効になる', async () => {
-    await login('user1@example.com', 'user1234');
-    setUserActive(ADMIN, USER1, false);
-    expect(getSessionUser()).toBeNull();
-    await expect(login('user1@example.com', 'user1234')).rejects.toThrow('無効化');
+  it('パスワードはストアに保存しない', () => {
+    syncSessionUser(apiUser);
+    expect(getDb().users.find((u) => u.id === apiUser.id)?.passwordHash).toBe('');
   });
 
   it('平文のパスワードは保存されない', () => {
@@ -104,10 +105,8 @@ describe('招待', () => {
     const inv = createInvitation(ADMIN, '山田', 'yamada@example.com');
     const user = await registerWithInvitation(inv.token, '山田', 'password1');
     expect(user.role).toBe('user');
-    expect(getSessionUser()?.id).toBe(user.id);
     expect(invitationStatus(getDb().invitations.find((i) => i.id === inv.id)!)).toBe('accepted');
     expect(() => findUsableInvitation(inv.token)).toThrow('すでに使用');
-    await expect(login('yamada@example.com', 'password1')).resolves.toBeTruthy();
   });
 
   it('期限切れのトークンでは登録できない', async () => {
