@@ -2,12 +2,19 @@ import type { Role } from '@yamon/shared';
 import { createApp } from '../src/app';
 import { hashPassword } from '../src/auth/password';
 import { connectPglite, schema, type Db } from '../src/db/client';
+import { createMemoryMailer } from '../src/mail';
 
-/** メモリ上の PGlite にマイグレーションを流した DB と、それを使う API を作る */
+export const TEST_APP_URL = 'https://yamon.example.test';
+
+/**
+ * メモリ上の PGlite にマイグレーションを流した DB と、それを使う API を作る。
+ * メールは送らずに sent にためる
+ */
 export async function setupTestApp() {
   const handle = await connectPglite();
-  const app = createApp({ db: handle.db });
-  return { app, db: handle.db, close: handle.close };
+  const { mailer, sent } = createMemoryMailer();
+  const app = createApp({ db: handle.db, mailer, appUrl: TEST_APP_URL });
+  return { app, db: handle.db, close: handle.close, sent };
 }
 
 export type TestContext = Awaited<ReturnType<typeof setupTestApp>>;
@@ -49,4 +56,21 @@ export async function login(ctx: TestContext, email: string, password: string) {
   });
   if (res.status !== 200) throw new Error(`ログインに失敗しました：${res.status} ${await res.text()}`);
   return cookieFrom(res);
+}
+
+/** ログイン済みの Cookie を付けて JSON の API を呼ぶ */
+export function callApi(ctx: TestContext, cookie: string | undefined, method: string, path: string, body?: unknown) {
+  const hasBody = method !== 'GET';
+  return ctx.app.request(path, {
+    method,
+    headers: { ...(hasBody ? jsonHeaders : {}), ...(cookie ? { cookie } : {}) },
+    body: hasBody ? JSON.stringify(body ?? {}) : undefined,
+  });
+}
+
+/** メール本文の招待リンクからトークンを取り出す */
+export function tokenFromMail(text: string): string {
+  const match = /\/login\?invite=([A-Za-z0-9_-]+)/.exec(text);
+  if (!match) throw new Error(`招待リンクがありません：${text}`);
+  return match[1];
 }

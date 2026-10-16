@@ -1,4 +1,4 @@
-import type { MeResponse, SessionUser } from '@yamon/shared';
+import type { InvitationAcceptInput, InvitationInfo, MeResponse, SessionUser } from '@yamon/shared';
 import { useSyncExternalStore } from 'react';
 import { apiFetch, setUnauthorizedHandler } from './api';
 import { syncSessionUser } from './store';
@@ -31,7 +31,8 @@ export function useCurrentUser(): SessionUser | null {
   return useSyncExternalStore(subscribe, getCurrentUser);
 }
 
-async function refresh() {
+/** ログイン中のユーザーを API に確かめ直す（自分の役割を変えたときなど） */
+export async function refresh() {
   const { user } = await apiFetch<MeResponse>('/api/auth/me');
   setUser(user);
 }
@@ -66,4 +67,16 @@ export async function logout(): Promise<void> {
     // セッションは8時間で切れる。サーバーに残っても、この画面からは使わない
   }
   setUser(null);
+}
+
+/** 招待リンクのトークンから、招待されたアドレスと役割を調べる。使えないリンクは理由つきの ApiError */
+export function lookupInvitation(token: string): Promise<InvitationInfo> {
+  return apiFetch<InvitationInfo>('/api/invitations/lookup', { method: 'POST', body: { token } });
+}
+
+/** 招待リンクから登録する。登録したらそのままログインした状態になる */
+export async function acceptInvitation(input: InvitationAcceptInput): Promise<SessionUser> {
+  const { user } = await apiFetch<MeResponse>('/api/invitations/accept', { method: 'POST', body: input });
+  setUser(user);
+  return user!;
 }

@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { createApp } from './app';
 import { connectPglite, connectPostgres, type DbHandle } from './db/client';
+import { mailerFromEnv } from './mail';
 
 const isProduction = process.env.NODE_ENV === 'production';
 // 本番は Cloud Run が渡す PORT を使う。開発では PORT（ほかのツールが使うことが多い）を見ず、
@@ -25,7 +26,13 @@ async function connect(): Promise<DbHandle> {
 
 const handle = await connect();
 // 開発（http://localhost）では Cookie に Secure を付けない
-const app = createApp({ db: handle.db, log: true, cookieSecure: isProduction });
+const app = createApp({
+  db: handle.db,
+  log: true,
+  cookieSecure: isProduction,
+  mailer: await mailerFromEnv(process.env, isProduction),
+  appUrl: process.env.APP_URL,
+});
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`API: http://localhost:${info.port}/api/health`);
