@@ -2,7 +2,7 @@
 
 自然観察会の記録管理 Web アプリ（プロトタイプ）。招待制で、観察記録・観察会・生き物・場所をブラウザの localStorage に保存します。
 
-> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D28 を参照してください。
+> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D29 を参照してください。
 
 ## 起動
 
@@ -14,6 +14,8 @@ npm run dev
 http://localhost:5173 を開きます。フロント（Vite、5173番）と API（Hono、8787番）が同時に起動し、`/api/*` は Vite から API へ転送されます（http://localhost:5173/api/health で確認できます）。画面はまだ localStorage で動いており、API への切り替えは [#11](https://github.com/241205008/yamon-site/issues/11)・[#13](https://github.com/241205008/yamon-site/issues/13) で行います。
 
 API の DB は、`DATABASE_URL` がなければ PGlite（WebAssembly 版の PostgreSQL）を `apps/api/.data/pglite` に作って使います。Docker や PostgreSQL のインストールは要りません。DB を空に戻したいときは、API を止めて `apps/api/.data/` を削除します。
+
+地図の背景（Protomaps の愛知・岐阜・三重・滋賀の4県、約380MB）は Git に入っていません。`apps/web/map-data/survey-area.pmtiles` に置くと表示されます。用意と更新の手順は [docs/MAP_DATA.md](docs/MAP_DATA.md) を参照してください（なくても、地図の背景以外は動きます）。
 
 リポジトリのルートで実行します。各コマンドは、中身のあるパッケージ（workspace）すべてに対して動きます。
 
@@ -75,6 +77,8 @@ apps/
     src/lib/          データモデル・localStorage ストア・パスワードハッシュ
     src/components/   共通 UI、RecordForm、EventForm、地図ピッカーなど
     src/pages/        各画面
+    functions/        Cloudflare Pages Functions（/map/*：R2 の地図データを返す）
+    map-data/         開発用の地図データ（Git に入れない）
   api/                バックエンド（@yamon/api）。Hono ＋ Drizzle ORM ＋ PostgreSQL
     src/app.ts        API の本体（ルートはここにつなぐ）
     src/db/           テーブル定義（schema.ts）と DB への接続
@@ -83,10 +87,11 @@ apps/
     Dockerfile        Cloud Run 用のコンテナ
 packages/
   shared/             フロントとバックで共有するコード（@yamon/shared）
-                      固定マスター（カテゴリ・時間帯・役割・主な場所）、入力チェック（zod）、日時（JST）の処理
+                      固定マスター（カテゴリ・時間帯・役割・主な場所）、入力チェック（zod）、日時（JST）、地図の範囲（愛知・岐阜・三重・滋賀の4県）
 docs/
   MVP.md              合意した MVP
   DECISIONS.md        技術選定・仕様の解釈とその理由
+  MAP_DATA.md         地図データの切り出し・配置・更新の手順
 ```
 
 仕様との差分や判断の理由は [docs/DECISIONS.md](docs/DECISIONS.md) にまとめています。

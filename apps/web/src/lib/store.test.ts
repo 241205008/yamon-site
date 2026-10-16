@@ -134,7 +134,7 @@ describe('招待', () => {
 describe('観察記録', () => {
   it('主な場所で詳細座標がなければ主な場所の座標になる', () => {
     const r = addRecord(USER1, baseRecord);
-    expect(r).toMatchObject({ locationName: '中央公園', lat: 35.6812, lng: 139.7671, userId: USER1 });
+    expect(r).toMatchObject({ locationName: '中央公園', lat: 35.127, lng: 136.9671, userId: USER1 });
     expect(r.id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
@@ -156,6 +156,16 @@ describe('観察記録', () => {
     const r = addRecord(USER1, { ...baseRecord, eventId: 'ev-summer-forest' });
     updateRecord(USER1, r.id, { ...baseRecord, eventId: null, memo: '更新' });
     expect(getDb().records.find((x) => x.id === r.id)).toMatchObject({ eventId: 'ev-summer-forest', memo: '更新' });
+  });
+
+  it('4県の範囲外の座標は追加・編集できない', () => {
+    const tokyo = { ...baseRecord, locationType: 'other' as const, mainLocationId: null, lat: 35.6812, lng: 139.7671 };
+    expect(() => addRecord(USER1, tokyo)).toThrow('範囲外');
+    expect(() => addRecord(USER1, { ...baseRecord, lat: 35.6812, lng: 139.7671 })).toThrow('範囲外');
+    expect(() => addRecord(USER1, { ...tokyo, lat: 35.1, lng: null })).toThrow('範囲外');
+    const r = addRecord(USER1, baseRecord);
+    expect(() => updateRecord(USER1, r.id, tokyo)).toThrow('範囲外');
+    expect(addRecord(USER1, { ...tokyo, lat: null, lng: null }).lat).toBeNull();
   });
 
   it('生き物が未選択だとエラー', () => {
@@ -193,7 +203,21 @@ describe('観察会', () => {
       date: '2026-10-01',
       time: '09:00',
     });
-    expect(ev).toMatchObject({ name: '秋の観察会', locationName: '池のある広場', lat: 35.673, createdBy: USER1 });
+    expect(ev).toMatchObject({ name: '秋の観察会', locationName: '池のある広場', lat: 35.1188, createdBy: USER1 });
+  });
+
+  it('4県の範囲外の座標では作成できない', () => {
+    expect(() =>
+      createEvent(USER1, {
+        name: '東京の観察会',
+        mainLocationId: null,
+        otherLocationName: '皇居',
+        lat: 35.6852,
+        lng: 139.7528,
+        date: '2026-10-01',
+        time: '09:00',
+      }),
+    ).toThrow('範囲外');
   });
 
   it('場所がないと作成できない', () => {

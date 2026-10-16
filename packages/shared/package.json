@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "フロントとバックで共有する固定マスター・入力チェック（zod）・日時（JST）の処理",
+  "description": "フロントとバックで共有する固定マスター・入力チェック（zod）・日時（JST）・地図の範囲の処理",
   "exports": {
     ".": "./src/index.ts"
   },

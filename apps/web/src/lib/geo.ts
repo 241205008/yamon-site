@@ -1,4 +1,9 @@
-/** navigator.geolocation を Promise にしたもの。失敗理由は日本語メッセージで返す */
+import { isInSurveyArea } from '@yamon/shared';
+
+/**
+ * navigator.geolocation を Promise にしたもの。失敗理由は日本語メッセージで返す。
+ * 地図の範囲（4県）の外の位置は記録に使えないため、失敗として扱う（D28）
+ */
 export function getCurrentPosition(): Promise<{ lat: number; lng: number }> {
   return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
@@ -6,7 +11,11 @@ export function getCurrentPosition(): Promise<{ lat: number; lng: number }> {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        if (isInSurveyArea(lat, lng)) resolve({ lat, lng });
+        else reject(new Error('現在位置が地図の範囲外（愛知・岐阜・三重・滋賀の4県）のため使えません。マップで位置を選択してください'));
+      },
       (err) =>
         reject(
           new Error(

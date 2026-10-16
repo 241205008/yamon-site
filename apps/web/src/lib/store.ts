@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { findMainLocation } from '@yamon/shared';
+import { findMainLocation, isInSurveyArea } from '@yamon/shared';
 import { hashPassword, MIN_PASSWORD_LENGTH, newSalt, verifyPassword } from './password';
 import { createSeedDatabase } from './seed';
 import type {
@@ -230,6 +230,14 @@ export interface RecordInput {
   memo: string;
 }
 
+/** 座標は地図の範囲（4県）の中に限る（D28）。座標なしは許す */
+function requireInSurveyArea(lat: number | null, lng: number | null) {
+  if (lat === null && lng === null) return;
+  if (lat === null || lng === null || !isInSurveyArea(lat, lng)) {
+    throw new StoreError('位置が地図の範囲外（愛知・岐阜・三重・滋賀の4県）です。マップで位置を選び直してください');
+  }
+}
+
 function buildRecordFields(input: RecordInput) {
   const d = getDb();
   if (!d.creatures.some((c) => c.id === input.creatureId)) {
@@ -258,6 +266,7 @@ function buildRecordFields(input: RecordInput) {
     lat = input.lat;
     lng = input.lng;
   }
+  requireInSurveyArea(lat, lng);
 
   return {
     creatureId: input.creatureId,
@@ -329,14 +338,17 @@ export function createEvent(actorId: string, input: EventInput): ObservationEven
   const other = input.otherLocationName.trim();
   if (!loc && !other) throw new StoreError('場所を選択してください');
   if (!input.date || !input.time) throw new StoreError('日付と時間を入力してください');
+  const lat = input.lat ?? loc?.lat ?? null;
+  const lng = input.lng ?? loc?.lng ?? null;
+  requireInSurveyArea(lat, lng);
 
   const event: ObservationEvent = {
     id: crypto.randomUUID(),
     name,
     mainLocationId: loc?.id ?? null,
     locationName: loc?.name ?? other,
-    lat: input.lat ?? loc?.lat ?? null,
-    lng: input.lng ?? loc?.lng ?? null,
+    lat,
+    lng,
     date: input.date,
     time: input.time,
     createdBy: actorId,
