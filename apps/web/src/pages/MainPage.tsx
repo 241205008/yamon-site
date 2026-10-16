@@ -139,7 +139,7 @@ export function MainPage() {
           />
         )}
 
-        {showCreatures && <CreatureManager canManage={can(user.role, 'creatures.manage')} />}
+        {showCreatures && <CreatureManager canManage={can(user.role, 'creatures.manage')} canProtect={can(user.role, 'creatures.protect')} />}
 
         {canCreateRecord && (
         <div ref={formRef} className="scroll-mt-4 space-y-4">
@@ -161,6 +161,7 @@ export function MainPage() {
                 creatures={creatures.data ?? []}
                 mainLocations={mainLocations.data ?? []}
                 canAddCreature={can(user.role, 'creatures.manage')}
+                canProtect={can(user.role, 'creatures.protect')}
                 initialRecord={editing ?? undefined}
                 title={editing ? '観察記録を編集' : '観察記録を追加'}
                 onCancel={editing ? () => setEditing(null) : undefined}
