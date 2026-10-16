@@ -1,4 +1,4 @@
-import { creatureInputSchema, type CreatureView } from '@yamon/shared';
+import { can, creatureInputSchema, type CreatureView, type SessionUser } from '@yamon/shared';
 import { and, asc, count, eq, ne } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -37,6 +37,13 @@ async function assertNameAvailable(db: Db, name: string, exceptId?: string) {
   if (dup) throw new HTTPException(409, { message: `「${name}」はすでに登録されています` });
 }
 
+/** 「位置を保護する」印を変えられるのは creatures.protect の権限がある人（管理者・幹部）だけ（MVP 2章） */
+function assertCanProtect(user: SessionUser, from: boolean, to: boolean | undefined) {
+  if (to !== undefined && to !== from && !can(user.role, 'creatures.protect')) {
+    throw new HTTPException(403, { message: '「位置を保護する」印を付け外しできるのは、管理者と幹部だけです' });
+  }
+}
+
 async function readCreature(db: Db, id: string) {
   const [creature] = await listCreatures(db, id);
   if (!creature) throw notFound('生き物');
@@ -50,6 +57,7 @@ export const creatureRoutes = new Hono<AuthedEnv>()
   .post('/', requirePermission('creatures.manage'), validate('json', creatureInputSchema), async (c) => {
     const db = c.get('db');
     const input = c.req.valid('json');
+    assertCanProtect(c.get('user'), false, input.locationProtected);
     await assertNameAvailable(db, input.name);
     const [created] = await db
       .insert(creatures)
@@ -62,6 +70,7 @@ export const creatureRoutes = new Hono<AuthedEnv>()
     const db = c.get('db');
     const id = c.req.param('id');
     const input = c.req.valid('json');
+    assertCanProtect(c.get('user'), (await readCreature(db, id)).locationProtected, input.locationProtected);
     await assertNameAvailable(db, input.name, id);
     const updated = await db.update(creatures).set(input).where(eq(creatures.id, id)).returning({ id: creatures.id });
     if (updated.length === 0) throw notFound('生き物');

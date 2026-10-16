@@ -213,6 +213,12 @@ export function RecordForm({
             💬 {selected.memo}
           </p>
         )}
+        {selected?.locationProtected && (
+          <p role="note" className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            🔒 この生き物は位置を保護しています。部員と OB・OG には約1km単位のおおよその位置で表示されます（あなたと管理者・幹部には正確な位置）。
+            場所を残したくないときは、下の「場所を指定しない」を選んで記録できます。
+          </p>
+        )}
 
         {!canAddCreature ? null : !newOpen ? (
           <button

@@ -102,10 +102,10 @@ async function buildRecordValues(
   };
 }
 
-async function readRecord(db: Db, id: string): Promise<RecordView> {
+async function readRecord(db: Db, id: string, viewer: SessionUser): Promise<RecordView> {
   const [row] = await selectRecords(db).where(eq(r.id, id)).limit(1);
   if (!row) throw notFound('記録');
-  return toRecordView(row);
+  return toRecordView(row, viewer);
 }
 
 /** 編集・削除の対象を読み、作成者本人か確かめる（OB・OG は自分の過去の記録も不可、MVP 2章） */
@@ -150,7 +150,7 @@ export const recordRoutes = new Hono<AuthedEnv>()
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     const body: RecordPage = {
-      records: page.map(toRecordView),
+      records: page.map((row) => toRecordView(row, c.get('user'))),
       nextCursor:
         rows.length > limit && last
           ? encodeCursor({ date: last.date, time: last.time, createdAt: last.createdAtKey, id: last.id })
@@ -173,7 +173,8 @@ export const recordRoutes = new Hono<AuthedEnv>()
         ),
       )
       .orderBy(...NEWEST_FIRST);
-    return c.json({ records: rows.map(toRecordView) });
+    const viewer = c.get('user');
+    return c.json({ records: rows.map((row) => toRecordView(row, viewer)) });
   })
   .post('/', requirePermission('records.create'), validate('json', recordInputSchema), async (c) => {
     const db = c.get('db');
@@ -183,7 +184,7 @@ export const recordRoutes = new Hono<AuthedEnv>()
       .insert(r)
       .values({ ...values, eventId: input.eventId, userId: c.get('user').id })
       .returning({ id: r.id });
-    return c.json(await readRecord(db, created.id), 201);
+    return c.json(await readRecord(db, created.id, c.get('user')), 201);
   })
   /** 自分の記録だけ。記録の観察会は変えない（入力の eventId は無視する） */
   .put('/:id{[0-9a-f-]{36}}', requirePermission('records.editOwn'), validate('json', recordInputSchema), async (c) => {
@@ -191,7 +192,7 @@ export const recordRoutes = new Hono<AuthedEnv>()
     const current = await findOwnRecord(db, c.get('user'), c.req.param('id'));
     const values = await buildRecordValues(db, c.req.valid('json'), current);
     await db.update(r).set(values).where(eq(r.id, current.id));
-    return c.json(await readRecord(db, current.id));
+    return c.json(await readRecord(db, current.id, c.get('user')));
   })
   /** 自分の記録だけ。完全に消す（ゴミ箱は設けない、MVP 3章） */
   .delete('/:id{[0-9a-f-]{36}}', requirePermission('records.editOwn'), async (c) => {

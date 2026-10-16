@@ -34,6 +34,11 @@ export function RecordCard({
             {record.locationType === 'none' && (
               <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">場所未指定</span>
             )}
+            {record.approximate && (
+              <span className="rounded bg-red-50 px-2 py-0.5 text-xs text-red-700" title="保護対象の生き物のため、位置は約1km単位で表示しています">
+                おおよその位置
+              </span>
+            )}
           </div>
           {record.locationType !== 'none' && (
             <p className="mt-1 text-sm text-gray-600">📍 {record.locationName}</p>

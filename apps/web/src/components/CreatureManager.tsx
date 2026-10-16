@@ -4,8 +4,11 @@ import { CATEGORIES, type Category, type CreatureView } from '@yamon/shared';
 import { errorMessage, useCreatures, useDeleteCreature, useUpdateCreature } from '../lib/queries';
 import { CategoryBadge, ErrorText, inputClass, Modal, QueryState, ShowMoreButton, usePaged } from './ui';
 
-/** 生き物管理パネル（一覧・検索・編集・削除）。canManage がなければ一覧だけ出す */
-export function CreatureManager({ canManage }: { canManage: boolean }) {
+/**
+ * 生き物管理パネル（一覧・検索・編集・削除）。canManage がなければ一覧だけ出す。
+ * canProtect（管理者・幹部）なら、編集で「位置を保護する」印を付け外しできる（D24）
+ */
+export function CreatureManager({ canManage, canProtect }: { canManage: boolean; canProtect: boolean }) {
   const creaturesQuery = useCreatures();
   const creatures = useMemo(() => creaturesQuery.data ?? [], [creaturesQuery.data]);
   const deleteCreature = useDeleteCreature();
@@ -62,6 +65,9 @@ export function CreatureManager({ canManage }: { canManage: boolean }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-bold text-gray-900">{c.name}</span>
                   <CategoryBadge category={c.category} />
+                  {c.locationProtected && (
+                    <span className="rounded bg-red-50 px-2 py-0.5 text-xs text-red-700">🔒 位置を保護</span>
+                  )}
                   <span className="text-xs text-gray-500">記録 {c.recordCount}件</span>
                 </div>
                 {c.memo && <p className="mt-1 text-sm text-gray-600">{c.memo}</p>}
@@ -95,14 +101,23 @@ export function CreatureManager({ canManage }: { canManage: boolean }) {
       </QueryState>
 
       {editing && (
-        <CreatureEditModal creature={editing} onClose={() => setEditing(null)} />
+        <CreatureEditModal creature={editing} canProtect={canProtect} onClose={() => setEditing(null)} />
       )}
     </section>
   );
 }
 
-function CreatureEditModal({ creature, onClose }: { creature: CreatureView; onClose: () => void }) {
+function CreatureEditModal({
+  creature,
+  canProtect,
+  onClose,
+}: {
+  creature: CreatureView;
+  canProtect: boolean;
+  onClose: () => void;
+}) {
   const updateCreature = useUpdateCreature();
+  const [locationProtected, setLocationProtected] = useState(creature.locationProtected);
   const [name, setName] = useState(creature.name);
   const [category, setCategory] = useState<Category>(creature.category);
   const [memo, setMemo] = useState(creature.memo);
@@ -111,7 +126,9 @@ function CreatureEditModal({ creature, onClose }: { creature: CreatureView; onCl
   const save = async () => {
     setError(null);
     try {
-      await updateCreature.mutateAsync({ id: creature.id, input: { name, category, memo } });
+      // 印は権限がある人だけが送る（それ以外の人が送らなければ、API は今の印のままにする）
+      const input = canProtect ? { name, category, memo, locationProtected } : { name, category, memo };
+      await updateCreature.mutateAsync({ id: creature.id, input });
       onClose();
     } catch (e) {
       // 入力内容は消さない
@@ -129,6 +146,22 @@ function CreatureEditModal({ creature, onClose }: { creature: CreatureView; onCl
             <p className="mt-1 text-xs text-gray-500">名前を変えると、この生き物の既存の記録すべてに反映されます。</p>
           )}
         </div>
+        {canProtect && (
+          <label className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            <input
+              type="checkbox"
+              checked={locationProtected}
+              onChange={(e) => setLocationProtected(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-red-600"
+            />
+            <span>
+              位置を保護する（各県のレッドデータブックで絶滅危惧種の生き物）
+              <span className="block text-xs text-red-700">
+                部員と OB・OG には、記録の位置を約1km単位に丸めて表示します。記録した本人と管理者・幹部には正確な位置を表示します。
+              </span>
+            </span>
+          </label>
+        )}
         <div>
           <label className="mb-1 block text-sm text-gray-700" htmlFor="cr-category">カテゴリ</label>
           <select

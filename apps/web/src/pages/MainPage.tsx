@@ -139,7 +139,7 @@ export function MainPage() {
           />
         )}
 
-        {showCreatures && <CreatureManager canManage={can(user.role, 'creatures.manage')} />}
+        {showCreatures && <CreatureManager canManage={can(user.role, 'creatures.manage')} canProtect={can(user.role, 'creatures.protect')} />}
 
         {canCreateRecord && (
         <div ref={formRef} className="scroll-mt-4 space-y-4">

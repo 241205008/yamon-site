@@ -1,4 +1,4 @@
-import { recorderLabel, type RecordView } from '@yamon/shared';
+import { blurCoordinate, can, recorderLabel, type RecordView, type SessionUser } from '@yamon/shared';
 import { eq, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { Db } from '../db/client';
@@ -15,6 +15,7 @@ export const recordColumns = {
   creatureId: r.creatureId,
   creatureName: creatures.name,
   category: creatures.category,
+  locationProtected: creatures.locationProtected,
   eventId: r.eventId,
   locationType: r.locationType,
   mainLocationId: r.mainLocationId,
@@ -46,7 +47,17 @@ export function selectRecords(db: Db) {
 
 export type RecordRow = Awaited<ReturnType<ReturnType<typeof selectRecords>['execute']>>[number];
 
-export function toRecordView(row: RecordRow): RecordView {
+/**
+ * 位置を丸めて返すか（D24）：保護対象の生き物の記録で、見る人が正確な位置を見る権限（管理者・幹部）を持たず、
+ * 記録した本人（OB・OG になった人を含む）でもないとき
+ */
+export function shouldBlur(row: { locationProtected: boolean; userId: string }, viewer: SessionUser): boolean {
+  return row.locationProtected && !can(viewer.role, 'locations.viewExact') && row.userId !== viewer.id;
+}
+
+/** 記録を、見る人に合わせた形にする。丸める記録の正確な座標は応答に含めない（D24） */
+export function toRecordView(row: RecordRow, viewer: SessionUser): RecordView {
+  const blur = shouldBlur(row, viewer) && row.lat !== null && row.lng !== null;
   return {
     id: row.id,
     creatureId: row.creatureId,
@@ -56,8 +67,9 @@ export function toRecordView(row: RecordRow): RecordView {
     locationType: row.locationType,
     mainLocationId: row.mainLocationId,
     locationName: row.locationName,
-    lat: row.lat,
-    lng: row.lng,
+    lat: blur ? blurCoordinate(row.lat!) : row.lat,
+    lng: blur ? blurCoordinate(row.lng!) : row.lng,
+    approximate: blur,
     date: row.date,
     time: row.time,
     memo: row.memo,
