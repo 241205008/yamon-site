@@ -1,6 +1,6 @@
 import { MapPin } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { BackBar, CategoryBadge, PageBackground, QueryState } from '../components/ui';
+import { BackBar, CategoryBadge, PageBackground, QueryState, firstUnready } from '../components/ui';
 import { useLocationStats, useMainLocations } from '../lib/queries';
 
 const TAG_LIMIT = 5;
@@ -26,7 +26,7 @@ export function LocationsPage() {
       <BackBar to="/" label="記録画面に戻る" />
       <main className="mx-auto max-w-6xl px-4 py-8">
         <h1 className="mb-6 text-3xl font-bold text-gray-900">場所別の生き物一覧</h1>
-        <QueryState query={locationsQuery.isError ? locationsQuery : statsQuery} label="場所別の記録">
+        <QueryState query={firstUnready(locationsQuery, statsQuery)} label="場所別の記録">
         {locations.length === 0 && (
           <p className="rounded-xl bg-white p-6 text-center text-gray-500 shadow-md">
             主な場所がまだ登録されていません。管理者画面から登録できます。

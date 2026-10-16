@@ -151,6 +151,13 @@ export function ShowMoreButton({ rest, onClick, loading = false }: { rest: numbe
   );
 }
 
+type QueryLike = { isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
+
+/** 複数の読み込みのうち、まだ使えないもの（エラーを優先、次に読み込み中）を返す。すべて読めていれば最後のもの */
+export function firstUnready(...queries: QueryLike[]): QueryLike {
+  return queries.find((q) => q.isError) ?? queries.find((q) => q.isPending) ?? queries[queries.length - 1];
+}
+
 /**
  * API からの読み込みの状態（読み込み中・エラー）。読み込めていれば children を出す。
  * エラーのときは「もう一度読み込む」ボタンを出す
@@ -160,7 +167,7 @@ export function QueryState({
   children,
   label = 'データ',
 }: {
-  query: { isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
+  query: QueryLike;
   children: ReactNode;
   label?: string;
 }) {

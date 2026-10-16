@@ -1,4 +1,4 @@
-import type { TimeOfDay } from './master';
+import { TIMES_OF_DAY, type TimeOfDay } from './master';
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -36,14 +36,27 @@ export function monthOf(date: string): number {
 }
 
 /**
+ * 時間帯ごとの時刻の範囲 [from, to)。夜は日付をまたぐ（from > to）。
+ * 画面の表示（getTimeOfDay）と API のマップの絞り込みの両方がここを使う
+ */
+export const TIME_OF_DAY_RANGES: Record<TimeOfDay, { from: string; to: string }> = {
+  朝: { from: '06:00', to: '12:00' },
+  昼: { from: '12:00', to: '17:00' },
+  夕方: { from: '17:00', to: '20:00' },
+  夜: { from: '20:00', to: '06:00' },
+};
+
+/** "HH:MM" がその範囲に入るか（文字列のまま比べられる） */
+export function inTimeRange(time: string, { from, to }: { from: string; to: string }): boolean {
+  return from < to ? time >= from && time < to : time >= from || time < to;
+}
+
+/**
  * 06:00–11:59 朝 / 12:00–16:59 昼 / 17:00–19:59 夕方 / 20:00–05:59 夜
  */
 export function getTimeOfDay(time: string): TimeOfDay {
-  const hour = Number(time.slice(0, 2));
-  if (hour >= 6 && hour < 12) return '朝';
-  if (hour >= 12 && hour < 17) return '昼';
-  if (hour >= 17 && hour < 20) return '夕方';
-  return '夜';
+  const hhmm = time.slice(0, 5);
+  return TIMES_OF_DAY.find((t) => inTimeRange(hhmm, TIME_OF_DAY_RANGES[t])) ?? '夜';
 }
 
 /** 残り時間を "MM:SS" で返す（0 未満は 00:00） */

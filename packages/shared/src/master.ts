@@ -13,7 +13,7 @@ export interface MainLocation {
   lng: number;
 }
 
-/** 主な場所（固定マスター）。ID は記録から参照されるため変更しないこと */
+/** 主な場所の仮の5か所。開発用の seed（apps/api/src/seed.ts）が DB に入れる。本番の主な場所は管理者が画面から登録する（D27） */
 export const MAIN_LOCATIONS: MainLocation[] = [
   { id: 'loc-central-park', name: '中央公園', lat: 35.127, lng: 136.9671 },
   { id: 'loc-riverside', name: '河川敷エリア', lat: 35.135, lng: 136.975 },
@@ -24,10 +24,6 @@ export const MAIN_LOCATIONS: MainLocation[] = [
 
 /** 地図の初期の中心（名古屋市天白区付近）。主な場所を受け取ったら見直す */
 export const MAP_CENTER = { lat: 35.1347, lng: 136.9759 };
-
-export function findMainLocation(id: string | null | undefined): MainLocation | undefined {
-  return MAIN_LOCATIONS.find((l) => l.id === id);
-}
 
 /**
  * 役割（固定マスター、MVP 2章・D24）。値は DB と API でそのまま使う。

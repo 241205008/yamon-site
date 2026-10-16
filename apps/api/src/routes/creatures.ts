@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { requirePermission, type AuthedEnv } from '../auth/middleware';
 import { schema, type Db } from '../db/client';
-import { notFound } from '../observations/view';
+import { isForeignKeyViolation, notFound } from '../observations/view';
 import { validate } from '../validator';
 
 const { creatures, observationRecords: r } = schema;
@@ -76,6 +76,14 @@ export const creatureRoutes = new Hono<AuthedEnv>()
         message: `この生き物には${creature.recordCount}件の観察記録があるため削除できません`,
       });
     }
-    await db.delete(creatures).where(eq(creatures.id, creature.id));
+    try {
+      await db.delete(creatures).where(eq(creatures.id, creature.id));
+    } catch (err) {
+      // 確かめた後に、別の人が記録を足していた（外部キーで止まる）
+      if (isForeignKeyViolation(err)) {
+        throw new HTTPException(409, { message: 'この生き物には観察記録があるため削除できません' });
+      }
+      throw err;
+    }
     return c.body(null, 204);
   });

@@ -4,7 +4,7 @@ import { useParams } from 'react-router';
 import { can, type RecordView } from '@yamon/shared';
 import { RecordCard } from '../components/RecordCard';
 import { RecordForm } from '../components/RecordForm';
-import { BackBar, Card, ErrorText, PageBackground, QueryState, ShowMoreButton } from '../components/ui';
+import { BackBar, Card, ErrorText, firstUnready, PageBackground, QueryState, ShowMoreButton } from '../components/ui';
 import { ApiError } from '../lib/api';
 import { useCurrentUser } from '../lib/auth';
 import {
@@ -41,6 +41,8 @@ export function EventDetailPage() {
   const [editing, setEditing] = useState<RecordView | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
+  // 観察会の主な場所が「使わない」になっていたら選べないので、その他の場所（観察会の場所名と座標）を初期値にする
+  const eventPlaceActive = !!mainLocations.data?.find((l) => l.id === event?.mainLocationId)?.isActive;
 
   if (eventQuery.error instanceof ApiError && eventQuery.error.status === 404) {
     return (
@@ -126,7 +128,7 @@ export function EventDetailPage() {
               </div>
             )}
             <Card className="p-6">
-              <QueryState query={creatures.isError ? creatures : mainLocations} label="入力の選択肢">
+              <QueryState query={firstUnready(creatures, mainLocations)} label="入力の選択肢">
                 <RecordForm
                   key={editing?.id ?? 'new'}
                   creatures={creatures.data ?? []}
@@ -135,8 +137,8 @@ export function EventDetailPage() {
                   eventId={event.id}
                   initialRecord={editing ?? undefined}
                   defaults={{
-                    mainLocationId: event.mainLocationId,
-                    otherLocationName: event.mainLocationId ? '' : event.locationName,
+                    mainLocationId: eventPlaceActive ? event.mainLocationId : null,
+                    otherLocationName: eventPlaceActive ? '' : event.locationName,
                     lat: event.lat,
                     lng: event.lng,
                     date: event.date,

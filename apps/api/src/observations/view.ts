@@ -76,4 +76,12 @@ export async function findMainLocation(db: Db, id: string, { activeOnly }: { act
   return loc;
 }
 
+/** PostgreSQL の外部キー違反（23503）か。ドライバーや drizzle が包んだ例外（cause）もたどる */
+export function isForeignKeyViolation(err: unknown): boolean {
+  for (let e = err; e && typeof e === 'object'; e = (e as { cause?: unknown }).cause) {
+    if ((e as { code?: unknown }).code === '23503') return true;
+  }
+  return false;
+}
+
 export const notFound = (what: string) => new HTTPException(404, { message: `${what}が見つかりません` });

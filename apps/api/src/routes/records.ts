@@ -1,8 +1,11 @@
 import {
+  dateSchema,
+  idSchema,
   mapQuerySchema,
   recordInputSchema,
   recordListQuerySchema,
   TIME_OF_DAY_RANGES,
+  timeSchema,
   type RecordPage,
   type RecordView,
   type SessionUser,
@@ -30,10 +33,22 @@ interface Cursor {
 
 const encodeCursor = (c: Cursor) => Buffer.from(JSON.stringify([c.date, c.time, c.createdAt, c.id])).toString('base64url');
 
+/** PostgreSQL の timestamptz を文字列にした形（例 "2026-10-16 12:33:01.123456+09"） */
+const TIMESTAMPTZ_TEXT = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?|Z)?$/;
+
+/** 中身も確かめる（壊れた値のまま SQL の型変換に渡すと、DB のエラー（500）になる） */
 function decodeCursor(value: string): Cursor {
   try {
-    const [date, time, createdAt, id] = JSON.parse(Buffer.from(value, 'base64url').toString()) as string[];
-    if ([date, time, createdAt, id].every((v) => typeof v === 'string')) return { date, time, createdAt, id };
+    const [date, time, createdAt, id] = JSON.parse(Buffer.from(value, 'base64url').toString()) as unknown[];
+    if (
+      dateSchema.safeParse(date).success &&
+      timeSchema.safeParse(time).success &&
+      typeof createdAt === 'string' &&
+      TIMESTAMPTZ_TEXT.test(createdAt) &&
+      idSchema.safeParse(id).success
+    ) {
+      return { date: date as string, time: time as string, createdAt, id: id as string };
+    }
   } catch {
     // 下で 400 にする
   }
@@ -46,12 +61,15 @@ async function buildRecordValues(
   input: z.output<typeof recordInputSchema>,
   current?: { mainLocationId: string | null },
 ) {
-  const [creature] = await db.select({ id: creatures.id }).from(creatures).where(eq(creatures.id, input.creatureId)).limit(1);
+  // 生き物と観察会の確認は互いに関係ないので、まとめて問い合わせる
+  const [[creature], event] = await Promise.all([
+    db.select({ id: creatures.id }).from(creatures).where(eq(creatures.id, input.creatureId)).limit(1),
+    input.eventId
+      ? db.select({ id: events.id }).from(events).where(eq(events.id, input.eventId)).limit(1).then((rows) => rows[0])
+      : null,
+  ]);
   if (!creature) throw new HTTPException(400, { message: '生き物が見つかりません。選び直してください' });
-  if (input.eventId) {
-    const [event] = await db.select({ id: events.id }).from(events).where(eq(events.id, input.eventId)).limit(1);
-    if (!event) throw new HTTPException(400, { message: '観察会が見つかりません' });
-  }
+  if (input.eventId && !event) throw new HTTPException(400, { message: '観察会が見つかりません' });
 
   let mainLocationId: string | null = null;
   let locationName = '';
@@ -120,11 +138,14 @@ export const recordRoutes = new Hono<AuthedEnv>()
     }
 
     // 1件多く読んで、続きがあるかを確かめる
-    const rows = await selectRecords(db)
-      .where(and(filter, after))
-      .orderBy(...NEWEST_FIRST)
-      .limit(limit + 1);
-    const [{ total }] = await db.select({ total: count() }).from(r).where(filter);
+    // 総数は最初のページでだけ数える（「さらに表示」のたびに数え直さない）
+    const [rows, total] = await Promise.all([
+      selectRecords(db)
+        .where(and(filter, after))
+        .orderBy(...NEWEST_FIRST)
+        .limit(limit + 1),
+      cursor ? null : db.select({ total: count() }).from(r).where(filter).then(([row]) => row.total),
+    ]);
 
     const page = rows.slice(0, limit);
     const last = page.at(-1);

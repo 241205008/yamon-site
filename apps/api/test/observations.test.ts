@@ -240,7 +240,8 @@ describe('記録一覧のページング', () => {
       const q: string = `/records?eventId=${ev.body.id}&limit=3${cursor ? `&cursor=${cursor}` : ''}`;
       const page = await call<RecordPage>('GET', q, 'viewer');
       expect(page.status).toBe(200);
-      expect(page.body.total).toBe(times.length);
+      // 総数は最初のページでだけ返す
+      expect(page.body.total).toBe(cursor ? null : times.length);
       seen.push(...page.body.records);
       cursor = page.body.nextCursor;
     } while (cursor);
@@ -253,6 +254,9 @@ describe('記録一覧のページング', () => {
 
   it('壊れたカーソルは 400、件数の上限を超えると 400', async () => {
     expect((await call('GET', '/records?cursor=abc', 'member')).status).toBe(400);
+    // 形は合っていても中身が壊れていれば 400（DB の型変換のエラーにしない）
+    const broken = Buffer.from(JSON.stringify(['x', '10:00', 'y', 'z'])).toString('base64url');
+    expect((await call('GET', `/records?cursor=${broken}`, 'member')).status).toBe(400);
     expect((await call('GET', '/records?limit=101', 'member')).status).toBe(400);
   });
 });

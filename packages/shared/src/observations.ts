@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Category, LocationType, Role, TimeOfDay, UserStatus } from './master';
+import type { Category, LocationType, Role, UserStatus } from './master';
 import { TIMES_OF_DAY } from './master';
 import {
   categorySchema,
@@ -9,7 +9,6 @@ import {
   lngSchema,
   locationTypeSchema,
   optionalText,
-  requiredText,
   timeSchema,
 } from './schemas';
 
@@ -31,7 +30,7 @@ const coordinatesPaired = (v: { lat: number | null; lng: number | null }) => (v.
 const COORDINATES_PAIR_MESSAGE = { message: '緯度と経度は両方そろえて指定してください', path: ['lat'] };
 
 export const creatureInputSchema = z.object({
-  name: requiredText(50),
+  name: z.string().trim().min(1, '生き物の名前を入力してください').max(50),
   category: categorySchema,
   memo: optionalText(500),
 });
@@ -62,7 +61,7 @@ export type RecordInput = z.input<typeof recordInputSchema>;
 
 export const eventInputSchema = z
   .object({
-    name: requiredText(100),
+    name: z.string().trim().min(1, '観察会名を入力してください').max(100),
     /** 主な場所を選んだときの ID。その他の場所なら null */
     mainLocationId: idSchema.nullable().default(null),
     otherLocationName: optionalText(100),
@@ -147,8 +146,8 @@ export interface RecordPage {
   records: RecordView[];
   /** 続きがなければ null */
   nextCursor: string | null;
-  /** 条件に合う記録の総数 */
-  total: number;
+  /** 条件に合う記録の総数。続き（cursor を指定した読み込み）では数え直さず null */
+  total: number | null;
 }
 
 export interface EventView {
@@ -199,11 +198,3 @@ export function recorderLabel(user: { name: string; role: Role; status: UserStat
   if (user.role === 'viewer') return VIEWER_RECORDER_LABEL;
   return user.name;
 }
-
-/** 時間帯ごとの時刻の範囲 [開始, 終了)（time.ts の getTimeOfDay と同じ区切り。夜は日付をまたぐ） */
-export const TIME_OF_DAY_RANGES: Record<TimeOfDay, { from: string; to: string }> = {
-  朝: { from: '06:00', to: '12:00' },
-  昼: { from: '12:00', to: '17:00' },
-  夕方: { from: '17:00', to: '20:00' },
-  夜: { from: '20:00', to: '06:00' },
-};

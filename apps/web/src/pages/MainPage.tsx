@@ -5,7 +5,7 @@ import { CreatureManager } from '../components/CreatureManager';
 import { EventForm } from '../components/EventForm';
 import { RecordCard } from '../components/RecordCard';
 import { RecordForm } from '../components/RecordForm';
-import { ErrorText, PageBackground, QueryState } from '../components/ui';
+import { ErrorText, PageBackground, QueryState, firstUnready } from '../components/ui';
 import { canRevertTransfer, revertTransfer, StoreError, useDb } from '../lib/store';
 import { can, formatRemaining, type RecordView } from '@yamon/shared';
 import { logout, useCurrentUser } from '../lib/auth';
@@ -157,7 +157,7 @@ export function MainPage() {
             </div>
           )}
           <div className="rounded-xl bg-white p-6 shadow-md">
-            <QueryState query={creatures.isError ? creatures : mainLocations} label="入力の選択肢">
+            <QueryState query={firstUnready(creatures, mainLocations)} label="入力の選択肢">
               <RecordForm
                 key={editing?.id ?? 'new'}
                 creatures={creatures.data ?? []}
