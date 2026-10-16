@@ -161,6 +161,7 @@ export function MainPage() {
                 creatures={creatures.data ?? []}
                 mainLocations={mainLocations.data ?? []}
                 canAddCreature={can(user.role, 'creatures.manage')}
+                canProtect={can(user.role, 'creatures.protect')}
                 initialRecord={editing ?? undefined}
                 title={editing ? '観察記録を編集' : '観察記録を追加'}
                 onCancel={editing ? () => setEditing(null) : undefined}

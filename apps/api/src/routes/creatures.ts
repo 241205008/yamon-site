@@ -70,7 +70,13 @@ export const creatureRoutes = new Hono<AuthedEnv>()
     const db = c.get('db');
     const id = c.req.param('id');
     const input = c.req.valid('json');
-    assertCanProtect(c.get('user'), (await readCreature(db, id)).locationProtected, input.locationProtected);
+    const [current] = await db
+      .select({ locationProtected: creatures.locationProtected })
+      .from(creatures)
+      .where(eq(creatures.id, id))
+      .limit(1);
+    if (!current) throw notFound('生き物');
+    assertCanProtect(c.get('user'), current.locationProtected, input.locationProtected);
     await assertNameAvailable(db, input.name, id);
     const updated = await db.update(creatures).set(input).where(eq(creatures.id, id)).returning({ id: creatures.id });
     if (updated.length === 0) throw notFound('生き物');
