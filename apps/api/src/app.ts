@@ -6,6 +6,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import type { Db } from './db/client';
 import { errorBody, handleError } from './errors';
 import { authRoutes } from './routes/auth';
+import { mapDataRoutes, type MapDataDeps } from './mapData/routes';
 
 export interface AppEnv {
   Variables: {
@@ -26,6 +27,8 @@ export interface AppDeps {
    * 開発（http://localhost）では付けない（Safari は localhost でも Secure の Cookie を送らない）
    */
   cookieSecure?: boolean;
+  /** 地図データの更新（D34）。GitHub の鍵と権限チェック。なければ 503 / 403 を返す */
+  mapData?: MapDataDeps;
 }
 
 /** 状態を変えるメソッド。CSRF 対策で、本文は JSON に限る */
@@ -35,7 +38,7 @@ const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
  * API のアプリ本体。DB は外から渡す（本番は Neon、テストとローカルは PGlite）。
  * 各機能のルートは、この関数の中で app.route() でつなぐ。
  */
-export function createApp({ db, log = false, cookieSecure = true }: AppDeps) {
+export function createApp({ db, log = false, cookieSecure = true, mapData = {} }: AppDeps) {
   const app = new Hono<AppEnv>().basePath('/api');
 
   if (log) app.use(logger());
@@ -61,6 +64,7 @@ export function createApp({ db, log = false, cookieSecure = true }: AppDeps) {
   app.get('/health', (c) => c.json({ status: 'ok' }));
 
   app.route('/auth', authRoutes);
+  app.route('/admin/map-data', mapDataRoutes(mapData));
 
   app.notFound((c) => c.json(errorBody('not_found', '見つかりません'), 404));
   app.onError(handleError);
