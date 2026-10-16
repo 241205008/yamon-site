@@ -45,15 +45,18 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      # テストに通ったビルドと Pages Functions（functions/、地図データの配信 D28）を、そのままデプロイに使う。
-      # 2つの共通の親（apps/web）からの相対パスで入るので、Artifact の中は dist/ と functions/ になる
+      # テストに通ったビルドと Worker（worker/ と、地図データの配信 functions/map/。D42）を、そのままデプロイに使う。
+      # 共通の親（apps/web）からの相対パスで入るので、Artifact の中は dist/・worker/・functions/・wrangler.jsonc になる
       - uses: actions/upload-artifact@v4
         with:
           name: site
           path: |
             apps/web/dist
+            apps/web/worker
             apps/web/functions
-            !apps/web/functions/**/*.test.ts
+            apps/web/wrangler.jsonc
+            !apps/web/**/*.test.ts
+            !apps/web/worker/tsconfig.json
             !apps/web/functions/tsconfig.json
           if-no-files-found: error
           retention-days: 7
@@ -98,7 +101,7 @@ jobs:
           exit 1
 
   deploy:
-    name: Deploy (Cloudflare Pages)
+    name: Deploy (Cloudflare Workers)
     needs: check
     # main への push・main の手動実行は本番、それ以外（同じリポジトリからの PR など）はプレビュー。
     # フォークや Dependabot の PR には Secret が渡らないため、deploy-ready が false になり実行しない。
@@ -109,23 +112,33 @@ jobs:
       name: ${{ (github.event_name != 'pull_request' && github.ref == 'refs/heads/main') && 'production' || 'preview' }}
       url: ${{ steps.deploy.outputs.deployment-url }}
     steps:
-      # PR は pr-<番号> の名前でプレビューにする（head が main でも本番に出ないように）。
-      # それ以外の Branch 名はコマンドに埋め込む前に英数字とハイフンだけにする
-      - name: Resolve branch
-        id: branch
+      # main（push・手動実行）は本番へ wrangler deploy。それ以外はプレビューとして版だけ上げる（本番は変わらない）。
+      # PR は pr-<番号> の名前にする（head が main でも本番に出ないように）。
+      # それ以外の Branch 名は、コマンドに埋め込む前に英小文字・数字・ハイフンだけにし、URL に収まる長さに切る。
+      # Worker がまだない（初回の本番デプロイ前の）ときは、プレビューの版を上げられず失敗する
+      - name: Resolve command
+        id: target
         env:
+          IS_PRODUCTION: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RAW_BRANCH: ${{ github.ref_name }}
         run: |
-          if [ -n "$PR_NUMBER" ]; then
-            branch="pr-$PR_NUMBER"
-          else
-            branch=$(printf '%s' "$RAW_BRANCH" | tr -c 'A-Za-z0-9-' '-')
+          if [ "$IS_PRODUCTION" = "true" ]; then
+            echo "command=deploy" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          echo "name=$branch" >> "$GITHUB_OUTPUT"
+          if [ -n "$PR_NUMBER" ]; then
+            alias="pr-$PR_NUMBER"
+          else
+            # 別名は英字で始める必要があるので、Branch 名の前に b- を付ける
+            alias="b-$(printf '%s' "$RAW_BRANCH" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9-' '-' | cut -c1-38)"
+            alias=$(printf '%s' "$alias" | sed 's/-*$//')
+          fi
+          echo "alias=$alias" >> "$GITHUB_OUTPUT"
+          echo "command=versions upload --preview-alias $alias" >> "$GITHUB_OUTPUT"
 
-      # checkout はしない。wrangler は実行場所の functions/ を読んで Functions としてデプロイする。
-      # node_modules がないため、functions/ からは相対パスのファイルだけを import できる
+      # checkout はしない。Artifact を展開した場所の wrangler.jsonc を読み、worker/index.ts を束ねてデプロイする。
+      # node_modules がないため、worker/ と functions/map/ からは相対パスのファイルだけを import できる
       # （npm のパッケージや @yamon/shared を値として import すると失敗する。import type は可）
       - uses: actions/download-artifact@v4
         with:
@@ -139,15 +152,19 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: site
-          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'yamon-site' }} --branch=${{ steps.branch.outputs.name }}
+          command: ${{ steps.target.outputs.command }}
 
       - name: Summary
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
-          ALIAS_URL: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
+          COMMAND_OUTPUT: ${{ steps.deploy.outputs.command-output }}
+          ALIAS: ${{ steps.target.outputs.alias }}
         run: |
           {
             echo "### デプロイ完了"
             echo "- URL: $DEPLOYMENT_URL"
-            if [ -n "$ALIAS_URL" ]; then echo "- Branch の URL: $ALIAS_URL"; fi
+            if [ -n "$ALIAS" ]; then
+              alias_url=$(printf '%s' "$COMMAND_OUTPUT" | grep -oE "https://${ALIAS}-[a-z0-9.-]+\.workers\.dev" | head -n 1)
+              if [ -n "$alias_url" ]; then echo "- プレビュー（${ALIAS}）の URL: $alias_url"; fi
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
