@@ -104,13 +104,16 @@ jobs:
             exit 1
           fi
           # 今の参照先（なければ空）。1つ前として残す
-          current=$(aws s3 cp "s3://$R2_BUCKET/$MAP_NAME.json" - --endpoint-url "$R2_ENDPOINT" 2>/dev/null | jq -r '.key // empty' || true)
-          key="$MAP_NAME-$build.pmtiles"
+          pointer=$(aws s3 cp "s3://$R2_BUCKET/$MAP_NAME.json" - --endpoint-url "$R2_ENDPOINT" 2>/dev/null || true)
+          current=$(echo "$pointer" | jq -r '.key // empty' 2>/dev/null || true)
+          current_build=$(echo "$pointer" | jq -r '.build // empty' 2>/dev/null || true)
+          # 実行ごとに別の名前にする。同じビルドを切り出し直しても、表示中のファイルを上書きせず、1つ前も残る
+          key="$MAP_NAME-$build-$GITHUB_RUN_ID.pmtiles"
           echo "build=$build" >> "$GITHUB_OUTPUT"
           echo "key=$key" >> "$GITHUB_OUTPUT"
           echo "previous=$current" >> "$GITHUB_OUTPUT"
-          echo "最新のビルド: $build / 今の参照先: ${current:-なし}"
-          if [ "$current" = "$key" ] && [ "$FORCE" != "true" ]; then
+          echo "最新のビルド: $build / 今の参照先: ${current:-なし}（ビルド ${current_build:-不明}）"
+          if [ "$current_build" = "$build" ] && [ "$FORCE" != "true" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "::notice::今の地図データは最新のビルド（$build）です。切り出しを省略します"
           fi
@@ -186,7 +189,7 @@ jobs:
         run: |
           aws s3api list-objects-v2 --bucket "$R2_BUCKET" --prefix "$MAP_NAME-" --endpoint-url "$R2_ENDPOINT" \
             | jq -r '.Contents[]?.Key' \
-            | grep -E "^${MAP_NAME}-[0-9]{8}\.pmtiles$" \
+            | grep -E "^${MAP_NAME}-[0-9]{8}(-[0-9]+)?\.pmtiles$" \
             | while read -r old; do
                 if [ "$old" != "$KEEP_CURRENT" ] && [ "$old" != "$KEEP_PREVIOUS" ]; then
                   echo "消す: $old"
