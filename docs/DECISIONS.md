@@ -673,3 +673,20 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - `/api/*` を Cloud Run へ転送する仕組み（D15）は、Pages Functions ではなく、この Worker に `/api/*` を足して作る（#14）。`run_worker_first` に `/api/*` を加える。
   - PR のプレビュー（`versions upload` の版）は、本番と同じバインディング・設定で動く。Pages のプレビュー環境のように別の設定を持たない。今は R2 も API もつないでいないので問題ないが、#14 で `/api/*` の転送や R2 を足すと、PR のコードが本番の API・R2 につながった公開 URL で動く。#14 で、プレビューの扱い（Cloudflare Access で守る、プレビューでは転送しない など）を決める。
 - **再検討する条件**：Workers の無料枠（1日10万リクエスト）に近づいたとき。そのときは、地図データを独自ドメインの R2 から直接配信する（D29 の比較案）か、Workers Paid（月$5）を検討する。
+
+## D43. CI の runner：`ubuntu-latest` をやめて `ubuntu-24.04` に固定する。Actions は Node.js 24 で動く版に上げる
+
+- **背景（2026-10-16、#57）**：GitHub Actions の `ubuntu-latest` が、2026-10-19 から11月19日にかけて、Ubuntu 24.04 から 26.04 へ順に切り替わる（[actions/runner-images#14748](https://github.com/actions/runner-images/issues/14748)）。CI の実行結果には、その予告と、`actions/checkout@v4` などが Node.js 20 向けのまま Node.js 24 で強制的に動かされている警告が出ていた。本番環境の構築（#14）の締め切りは 10/21 で、切り替えの期間と重なる。
+- **決定**
+  - `ci.yml`・`map-data.yml` のすべてのジョブの `runs-on` を `ubuntu-24.04` にする。
+  - `actions/checkout@v7`・`actions/setup-node@v7`・`actions/upload-artifact@v7`・`actions/download-artifact@v8` に上げる（どれも `runs.using: node24`）。`cloudflare/wrangler-action@v4` はもともと Node.js 24 なので変えない。
+- **採用理由**
+  - 切り替えは数週間かけて少しずつ行われるため、`ubuntu-latest` のままだと、同じ commit でも実行ごとに 24.04 と 26.04 のどちらに当たるか分からない。本番のデプロイを作っている最中に、失敗の原因が自分の変更か runner の変化かを切り分ける手間を避ける。
+  - 24.04 は GitHub がしばらく提供を続ける（新しい LTS が出ても、1つ前の LTS は残る）。ジョブが使うもの（Docker・PostgreSQL のサービスコンテナ、`aws` CLI、`jq`、`curl`）は、予告の表のとおり 24.04 と 26.04 で同じ版で、急いで 26.04 に移る理由がない。
+  - Actions の版は、それぞれの最新のメジャー版にした。変更点（checkout の認証情報の保存先、download-artifact のハッシュ不一致を既定で失敗にする、など）は、このリポジトリの使い方（同じリポジトリの checkout、同じ実行内の Artifact の受け渡し）に影響しない。Node.js 20 は runner から外される予定で、そのときに CI が止まるのを防ぐ。
+- **比較した案**
+  - `ubuntu-latest` のまま、26.04 で動くかを `ubuntu-26.04` で一度試す：将来の手間は減るが、試して通っても、切り替えの期間中は実行ごとに環境が変わる点は同じ。締め切り後に移る方が安全。
+  - `ubuntu-26.04` に固定する：新しい環境に先に移れるが、26.04 は GA になったばかりで、イメージの不具合の報告がまだ集まっていない。
+  - Actions を、Node.js 24 で動く一番古いメジャー版（checkout・setup-node は v5、upload-artifact は v6、download-artifact は v7）にする：変更点は少ないが、すぐ次のメジャー版への更新が要る。最新版との差に、このリポジトリに影響する変更はなかった。
+  - Actions を commit の SHA で固定する：改ざんされた版を使うリスクは下がるが、更新の手間が増える。公式の `actions/*` と `cloudflare/*` だけを使っているので、メジャー版のタグで足りる。
+- **再検討する条件**：本番環境（#14）とバックアップ（#15）ができ、締め切り（2026-10-21）を過ぎたら、`ubuntu-26.04` で CI を一度流し、通れば `ubuntu-26.04`（または `ubuntu-latest`）に移す。GitHub が 24.04 の提供終了を予告したときは、それより前に移す。
