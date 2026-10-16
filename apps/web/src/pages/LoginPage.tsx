@@ -85,6 +85,12 @@ export function LoginPage() {
             onBack={() => setMode('login')}
           />
         )}
+
+        <p className="mt-4 text-center text-xs text-gray-500">
+          <Link to="/privacy" className="hover:text-gray-700 hover:underline">
+            個人情報の扱い
+          </Link>
+        </p>
       </div>
     </div>
   );
@@ -174,11 +180,6 @@ function LoginForm({ onDone, onRegister }: { onDone: () => void; onRegister: () 
         <button type="button" onClick={onRegister} className="text-green-600 hover:text-green-700">
           新規登録へ進む
         </button>
-      </p>
-      <p className="mt-4 text-center text-xs text-gray-500">
-        <Link to="/privacy" className="hover:text-gray-700 hover:underline">
-          個人情報の扱い
-        </Link>
       </p>
     </>
   );

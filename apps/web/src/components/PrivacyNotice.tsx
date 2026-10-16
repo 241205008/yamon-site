@@ -1,4 +1,5 @@
 import { ShieldCheck } from 'lucide-react';
+import { useId } from 'react';
 import { Link } from 'react-router';
 
 /**
@@ -13,12 +14,13 @@ export const PRIVACY_ITEMS = [
 
 /** 登録画面などに埋め込む、個人情報の扱いの枠 */
 export function PrivacyNotice({ className = '' }: { className?: string }) {
+  const titleId = useId();
   return (
     <section
-      aria-labelledby="privacy-notice-title"
+      aria-labelledby={titleId}
       className={`rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 ${className}`}
     >
-      <h2 id="privacy-notice-title" className="mb-2 flex items-center gap-1.5 font-bold text-gray-900">
+      <h2 id={titleId} className="mb-2 flex items-center gap-1.5 font-bold text-gray-900">
         <ShieldCheck className="h-4 w-4 shrink-0 text-green-600" />
         個人情報の扱い
       </h2>
