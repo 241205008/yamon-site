@@ -76,9 +76,10 @@ export function createGitHubWorkflow({
 
   return {
     async latestRun() {
-      const res = await call(`${base}/runs?per_page=1`);
+      // 取り消された実行（2つ同時に起動され、concurrency で待ちの方が置き換えられたものなど）は失敗ではないので飛ばす
+      const res = await call(`${base}/runs?per_page=10`);
       const body = (await res.json()) as { workflow_runs?: WorkflowRunResponse[] };
-      const run = body.workflow_runs?.[0];
+      const run = body.workflow_runs?.find((r) => r.conclusion !== 'cancelled');
       return run ? toMapDataRun(run) : null;
     },
     async dispatch() {

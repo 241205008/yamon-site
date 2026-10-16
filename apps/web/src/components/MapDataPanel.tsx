@@ -27,7 +27,8 @@ const toMessage = (e: unknown) => (e instanceof MapDataApiError ? e.message : '�
  * 更新は GitHub Actions で数分かかる。その間も今の地図は表示され続ける
  */
 export function MapDataPanel() {
-  const [info, setInfo] = useState<MapDataInfo | null | undefined>(undefined);
+  // undefined：読み込み中、null：参照先がない（最初に置いたデータ）、'error'：取得できなかった
+  const [info, setInfo] = useState<MapDataInfo | null | 'error' | undefined>(undefined);
   const [status, setStatus] = useState<MapDataStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -36,7 +37,7 @@ export function MapDataPanel() {
     try {
       setInfo(await fetchMapDataInfo());
     } catch {
-      setInfo(null);
+      setInfo('error');
     }
   }, []);
 
@@ -97,9 +98,11 @@ export function MapDataPanel() {
         <dd className="text-gray-800">
           {info === undefined
             ? '読み込み中…'
-            : info
-              ? `${formatBuildDate(info.build)} 時点の OpenStreetMap（${isoToJstDateTime(info.updatedAt)} に更新）`
-              : '最初に置いたデータ（ボタンで更新した記録はありません）'}
+            : info === 'error'
+              ? '取得できませんでした（地図の配信が止まっている可能性があります。マップ画面を確かめてください）'
+              : info
+                ? `${formatBuildDate(info.build)} 時点の OpenStreetMap（${isoToJstDateTime(info.updatedAt)} に更新）`
+                : '最初に置いたデータ（ボタンで更新した記録はありません）'}
         </dd>
         <dt className="text-gray-500">更新の状態</dt>
         <dd className="flex flex-wrap items-center gap-2 text-gray-800">

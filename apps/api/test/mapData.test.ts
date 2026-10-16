@@ -152,14 +152,27 @@ describe('createGitHubWorkflow', () => {
     const f = fakeFetch(() =>
       Response.json({
         workflow_runs: [
-          { id: 5, status: 'completed', conclusion: 'cancelled', created_at: 'a', updated_at: 'b', html_url: 'u' },
+          { id: 5, status: 'completed', conclusion: 'failure', created_at: 'a', updated_at: 'b', html_url: 'u' },
         ],
       }),
     );
     const wf = createGitHubWorkflow({ token: 'tkn', repository: 'o/r', fetch: f.impl });
     expect(await wf.latestRun()).toEqual({ id: 5, state: 'failed', startedAt: 'a', finishedAt: 'b', url: 'u' });
-    expect(f.calls[0].url).toBe('https://api.github.com/repos/o/r/actions/workflows/map-data.yml/runs?per_page=1');
+    expect(f.calls[0].url).toBe('https://api.github.com/repos/o/r/actions/workflows/map-data.yml/runs?per_page=10');
     expect((f.calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer tkn');
+  });
+
+  it('取り消された実行は飛ばし、その前の実行を返す', async () => {
+    const f = fakeFetch(() =>
+      Response.json({
+        workflow_runs: [
+          { id: 9, status: 'completed', conclusion: 'cancelled', created_at: 'c', updated_at: 'd', html_url: 'u9' },
+          { id: 8, status: 'completed', conclusion: 'success', created_at: 'a', updated_at: 'b', html_url: 'u8' },
+        ],
+      }),
+    );
+    const wf = createGitHubWorkflow({ token: 't', repository: 'o/r', fetch: f.impl });
+    expect(await wf.latestRun()).toMatchObject({ id: 8, state: 'succeeded' });
   });
 
   it('実行中・成功の状態を直す。一度もなければ null', async () => {
@@ -233,5 +246,41 @@ describe('/api/admin/map-data（#11 の requirePermission と Cookie のログ�
     });
     expect(res.status).toBe(202);
     expect(fake.state.dispatched).toBe(1);
+  });
+});
+
+describe('/api/admin/map-data（起動した直後、一覧に新しい実行が出るまで）', () => {
+  let ctx: TestContext;
+  const fake = fakeWorkflow();
+  let nowMs = Date.parse('2026-10-16T01:00:00Z');
+  beforeAll(async () => {
+    ctx = await setupTestApp({ mapData: { workflow: fake.workflow, authorize: testAuthorize, now: () => nowMs } });
+  });
+  afterAll(() => ctx.close());
+
+  const status = async () =>
+    (await (await ctx.app.request('/api/admin/map-data/status', { headers: admin })).json()) as { state: string };
+  const refresh = () =>
+    ctx.app.request('/api/admin/map-data/refresh', { method: 'POST', headers: { ...admin, ...json }, body: '{}' });
+
+  it('一覧が前回の実行のままでも「更新中」を返し、二重に起動しない。出たらその状態を返す', async () => {
+    fake.state.latest = run('succeeded'); // 前回の実行（00:00 開始）
+    expect((await refresh()).status).toBe(202);
+    expect(await status()).toMatchObject({ state: 'running', run: { id: 99 } });
+    expect((await refresh()).status).toBe(409);
+    expect(fake.state.dispatched).toBe(1);
+
+    // 起動した実行（id 99）が一覧に出て、終わった
+    fake.state.latest = { ...run('succeeded'), id: 99, startedAt: '2026-10-16T01:00:05Z' };
+    expect(await status()).toMatchObject({ state: 'succeeded', run: { id: 99 } });
+  });
+
+  it('一覧に出ないまま2分たったら、一覧の状態に戻す（起動に失敗したときに止まらない）', async () => {
+    nowMs = Date.parse('2026-10-16T02:00:00Z');
+    fake.state.latest = run('succeeded');
+    expect((await refresh()).status).toBe(202);
+    expect((await status()).state).toBe('running');
+    nowMs += 121_000;
+    expect((await status()).state).toBe('succeeded');
   });
 });

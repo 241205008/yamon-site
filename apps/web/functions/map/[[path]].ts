@@ -12,8 +12,13 @@ const NAME_PATTERN = /^[a-z0-9-]+\.pmtiles$/;
 /** 参照先（どの日付のファイルを使うか）を書いたファイルの名前。地図データの名前の拡張子を .json にしたもの */
 const POINTER_PATTERN = /^[a-z0-9-]+\.json$/;
 
-/** 参照先・大きさ・ETag を覚えておく時間。タイルごとに R2 を読み直さずに済ませる */
+/** ファイルの大きさと ETag を覚えておく時間。タイルごとに R2 を読み直さずに済ませる（ファイルごとなので、切り替えには関係しない） */
 const CACHE_TTL_MS = 60_000;
+/**
+ * 参照先を覚えておく時間。切り替えの直後は、isolate によって新旧のファイルが返り、画面の読み込みがやり直しになる。
+ * その時間を短くするため、大きさより短くする（10秒ごとに参照先の小さなファイルを1回読むだけ）
+ */
+const POINTER_TTL_MS = 10_000;
 
 interface Meta {
   size: number;
@@ -62,7 +67,7 @@ async function readPointer(bucket: R2Bucket, pointerName: string): Promise<MapDa
 /** 実際に返すファイル名。参照先があればそこに書かれたもの、なければ名前そのもの（手作業で置いた最初のデータ） */
 async function resolveKey(bucket: R2Bucket, name: string, refresh: boolean): Promise<string> {
   const cached = keyCache.get(name);
-  if (!refresh && cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.key;
+  if (!refresh && cached && Date.now() - cached.at < POINTER_TTL_MS) return cached.key;
   const pointer = await readPointer(bucket, name.replace(/\.pmtiles$/, '.json'));
   const key = pointer?.key ?? name;
   keyCache.set(name, { key, at: Date.now() });

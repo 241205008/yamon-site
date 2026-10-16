@@ -14,7 +14,7 @@ import {
   useDb,
 } from '../lib/store';
 import { useCurrentUser } from '../lib/auth';
-import { formatRemaining, isoToJstDate, isoToJstDateTime } from '@yamon/shared';
+import { can, formatRemaining, isoToJstDate, isoToJstDateTime } from '@yamon/shared';
 import type { Invitation, InvitationStatus, User } from '../lib/types';
 
 const toMessage = (e: unknown) => (e instanceof StoreError ? e.message : '処理に失敗しました');
@@ -161,7 +161,8 @@ export function AdminPage() {
           <StatCard label="管理者数" value={db.users.filter((u) => u.role === 'admin').length} color="purple" />
         </div>
 
-        <MapDataPanel />
+        {/* 地図データの更新は管理者だけ（API でも同じ権限を確かめる、D34） */}
+        {can(me.role, 'mapData.update') && <MapDataPanel />}
       </main>
 
       {transferTarget && (
