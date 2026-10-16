@@ -15,6 +15,7 @@ import {
 } from '@yamon/shared';
 import { CheckCircle2, Clock, History, Mail, RotateCw, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { MainLocationPanel } from '../components/MainLocationPanel';
 import { MapDataPanel } from '../components/MapDataPanel';
 import { BackBar, Card, ErrorText, inputClass, Modal, PageBackground, StatCard } from '../components/ui';
 import {
@@ -105,6 +106,9 @@ export function AdminPage() {
             </div>
           </>
         )}
+
+        {/* 主な場所の追加・編集は管理者だけ（API でも同じ権限を確かめる、D27） */}
+        {me && can(me.role, 'mainLocations.manage') && <MainLocationPanel />}
 
         {/* 地図データの更新は管理者だけ（API でも同じ権限を確かめる、D34） */}
         {me && can(me.role, 'mapData.update') && <MapDataPanel />}

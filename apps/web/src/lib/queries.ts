@@ -13,6 +13,7 @@ import type {
   EventListResponse,
   EventView,
   LocationStatsResponse,
+  MainLocationInput,
   MainLocationView,
   RecordInput,
   RecordPage,
@@ -149,6 +150,19 @@ export const useUpdateCreature = () =>
 
 export const useDeleteCreature = () =>
   useObsMutation((id: string) => apiFetch<void>(`/api/creatures/${id}`, { method: 'DELETE' }));
+
+export const useCreateMainLocation = () =>
+  useObsMutation((input: MainLocationInput) =>
+    apiFetch<MainLocationView>('/api/main-locations', { method: 'POST', body: input }),
+  );
+
+export const useUpdateMainLocation = () =>
+  useObsMutation(({ id, input }: { id: string; input: MainLocationInput }) =>
+    apiFetch<MainLocationView>(`/api/main-locations/${id}`, { method: 'PUT', body: input }),
+  );
+
+export const useDeleteMainLocation = () =>
+  useObsMutation((id: string) => apiFetch<void>(`/api/main-locations/${id}`, { method: 'DELETE' }));
 
 export const useCreateEvent = () =>
   useObsMutation((input: EventInput) => apiFetch<EventView>('/api/events', { method: 'POST', body: input }));
