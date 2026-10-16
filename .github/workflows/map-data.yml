@@ -1,0 +1,212 @@
+name: Map data
+
+# 地図データ（Protomaps の4県）を最新のビルドから切り出し直し、R2 の参照先を切り替える（DECISIONS D33、docs/MAP_DATA.md）。
+# 管理者画面の「地図データを更新」から API 経由で起動する。Actions の画面から手動でも実行できる。
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 今と同じビルドでも切り出し直す
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# 2つ同時に走らせない（R2 への書き込みと参照先の切り替えが重ならないように）。待っている方は後から走る
+concurrency:
+  group: map-data
+  cancel-in-progress: false
+
+env:
+  PMTILES_VERSION: 1.31.2
+  # https://github.com/protomaps/go-pmtiles/releases の go-pmtiles_<版>_Linux_x86_64.tar.gz の sha256
+  PMTILES_SHA256: 3ed7dbf4ec2e6dfe5e25b6f70d1ffc932729f93c86db353bf514dd71010a312f
+  # 地図データの名前。apps/web/functions/map の MAP_DATA_NAME と同じにする
+  MAP_NAME: survey-area
+  MAX_ZOOM: 15
+  # 切り出した結果がこの範囲の外なら、壊れているとみなして切り替えない（4県で約380MB）
+  MIN_BYTES: 100000000
+  MAX_BYTES: 2000000000
+
+jobs:
+  update:
+    name: Update map data
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check secrets
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MAP_DATA_BUCKET: ${{ vars.MAP_DATA_BUCKET }}
+        run: |
+          missing=""
+          for name in R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY CLOUDFLARE_ACCOUNT_ID MAP_DATA_BUCKET; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::次の Secret / Variable が未設定です:$missing（docs/MAP_DATA.md の「自動更新の設定」）"
+            exit 1
+          fi
+
+      # 範囲（SURVEY_BOUNDS）を読むためのファイルだけを取り出す
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: packages/shared/src/area.ts
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Read bounds
+        id: bounds
+        run: |
+          bbox=$(node --experimental-strip-types --no-warnings -e "
+            import('./packages/shared/src/area.ts').then(({ SURVEY_BOUNDS: b }) =>
+              console.log([b.west, b.south, b.east, b.north].join(',')));")
+          echo "bbox=$bbox" >> "$GITHUB_OUTPUT"
+          echo "範囲（西,南,東,北）: $bbox"
+
+      - name: Install pmtiles
+        run: |
+          file="go-pmtiles_${PMTILES_VERSION}_Linux_x86_64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$file" "https://github.com/protomaps/go-pmtiles/releases/download/v${PMTILES_VERSION}/$file"
+          echo "$PMTILES_SHA256  $RUNNER_TEMP/$file" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP" pmtiles
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Configure R2
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          {
+            echo "R2_ENDPOINT=https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+            echo "R2_BUCKET=${{ vars.MAP_DATA_BUCKET }}"
+          } >> "$GITHUB_ENV"
+
+      - name: Find latest build
+        id: build
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # 新しい aws cli は R2 が対応していない checksum を既定で付けるため、必要なときだけにする（D33）
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          FORCE: ${{ inputs.force }}
+        run: |
+          build=$(curl -fsSL https://build-metadata.protomaps.dev/builds.json \
+            | jq -r '[.[] | select(.key | test("^[0-9]{8}\\.pmtiles$"))] | last | .key | rtrimstr(".pmtiles")')
+          if [ -z "$build" ] || [ "$build" = "null" ]; then
+            echo "::error::Protomaps のビルドが見つかりません"
+            exit 1
+          fi
+          # 今の参照先（なければ空）。1つ前として残す
+          current=$(aws s3 cp "s3://$R2_BUCKET/$MAP_NAME.json" - --endpoint-url "$R2_ENDPOINT" 2>/dev/null | jq -r '.key // empty' || true)
+          key="$MAP_NAME-$build.pmtiles"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "previous=$current" >> "$GITHUB_OUTPUT"
+          echo "最新のビルド: $build / 今の参照先: ${current:-なし}"
+          if [ "$current" = "$key" ] && [ "$FORCE" != "true" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::今の地図データは最新のビルド（$build）です。切り出しを省略します"
+          fi
+
+      - name: Extract
+        if: steps.build.outputs.skip != 'true'
+        run: |
+          pmtiles extract "https://build.protomaps.com/${{ steps.build.outputs.build }}.pmtiles" "$RUNNER_TEMP/map.pmtiles" \
+            --bbox="${{ steps.bounds.outputs.bbox }}" --maxzoom="$MAX_ZOOM"
+
+      # 範囲・最大ズーム・容量・構造が正しいときだけ次へ進む（壊れたデータに切り替えない）
+      - name: Check
+        if: steps.build.outputs.skip != 'true'
+        id: check
+        env:
+          BBOX: ${{ steps.bounds.outputs.bbox }}
+        run: |
+          file="$RUNNER_TEMP/map.pmtiles"
+          pmtiles verify "$file"
+          header=$(pmtiles show "$file" --header-json)
+          echo "$header"
+          bounds=$(echo "$header" | jq -r '.bounds | map(tostring) | join(",")')
+          maxzoom=$(echo "$header" | jq -r '.maxzoom')
+          size=$(stat -c %s "$file")
+          # 小数の表記の違い（135.7 と 135.70 など）を吸収して比べる
+          same=$(jq -n --arg a "$bounds" --arg b "$BBOX" '($a | split(",") | map(tonumber)) as $x | ($b | split(",") | map(tonumber)) as $y | [range(4)] | all(. as $i | (($x[$i] - $y[$i]) | fabs) < 0.000001)')
+          if [ "$same" != "true" ]; then echo "::error::範囲が違います: $bounds（期待: $BBOX）"; exit 1; fi
+          if [ "$maxzoom" != "$MAX_ZOOM" ]; then echo "::error::最大ズームが違います: $maxzoom"; exit 1; fi
+          if [ "$size" -lt "$MIN_BYTES" ] || [ "$size" -gt "$MAX_BYTES" ]; then echo "::error::容量が想定外です: $size バイト"; exit 1; fi
+          echo "size=$size" >> "$GITHUB_OUTPUT"
+          echo "maxzoom=$maxzoom" >> "$GITHUB_OUTPUT"
+          echo "bounds=$bounds" >> "$GITHUB_OUTPUT"
+
+      # 別名で置いてから、参照先（<名前>.json）を書き換える。途中で失敗しても、今の地図はそのまま表示される
+      - name: Upload and switch
+        if: steps.build.outputs.skip != 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          KEY: ${{ steps.build.outputs.key }}
+          BUILD: ${{ steps.build.outputs.build }}
+          SIZE: ${{ steps.check.outputs.size }}
+          MAXZOOM: ${{ steps.check.outputs.maxzoom }}
+          BOUNDS: ${{ steps.check.outputs.bounds }}
+        run: |
+          aws s3 cp "$RUNNER_TEMP/map.pmtiles" "s3://$R2_BUCKET/$KEY" \
+            --endpoint-url "$R2_ENDPOINT" --content-type application/octet-stream --only-show-errors
+          # 置いたものの大きさを確かめてから切り替える
+          uploaded=$(aws s3api head-object --bucket "$R2_BUCKET" --key "$KEY" --endpoint-url "$R2_ENDPOINT" | jq -r '.ContentLength')
+          if [ "$uploaded" != "$SIZE" ]; then echo "::error::アップロードした大きさが違います: $uploaded（期待: $SIZE）"; exit 1; fi
+          jq -n --arg key "$KEY" --arg build "$BUILD" --argjson size "$SIZE" --argjson maxzoom "$MAXZOOM" \
+            --arg bounds "$BOUNDS" --arg updatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{key: $key, build: $build, size: $size, maxzoom: $maxzoom, bounds: ($bounds | split(",") | map(tonumber)), updatedAt: $updatedAt}' \
+            > "$RUNNER_TEMP/pointer.json"
+          cat "$RUNNER_TEMP/pointer.json"
+          aws s3 cp "$RUNNER_TEMP/pointer.json" "s3://$R2_BUCKET/$MAP_NAME.json" \
+            --endpoint-url "$R2_ENDPOINT" --content-type application/json --only-show-errors
+
+      # 今のものと1つ前のものだけを残す。手作業で置いた最初のデータ（<名前>.pmtiles）は消さない
+      - name: Remove old data
+        if: steps.build.outputs.skip != 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          KEEP_CURRENT: ${{ steps.build.outputs.key }}
+          KEEP_PREVIOUS: ${{ steps.build.outputs.previous }}
+        run: |
+          aws s3api list-objects-v2 --bucket "$R2_BUCKET" --prefix "$MAP_NAME-" --endpoint-url "$R2_ENDPOINT" \
+            | jq -r '.Contents[]?.Key' \
+            | grep -E "^${MAP_NAME}-[0-9]{8}\.pmtiles$" \
+            | while read -r old; do
+                if [ "$old" != "$KEEP_CURRENT" ] && [ "$old" != "$KEEP_PREVIOUS" ]; then
+                  echo "消す: $old"
+                  aws s3 rm "s3://$R2_BUCKET/$old" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+                fi
+              done
+
+      - name: Summary
+        if: always()
+        env:
+          BUILD: ${{ steps.build.outputs.build }}
+          KEY: ${{ steps.build.outputs.key }}
+          SIZE: ${{ steps.check.outputs.size }}
+          SKIP: ${{ steps.build.outputs.skip }}
+          STATUS: ${{ job.status }}
+        run: |
+          {
+            echo "### 地図データの更新"
+            echo "- 結果: $STATUS"
+            echo "- ビルド: ${BUILD:-不明}"
+            if [ "$SKIP" = "true" ]; then echo "- 今のデータが最新のため、切り出しを省略した"; fi
+            if [ -n "$SIZE" ]; then echo "- ファイル: $KEY（$SIZE バイト）"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
