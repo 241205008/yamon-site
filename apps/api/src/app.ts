@@ -14,6 +14,7 @@ import { eventRoutes } from './routes/events';
 import { mainLocationRoutes, statsRoutes } from './routes/locations';
 import { recordRoutes } from './routes/records';
 import { mapDataRoutes, type MapDataDeps } from './mapData/routes';
+import { passwordResetRoutes } from './routes/passwordReset';
 import { setupRoutes } from './routes/setup';
 
 export interface AppEnv {
@@ -95,6 +96,7 @@ export function createApp({
 
   app.route('/auth', authRoutes);
   app.route('/setup', setupRoutes);
+  app.route('/password-reset', passwordResetRoutes);
   app.route('/creatures', creatureRoutes);
   app.route('/events', eventRoutes);
   app.route('/records', recordRoutes);

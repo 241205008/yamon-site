@@ -101,7 +101,6 @@ function LoginForm({ onDone, onRegister }: { onDone: () => void; onRegister: () 
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [showForgot, setShowForgot] = useState(false);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -157,14 +156,9 @@ function LoginForm({ onDone, onRegister }: { onDone: () => void; onRegister: () 
       </form>
 
       <div className="mt-6 text-center">
-        <button type="button" onClick={() => setShowForgot((v) => !v)} className="text-sm text-green-600 hover:text-green-700">
+        <Link to="/forgot-password" className="text-sm text-green-600 hover:text-green-700">
           パスワードを忘れた方はこちら
-        </button>
-        {showForgot && (
-          <p className="mt-2 text-sm text-gray-600">
-            パスワードの再設定は管理者が行います。管理者に連絡し、招待を再発行してもらってください。
-          </p>
-        )}
+        </Link>
       </div>
 
       <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4">

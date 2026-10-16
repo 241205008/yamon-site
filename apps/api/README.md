@@ -1,6 +1,6 @@
 # @yamon/api
 
-バックエンド（Hono ＋ Drizzle ORM ＋ PostgreSQL）。技術選定の理由は [docs/DECISIONS.md](../../docs/DECISIONS.md) の D14〜D18・D22・D30・D31・D33・D35・D36・D38 を参照。
+バックエンド（Hono ＋ Drizzle ORM ＋ PostgreSQL）。技術選定の理由は [docs/DECISIONS.md](../../docs/DECISIONS.md) の D14〜D18・D22・D30・D31・D33・D35・D36・D38・D41 を参照。
 
 ## 起動
 
