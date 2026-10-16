@@ -4,5 +4,6 @@ export * from './time';
 export * from './area';
 export * from './permissions';
 export * from './auth';
+export * from './admin';
 export * from './observations';
 export * from './mapData';

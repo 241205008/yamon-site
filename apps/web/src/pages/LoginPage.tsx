@@ -1,9 +1,16 @@
 import { LogIn, UserPlus } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ErrorText, inputClass } from '../components/ui';
 import { ApiError } from '../lib/api';
-import { login, logout, useCurrentUser } from '../lib/auth';
+import {
+  MAX_NAME_LENGTH,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  ROLE_LABELS,
+  type InvitationInfo,
+} from '@yamon/shared';
+import { acceptInvitation, login, logout, lookupInvitation, useCurrentUser } from '../lib/auth';
 
 const toMessage = (e: unknown) => (e instanceof ApiError ? e.message : '処理に失敗しました');
 
@@ -61,7 +68,11 @@ export function LoginPage() {
         {mode === 'login' ? (
           <LoginForm onDone={() => navigate(from, { replace: true })} onRegister={() => setMode('register')} />
         ) : (
-          <RegisterPending onBack={() => setMode('login')} />
+          <RegisterForm
+            initialToken={inviteParam ?? ''}
+            onDone={() => navigate('/', { replace: true })}
+            onBack={() => setMode('login')}
+          />
         )}
       </div>
     </div>
@@ -157,16 +168,148 @@ function LoginForm({ onDone, onRegister }: { onDone: () => void; onRegister: () 
   );
 }
 
-/**
- * 招待リンクからの登録は、#12 で API に切り替える。それまでは案内だけを出す
- * （ログインが API になったため、ブラウザの中だけで登録しても、そのアカウントではログインできない）
- */
-function RegisterPending({ onBack }: { onBack: () => void }) {
+/** 招待リンク（/login?invite=<トークン>）から、名前とパスワードを設定して登録する */
+function RegisterForm({
+  initialToken,
+  onDone,
+  onBack,
+}: {
+  initialToken: string;
+  onDone: () => void;
+  onBack: () => void;
+}) {
+  const [token, setToken] = useState(initialToken);
+  const [invitation, setInvitation] = useState<InvitationInfo | null>(null);
+  const [checking, setChecking] = useState(Boolean(initialToken));
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const check = async (value: string) => {
+    setError(null);
+    setChecking(true);
+    try {
+      setInvitation(await lookupInvitation(value.trim()));
+    } catch (err) {
+      setInvitation(null);
+      setError(toMessage(err));
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  // メールのリンクから開いたときは、すぐに招待を確かめる
+  useEffect(() => {
+    if (initialToken) void check(initialToken);
+  }, [initialToken]);
+
+  const register = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (password !== confirm) {
+      setError('確認用パスワードが一致しません');
+      return;
+    }
+    setBusy(true);
+    try {
+      await acceptInvitation({ token: token.trim(), name, password });
+      onDone();
+    } catch (err) {
+      setError(toMessage(err));
+      // 入力中に招待が使えなくなった（期限切れ・取り消しなど）ときは、トークンの入力に戻す
+      if (err instanceof ApiError && err.code.startsWith('invitation_')) setInvitation(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <>
-      <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
-        招待リンクからの登録は準備中です。登録できるようになるまで、管理者にお問い合わせください。
-      </div>
+      {checking ? (
+        <p className="py-6 text-center text-sm text-gray-500">招待を確認しています…</p>
+      ) : !invitation ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void check(token);
+          }}
+          className="space-y-6"
+        >
+          <div>
+            <label htmlFor="token" className="mb-2 block text-sm text-gray-700">招待トークン</label>
+            <input
+              id="token"
+              required
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="招待メールに記載されたトークン"
+              className={`${inputClass} font-mono text-sm`}
+            />
+            <p className="mt-1 text-xs text-gray-500">招待メールのリンクから開いた場合は自動で入力されます。</p>
+          </div>
+          <ErrorText message={error} />
+          <button type="submit" className="w-full rounded-lg bg-green-600 py-3 text-white transition-colors hover:bg-green-700">
+            次へ
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={register} className="space-y-6">
+          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            招待を確認しました：<span className="font-medium break-all">{invitation.email}</span>
+            （{ROLE_LABELS[invitation.role]}）
+          </div>
+          <div>
+            <label htmlFor="name" className="mb-2 block text-sm text-gray-700">ユーザー名</label>
+            <input
+              id="name"
+              required
+              maxLength={MAX_NAME_LENGTH}
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor="new-password" className="mb-2 block text-sm text-gray-700">
+              パスワード（{MIN_PASSWORD_LENGTH}文字以上）
+            </label>
+            <input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={MIN_PASSWORD_LENGTH}
+              maxLength={MAX_PASSWORD_LENGTH}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor="confirm-password" className="mb-2 block text-sm text-gray-700">パスワード（確認）</label>
+            <input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <ErrorText message={error} />
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-lg bg-green-600 py-3 text-white transition-colors hover:bg-green-700 disabled:opacity-60"
+          >
+            {busy ? '登録中…' : '登録してはじめる'}
+          </button>
+        </form>
+      )}
       <p className="mt-6 text-center text-sm text-gray-600">
         アカウントをお持ちの方は{' '}
         <button type="button" onClick={onBack} className="text-green-600 hover:text-green-700">

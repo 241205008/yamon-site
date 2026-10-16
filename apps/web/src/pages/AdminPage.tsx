@@ -1,209 +1,161 @@
-import { AlertTriangle, CheckCircle2, Clock, Copy, Mail, Shield, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import {
+  AUDIT_ACTION_LABELS,
+  can,
+  INVITATION_STATUS_LABELS,
+  INVITATION_TTL_HOURS,
+  isoToJstDate,
+  isoToJstDateTime,
+  ROLE_LABELS,
+  ROLES,
+  type AdminInvitation,
+  type AdminUser,
+  type AuditLogEntry,
+  type InvitationStatus,
+  type Role,
+} from '@yamon/shared';
+import { CheckCircle2, Clock, History, Mail, RotateCw, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { MapDataPanel } from '../components/MapDataPanel';
 import { BackBar, Card, ErrorText, inputClass, Modal, PageBackground, StatCard } from '../components/ui';
 import {
-  canRevertTransfer,
+  changeRole,
   createInvitation,
-  deleteInvitation,
-  invitationStatus,
+  disableUser,
+  enableUser,
+  fetchAuditLogs,
+  fetchInvitations,
+  fetchUsers,
   resendInvitation,
-  setUserActive,
-  StoreError,
-  transferAdmin,
-  useDb,
-} from '../lib/store';
-import { useCurrentUser } from '../lib/auth';
-import { can, formatRemaining, isoToJstDate, isoToJstDateTime } from '@yamon/shared';
-import type { Invitation, InvitationStatus, User } from '../lib/types';
+  revokeInvitation,
+  withdrawUser,
+} from '../lib/admin';
+import { ApiError } from '../lib/api';
+import { getCurrentUser, refresh, useCurrentUser } from '../lib/auth';
 
-const toMessage = (e: unknown) => (e instanceof StoreError ? e.message : '処理に失敗しました');
+const toMessage = (e: unknown) => (e instanceof ApiError ? e.message : '処理に失敗しました');
 
-export function inviteUrl(token: string) {
-  return `${window.location.origin}/login?invite=${encodeURIComponent(token)}`;
+const ROLE_BADGE: Record<Role, string> = {
+  admin: 'bg-purple-100 text-purple-700',
+  officer: 'bg-blue-100 text-blue-700',
+  member: 'bg-gray-100 text-gray-700',
+  viewer: 'bg-amber-100 text-amber-800',
+};
+
+interface AdminData {
+  users: AdminUser[];
+  invitations: AdminInvitation[];
+  auditLogs: AuditLogEntry[];
 }
 
-function useNow(intervalMs = 1000) {
-  const [now, setNow] = useState(Date.now());
+/** 管理者画面のデータを API から読む。操作の後は reload で読み直す */
+function useAdminData() {
+  const [data, setData] = useState<AdminData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const reload = useCallback(async () => {
+    try {
+      const [users, invitations, auditLogs] = await Promise.all([fetchUsers(), fetchInvitations(), fetchAuditLogs()]);
+      setData({ users, invitations, auditLogs });
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(toMessage(e));
+    }
+  }, []);
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), intervalMs);
-    return () => window.clearInterval(id);
-  }, [intervalMs]);
-  return now;
+    void reload();
+  }, [reload]);
+  return { data, loadError, reload };
 }
 
 export function AdminPage() {
-  const db = useDb();
-  const me = useCurrentUser()!;
-  const now = useNow();
-  const [transferTarget, setTransferTarget] = useState<User | null>(null);
-  const [userError, setUserError] = useState<string | null>(null);
-
-  const pendingCount = db.invitations.filter((i) => invitationStatus(i, now) === 'pending').length;
-  const userName = (id: string) => db.users.find((u) => u.id === id)?.name ?? '（不明なユーザー）';
-
-  const toggleActive = (u: User) => {
-    setUserError(null);
-    try {
-      setUserActive(me.id, u.id, !u.isActive);
-    } catch (e) {
-      setUserError(toMessage(e));
-    }
-  };
+  const me = useCurrentUser();
+  const { data, loadError, reload } = useAdminData();
 
   return (
     <PageBackground tone="purple">
       <BackBar to="/" label="ホームに戻る" title="管理者画面" />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
-        {db.transfers.length > 0 && (
-          <Card className="p-6">
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              管理者権限の移譲履歴です。移譲から1時間以内であれば、移譲元のユーザーがホーム画面から取り消せます。
+        {loadError && (
+          <div className="flex flex-wrap items-center gap-3">
+            <ErrorText message={loadError} />
+            <button type="button" onClick={() => void reload()} className="text-sm text-purple-700 hover:underline">
+              読み込み直す
+            </button>
+          </div>
+        )}
+        {!data ? (
+          !loadError && <p className="py-12 text-center text-gray-500">読み込み中…</p>
+        ) : (
+          <>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <InvitationPanel invitations={data.invitations} onChanged={reload} />
+              <UserPanel users={data.users} onChanged={reload} />
             </div>
-            <h2 className="mb-3 text-lg font-bold text-gray-900">管理者移譲履歴</h2>
-            <ul className="space-y-2">
-              {db.transfers.map((t) => {
-                const revertible = canRevertTransfer(t, now);
-                return (
-                  <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 px-4 py-3 text-sm">
-                    <span className="text-gray-800">
-                      {userName(t.fromUserId)} → <span className="font-bold">{userName(t.toUserId)}</span>
-                      <span className="ml-3 text-gray-500">{isoToJstDateTime(t.transferredAt)}</span>
-                    </span>
-                    {t.revertedAt ? (
-                      <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">取り消し済み</span>
-                    ) : revertible ? (
-                      <span className="rounded bg-yellow-100 px-2 py-0.5 font-mono text-xs text-yellow-800">
-                        取り消し期限まで {formatRemaining(new Date(t.revertDeadline).getTime() - now)}
-                      </span>
-                    ) : (
-                      <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">確定</span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
+
+            <AuditLogPanel logs={data.auditLogs} />
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard label="登録ユーザー" value={data.users.filter((u) => u.status !== 'withdrawn').length} color="blue" />
+              <StatCard label="ログインできるユーザー" value={data.users.filter((u) => u.status === 'active').length} color="green" />
+              <StatCard label="招待中" value={data.invitations.filter((i) => i.status === 'pending').length} color="yellow" />
+              <StatCard
+                label="管理者数"
+                value={data.users.filter((u) => u.role === 'admin' && u.status === 'active').length}
+                color="purple"
+              />
+            </div>
+          </>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <InvitationPanel actorId={me.id} invitations={db.invitations} now={now} />
-
-          <Card className="p-6">
-            <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-900">
-              <Users className="h-5 w-5 text-blue-600" />
-              登録済みユーザー
-              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-sm font-normal text-blue-800">
-                {db.users.length}名
-              </span>
-            </h2>
-            <p className="mb-4 flex items-start gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2.5 text-sm text-purple-800">
-              <Shield className="mt-0.5 h-4 w-4 shrink-0" />
-              「管理者に」ボタンで他のユーザーに管理者権限を移譲できます。移譲後1時間以内は取り消し可能です。
-            </p>
-            <div className="mb-3">
-              <ErrorText message={userError} />
-            </div>
-            <ul className="space-y-3">
-              {db.users.map((u) => (
-                <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 p-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-gray-900">{u.name}</span>
-                      {u.role === 'admin' ? (
-                        <span className="rounded bg-purple-100 px-2 py-0.5 text-xs text-purple-700">管理者</span>
-                      ) : (
-                        <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">ユーザー</span>
-                      )}
-                      {!u.isActive && (
-                        <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">無効</span>
-                      )}
-                      {u.id === me.id && <span className="text-xs text-gray-500">（あなた）</span>}
-                    </div>
-                    <p className="mt-1 text-sm text-gray-600">{u.email}</p>
-                  </div>
-                  {u.role === 'user' && (
-                    <div className="flex gap-2">
-                      {u.isActive && (
-                        <button
-                          type="button"
-                          onClick={() => setTransferTarget(u)}
-                          className="flex items-center gap-1 rounded-lg bg-purple-100 px-3 py-1.5 text-sm text-purple-700 hover:bg-purple-200"
-                        >
-                          <Shield className="h-3.5 w-3.5" />
-                          管理者に
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => toggleActive(u)}
-                        className={`rounded-lg px-3 py-1.5 text-sm ${
-                          u.isActive
-                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                            : 'bg-green-100 text-green-700 hover:bg-green-200'
-                        }`}
-                      >
-                        {u.isActive ? '無効化' : '有効化'}
-                      </button>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="総ユーザー数" value={db.users.length} color="blue" />
-          <StatCard label="有効ユーザー" value={db.users.filter((u) => u.isActive).length} color="green" />
-          <StatCard label="招待中" value={pendingCount} color="yellow" />
-          <StatCard label="管理者数" value={db.users.filter((u) => u.role === 'admin').length} color="purple" />
-        </div>
-
         {/* 地図データの更新は管理者だけ（API でも同じ権限を確かめる、D34） */}
-        {can(me.role, 'mapData.update') && <MapDataPanel />}
+        {me && can(me.role, 'mapData.update') && <MapDataPanel />}
       </main>
-
-      {transferTarget && (
-        <TransferModal actorId={me.id} target={transferTarget} onClose={() => setTransferTarget(null)} />
-      )}
     </PageBackground>
   );
 }
 
-const STATUS_BADGE: Record<InvitationStatus, { label: string; className: string; icon: typeof Clock }> = {
-  pending: { label: '招待中', className: 'bg-yellow-100 text-yellow-800', icon: Clock },
-  accepted: { label: '承認済み', className: 'bg-green-100 text-green-800', icon: CheckCircle2 },
-  expired: { label: '期限切れ', className: 'bg-gray-100 text-gray-600', icon: XCircle },
+// ---------------------------------------------------------------------------
+// 招待
+// ---------------------------------------------------------------------------
+
+const INVITATION_BADGE: Record<InvitationStatus, { className: string; icon: typeof Clock }> = {
+  pending: { className: 'bg-yellow-100 text-yellow-800', icon: Clock },
+  used: { className: 'bg-green-100 text-green-800', icon: CheckCircle2 },
+  expired: { className: 'bg-gray-100 text-gray-600', icon: XCircle },
+  revoked: { className: 'bg-gray-100 text-gray-600', icon: XCircle },
 };
 
-function InvitationPanel({ actorId, invitations, now }: { actorId: string; invitations: Invitation[]; now: number }) {
+function InvitationPanel({ invitations, onChanged }: { invitations: AdminInvitation[]; onChanged: () => Promise<void> }) {
   const [formOpen, setFormOpen] = useState(false);
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [role, setRole] = useState<Role>('member');
   const [error, setError] = useState<string | null>(null);
-  const [issued, setIssued] = useState<Invitation | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
+  const run = async (fn: () => Promise<unknown>, done: string) => {
     setError(null);
+    setNotice(null);
+    setBusy(true);
     try {
-      setIssued(createInvitation(actorId, name, email));
-      setName('');
-      setEmail('');
-      setFormOpen(false);
-    } catch (err) {
-      setError(toMessage(err));
+      await fn();
+      setNotice(done);
+      await onChanged();
+      return true;
+    } catch (e) {
+      setError(toMessage(e));
+      return false;
+    } finally {
+      setBusy(false);
     }
   };
 
-  const act = (fn: () => void) => {
-    setError(null);
-    try {
-      fn();
-    } catch (err) {
-      setError(toMessage(err));
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const sentTo = email.trim();
+    if (await run(() => createInvitation({ email: sentTo, role }), `${sentTo} に招待メールを送りました`)) {
+      setEmail('');
+      setRole('member');
+      setFormOpen(false);
     }
   };
 
@@ -226,10 +178,6 @@ function InvitationPanel({ actorId, invitations, now }: { actorId: string; invit
       {formOpen && (
         <form onSubmit={submit} className="mb-6 space-y-3 rounded-lg border border-purple-200 bg-purple-50 p-4">
           <div>
-            <label htmlFor="inv-name" className="mb-1 block text-sm text-gray-700">名前</label>
-            <input id="inv-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="山田 太郎" className={`${inputClass} bg-white`} />
-          </div>
-          <div>
             <label htmlFor="inv-email" className="mb-1 block text-sm text-gray-700">メールアドレス</label>
             <input
               id="inv-email"
@@ -241,17 +189,42 @@ function InvitationPanel({ actorId, invitations, now }: { actorId: string; invit
               className={`${inputClass} bg-white`}
             />
           </div>
-          <button type="submit" className="w-full rounded-lg bg-purple-600 py-2.5 text-white hover:bg-purple-700">
-            招待を作成
+          <div>
+            <label htmlFor="inv-role" className="mb-1 block text-sm text-gray-700">役割</label>
+            <select
+              id="inv-role"
+              value={role}
+              onChange={(e) => setRole(e.target.value as Role)}
+              className={`${inputClass} bg-white`}
+            >
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABELS[r]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-xs text-gray-600">
+            招待メールが届きます。リンクの有効期限は{INVITATION_TTL_HOURS}時間で、1回だけ使えます。
+          </p>
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-lg bg-purple-600 py-2.5 text-white hover:bg-purple-700 disabled:opacity-60"
+          >
+            {busy ? '送信中…' : '招待メールを送る'}
           </button>
         </form>
       )}
 
-      <div className="mb-3">
+      <div className="mb-3 space-y-2">
         <ErrorText message={error} />
+        {notice && (
+          <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+            {notice}
+          </p>
+        )}
       </div>
-
-      {issued && <IssuedInvitation invitation={issued} onClose={() => setIssued(null)} />}
 
       <h3 className="mb-3 text-lg font-bold text-gray-900">招待履歴</h3>
       {invitations.length === 0 ? (
@@ -259,9 +232,9 @@ function InvitationPanel({ actorId, invitations, now }: { actorId: string; invit
       ) : (
         <ul className="space-y-3">
           {invitations.map((inv) => {
-            const status = invitationStatus(inv, now);
-            const badge = STATUS_BADGE[status];
+            const badge = INVITATION_BADGE[inv.status];
             const Icon = badge.icon;
+            const open = inv.status === 'pending' || inv.status === 'expired';
             return (
               <li key={inv.id} className="rounded-lg border border-gray-200 p-4">
                 <div className="flex items-start justify-between gap-2">
@@ -269,50 +242,45 @@ function InvitationPanel({ actorId, invitations, now }: { actorId: string; invit
                     <div className="flex flex-wrap items-center gap-2">
                       <Mail className="h-4 w-4 shrink-0 text-gray-500" />
                       <span className="break-all text-gray-900">{inv.email}</span>
+                      <span className={`rounded px-2 py-0.5 text-xs ${ROLE_BADGE[inv.role]}`}>{ROLE_LABELS[inv.role]}</span>
                       <span className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs ${badge.className}`}>
                         <Icon className="h-3 w-3" />
-                        {badge.label}
+                        {INVITATION_STATUS_LABELS[inv.status]}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-gray-600">招待日: {isoToJstDate(inv.invitedAt)}</p>
-                    {status === 'pending' && (
-                      <>
-                        <p className="mt-1 text-xs break-all text-gray-500">招待トークン: {inv.token}</p>
-                        <p className="text-xs text-gray-500">有効期限: {isoToJstDateTime(inv.expiresAt)}</p>
-                        <button
-                          type="button"
-                          onClick={() => setIssued(inv)}
-                          className="mt-1 text-xs text-purple-700 hover:underline"
-                        >
-                          招待リンクを表示
-                        </button>
-                      </>
+                    <p className="mt-1 text-sm text-gray-600">
+                      招待日: {isoToJstDate(inv.createdAt)}（{inv.invitedByName}）
+                    </p>
+                    {inv.status === 'pending' && (
+                      <p className="text-xs text-gray-500">有効期限: {isoToJstDateTime(inv.expiresAt)}</p>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {status !== 'accepted' && (
+                  {open && (
+                    <div className="flex shrink-0 items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => act(() => setIssued(resendInvitation(actorId, inv.id)))}
-                        className="text-sm text-blue-600 hover:text-blue-800"
+                        disabled={busy}
+                        onClick={() => void run(() => resendInvitation(inv.id), `${inv.email} に招待メールを送り直しました`)}
+                        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 disabled:opacity-60"
                       >
-                        再送信
+                        <RotateCw className="h-3.5 w-3.5" />
+                        再送
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm(`${inv.email} への招待を削除しますか？`)) {
-                          act(() => deleteInvitation(actorId, inv.id));
-                          if (issued?.id === inv.id) setIssued(null);
-                        }
-                      }}
-                      className="rounded p-1 text-red-600 hover:bg-red-50"
-                      aria-label="招待を削除"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          if (window.confirm(`${inv.email} への招待を取り消しますか？送ったリンクは使えなくなります。`)) {
+                            void run(() => revokeInvitation(inv.id), `${inv.email} への招待を取り消しました`);
+                          }
+                        }}
+                        className="rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-60"
+                        aria-label="招待を取り消す"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </li>
             );
@@ -323,62 +291,163 @@ function InvitationPanel({ actorId, invitations, now }: { actorId: string; invit
   );
 }
 
-/** バックエンドがないため、招待リンクを表示して管理者が相手に送る */
-function IssuedInvitation({ invitation, onClose }: { invitation: Invitation; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const url = inviteUrl(invitation.token);
-  const mailto = `mailto:${invitation.email}?subject=${encodeURIComponent('やもんサイトへの招待')}&body=${encodeURIComponent(
-    `${invitation.name ? `${invitation.name} さん\n\n` : ''}やもんサイトに招待しました。\n48時間以内に次のリンクから登録してください。\n\n${url}\n`,
-  )}`;
+// ---------------------------------------------------------------------------
+// ユーザー
+// ---------------------------------------------------------------------------
+
+function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => Promise<void> }) {
+  const me = useCurrentUser()!;
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [withdrawTarget, setWithdrawTarget] = useState<AdminUser | null>(null);
+
+  const run = async (u: AdminUser, fn: () => Promise<unknown>) => {
+    setError(null);
+    setBusyId(u.id);
+    try {
+      await fn();
+      // 自分の役割を変えたら、ログイン中のユーザーも読み直す。管理者でなくなれば、この画面から出るので読み直さない
+      if (u.id === me.id) {
+        await refresh();
+        const now = getCurrentUser();
+        if (!now || !can(now.role, 'users.manage')) return;
+      }
+      await onChanged();
+    } catch (e) {
+      setError(toMessage(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const onRoleChange = (u: AdminUser, role: Role) => {
+    if (u.id === me.id && u.role === 'admin' && role !== 'admin') {
+      if (!window.confirm('自分を管理者以外にすると、この画面に入れなくなります。よろしいですか？')) return;
+    }
+    void run(u, () => changeRole(u.id, role));
+  };
+
+  const listed = users.filter((u) => u.status !== 'withdrawn');
+  const withdrawn = users.filter((u) => u.status === 'withdrawn');
 
   return (
-    <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm">
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-medium text-green-800">{invitation.email} への招待リンク（48時間有効）</p>
-        <button type="button" onClick={onClose} className="text-xs text-green-700 hover:underline">
-          閉じる
-        </button>
+    <Card className="p-6">
+      <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-900">
+        <Users className="h-5 w-5 text-blue-600" />
+        登録済みユーザー
+        <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-sm font-normal text-blue-800">{listed.length}名</span>
+      </h2>
+      <p className="mb-4 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2.5 text-sm text-purple-800">
+        役割を選ぶと、すぐに変わります。管理者は複数人にできますが、最後の1人の管理者は降格・無効化・退会させられません。
+      </p>
+      <div className="mb-3">
+        <ErrorText message={error} />
       </div>
-      <p className="mt-2 rounded border border-green-200 bg-white px-2 py-1.5 font-mono text-xs break-all text-gray-800">{url}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(url);
-              setCopied(true);
-            } catch {
-              setCopied(false);
-            }
+      <ul className="space-y-3">
+        {listed.map((u) => {
+          const busy = busyId === u.id;
+          const isMe = u.id === me.id;
+          return (
+            <li key={u.id} className="rounded-lg border border-gray-200 p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-gray-900">{u.name}</span>
+                <span className={`rounded px-2 py-0.5 text-xs ${ROLE_BADGE[u.role]}`}>{ROLE_LABELS[u.role]}</span>
+                {u.status === 'disabled' && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">無効化中</span>}
+                {isMe && <span className="text-xs text-gray-500">（あなた）</span>}
+              </div>
+              <p className="mt-1 text-sm break-all text-gray-600">{u.email}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label className="sr-only" htmlFor={`role-${u.id}`}>
+                  {u.name} の役割
+                </label>
+                <select
+                  id={`role-${u.id}`}
+                  value={u.role}
+                  disabled={busy}
+                  onChange={(e) => onRoleChange(u, e.target.value as Role)}
+                  className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm disabled:opacity-60"
+                >
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABELS[r]}
+                    </option>
+                  ))}
+                </select>
+                {!isMe && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void run(u, () => (u.status === 'active' ? disableUser(u.id) : enableUser(u.id)))}
+                      className={`rounded-lg px-3 py-1.5 text-sm disabled:opacity-60 ${
+                        u.status === 'active'
+                          ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200'
+                      }`}
+                    >
+                      {u.status === 'active' ? '無効化' : '有効化'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setWithdrawTarget(u)}
+                      className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200 disabled:opacity-60"
+                    >
+                      退会処理
+                    </button>
+                  </>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {withdrawn.length > 0 && (
+        <p className="mt-4 text-sm text-gray-500">退会済みユーザー：{withdrawn.length}名（記録は「退会済みユーザー」の記録として残っています）</p>
+      )}
+
+      {withdrawTarget && (
+        <WithdrawModal
+          target={withdrawTarget}
+          onClose={() => setWithdrawTarget(null)}
+          onConfirm={async () => {
+            await withdrawUser(withdrawTarget.id);
+            setWithdrawTarget(null);
+            await onChanged();
           }}
-          className="flex items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-green-800 hover:bg-green-100"
-        >
-          <Copy className="h-3.5 w-3.5" />
-          {copied ? 'コピーしました' : 'リンクをコピー'}
-        </button>
-        <a href={mailto} className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-white hover:bg-green-700">
-          <Mail className="h-3.5 w-3.5" />
-          メールアプリで送る
-        </a>
-      </div>
-    </div>
+        />
+      )}
+    </Card>
   );
 }
 
-function TransferModal({ actorId, target, onClose }: { actorId: string; target: User; onClose: () => void }) {
+/** 退会処理の確認。元に戻せないので、何が消えて何が残るかを示してから実行する */
+function WithdrawModal({
+  target,
+  onClose,
+  onConfirm,
+}: {
+  target: AdminUser;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   return (
-    <Modal open onClose={onClose} title="管理者権限の移譲">
+    <Modal open onClose={onClose} title="退会処理">
       <div className="space-y-4">
         <div className="rounded-lg border border-gray-200 p-4">
-          <p className="text-sm text-gray-500">移譲先</p>
-          <p className="mt-1 font-bold text-gray-900">{target.name}</p>
-          <p className="text-sm text-gray-600">{target.email}</p>
+          <p className="font-bold text-gray-900">{target.name}</p>
+          <p className="text-sm break-all text-gray-600">{target.email}</p>
         </div>
         <ul className="list-disc space-y-1 rounded-lg border border-yellow-300 bg-yellow-50 py-3 pr-4 pl-8 text-sm text-yellow-900">
-          <li>移譲すると、あなたは一般ユーザーになり、管理者画面に入れなくなります。</li>
-          <li>移譲から1時間以内であれば、あなたがホーム画面から取り消せます。</li>
-          <li>1時間を過ぎると取り消せません。</li>
+          <li>このユーザーはログインできなくなります。</li>
+          <li>名前とメールアドレスを削除します。</li>
+          <li>観察記録は残り、記録者は「退会済みユーザー」と表示されます。</li>
+          <li>
+            <span className="font-bold">元に戻せません。</span>
+            記録を見られるようにしておきたい場合は、退会ではなく役割を「OB・OG」にしてください。
+          </li>
         </ul>
         <ErrorText message={error} />
         <div className="flex justify-end gap-2">
@@ -387,20 +456,58 @@ function TransferModal({ actorId, target, onClose }: { actorId: string; target: 
           </button>
           <button
             type="button"
-            onClick={() => {
+            disabled={busy}
+            onClick={async () => {
+              setError(null);
+              setBusy(true);
               try {
-                transferAdmin(actorId, target.id);
-                onClose();
+                await onConfirm();
               } catch (e) {
                 setError(toMessage(e));
+                setBusy(false);
               }
             }}
-            className="rounded-lg bg-purple-600 px-4 py-2 text-white hover:bg-purple-700"
+            className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:opacity-60"
           >
-            移譲する
+            {busy ? '処理中…' : '退会処理をする'}
           </button>
         </div>
       </div>
     </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 操作履歴
+// ---------------------------------------------------------------------------
+
+function AuditLogPanel({ logs }: { logs: AuditLogEntry[] }) {
+  return (
+    <Card className="p-6">
+      <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-900">
+        <History className="h-5 w-5 text-gray-600" />
+        操作履歴
+      </h2>
+      {logs.length === 0 ? (
+        <p className="py-4 text-center text-sm text-gray-500">まだ操作はありません</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 text-sm">
+          {logs.map((log) => (
+            <li key={log.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
+              <span className="text-gray-500">{isoToJstDateTime(log.createdAt)}</span>
+              <span className="text-gray-900">
+                {log.targetName} の{AUDIT_ACTION_LABELS[log.action]}
+                {log.action === 'role_changed' && log.fromRole && log.toRole && (
+                  <>
+                    （{ROLE_LABELS[log.fromRole]} → {ROLE_LABELS[log.toRole]}）
+                  </>
+                )}
+              </span>
+              <span className="text-gray-500">操作した人：{log.actorName}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

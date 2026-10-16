@@ -1,8 +1,8 @@
 # やもんサイト
 
-自然観察会の記録管理 Web アプリ（プロトタイプ）。招待制で、観察記録・観察会・生き物・場所をブラウザの localStorage に保存します。
+自然観察会の記録管理 Web アプリ（プロトタイプ）。招待制で、観察記録・観察会・生き物・場所を API（Hono）と PostgreSQL に保存します。
 
-> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D33 を参照してください。
+> フロントエンドとバックエンドを分けた構成へ移行中です。合意した MVP は [docs/MVP.md](docs/MVP.md)、採用した技術は [docs/DECISIONS.md](docs/DECISIONS.md) の D14〜D36 を参照してください。
 
 ## 起動
 
@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-http://localhost:5173 を開きます。フロント（Vite、5173番）と API（Hono、8787番）が同時に起動し、`/api/*` は Vite から API へ転送されます（http://localhost:5173/api/health で確認できます）。ログインは API で行います（[#11](https://github.com/241205008/yamon-site/issues/11)）。記録・観察会・生き物などのデータはまだ localStorage にあり、API への切り替えは [#13](https://github.com/241205008/yamon-site/issues/13) で行います。
+http://localhost:5173 を開きます。フロント（Vite、5173番）と API（Hono、8787番）が同時に起動し、`/api/*` は Vite から API へ転送されます（http://localhost:5173/api/health で確認できます）。画面のデータはすべて API から読み書きします（ブラウザの localStorage には保存しません）。
 
 API の DB は、`DATABASE_URL` がなければ PGlite（WebAssembly 版の PostgreSQL）を `apps/api/.data/pglite` に作って使います。Docker や PostgreSQL のインストールは要りません。DB を空に戻したいときは、API を止めて `apps/api/.data/` を削除します。
 
@@ -51,29 +51,27 @@ npm run db:seed -w @yamon/api
 
 同じコマンドで、主な場所（仮の5か所）と、デモの生き物・観察会・記録も入ります（それぞれの表が空のときだけ）。データを作り直したいときは、API を止めて `apps/api/.data/pglite` を消してから、もう一度実行します。
 
-招待・ユーザー管理の画面のデモデータは、まだ初回起動時に localStorage に作られます（#12 で API に移すまで）。
-
 ## 画面
 
 | パス | 画面 |
 |---|---|
-| `/login` | ログイン（招待リンクからの登録は [#12](https://github.com/241205008/yamon-site/issues/12) で API に切り替えるまで準備中） |
+| `/login` | ログイン・招待リンクからの登録（`/login?invite=<トークン>`） |
 | `/` | 観察記録の追加・編集・削除、観察会作成、生き物管理 |
 | `/map` | 座標付き記録の地図表示（生き物・月・時間帯で絞り込み） |
 | `/locations` | 主な場所ごとの生き物一覧 |
 | `/event-list` | 観察会一覧と統計 |
 | `/event-detail/:eventId` | 観察会内の記録管理 |
-| `/admin` | 招待・ユーザー管理・管理者権限の移譲（管理者のみ） |
+| `/admin` | 招待・役割の変更・無効化・退会処理・操作履歴（管理者のみ） |
 
 `/login` 以外はログインが必要です。ログインしたままでいられるのは最大8時間です。`/admin` に管理者以外が入るとホームへ戻ります（権限は API でも確かめます）。
 
 ## 招待の流れ
 
-バックエンドがないため、メールは自動送信しません。
+1. 管理者が `/admin` の「招待を送る」でメールアドレスと役割を選ぶ
+2. 相手に招待メール（登録リンク、48時間有効・1回限り）が届く。開発環境では実際には送らず、API のログにメールの本文（リンクを含む）が出る
+3. 相手がリンクを開き、ユーザー名とパスワードを設定して登録する（そのままログインした状態になる）
 
-1. 管理者が `/admin` の「招待を送る」で名前とメールアドレスを入力する
-2. 招待リンク（48時間有効）が表示されるので、「リンクをコピー」または「メールアプリで送る」で相手に渡す
-3. 相手がリンクを開き、ユーザー名とパスワードを設定して登録する
+管理者は `/admin` で、招待の再送・取り消し、役割の変更（管理者／幹部／部員／OB・OG）、無効化・有効化、退会処理ができ、操作履歴を見られます。最後の1人の管理者は、降格・無効化・退会させられません。
 
 ## 構成
 
@@ -82,7 +80,7 @@ npm workspaces で、フロント・バック・共有コードを分けてい�
 ```
 apps/
   web/                フロントエンド（@yamon/web）
-    src/lib/          データモデル・localStorage ストア・パスワードハッシュ
+    src/lib/          API の呼び出し・ログイン状態・TanStack Query
     src/components/   共通 UI、RecordForm、EventForm、地図ピッカーなど
     src/pages/        各画面
     functions/        Cloudflare Pages Functions（/map/*：R2 の地図データを返す）
