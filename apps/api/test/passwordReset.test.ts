@@ -1,4 +1,4 @@
-import type { ApiErrorBody, MeResponse } from '@yamon/shared';
+import type { ApiErrorBody, AuditLogEntry, IssuedLink, MeResponse, PasswordResetAvailability } from '@yamon/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app';
@@ -176,5 +176,90 @@ describe('新しいパスワードの設定', () => {
     const token = tokenFromLastMail();
     await ctx.db.update(schema.users).set({ status: 'disabled' }).where(eq(schema.users.id, user.id));
     expect((await confirm(token)).status).toBe(400);
+  });
+});
+
+describe('メールの設定がないとき（D46）', () => {
+  it('本人の申請は受け付けず 503 を返し、画面には「管理者に連絡」と出せるよう selfService: false を返す', async () => {
+    const noMail = createApp({ db: ctx.db, appUrl: TEST_APP_URL });
+    const user = await createUser(ctx.db);
+    const availability = await noMail.request('/api/password-reset');
+    expect((await availability.json()) as PasswordResetAvailability).toEqual({ selfService: false });
+    const res = await noMail.request('/api/password-reset/request', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ email: user.email }),
+    });
+    expect(res.status).toBe(503);
+    expect(await errorCode(res)).toBe('mail_unavailable');
+    // 未登録のアドレスでも同じ応答（登録の有無を漏らさない）
+    const unknown = await noMail.request('/api/password-reset/request', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ email: 'nobody-here@example.com' }),
+    });
+    expect(unknown.status).toBe(503);
+  });
+
+  it('メールの設定があれば selfService: true', async () => {
+    const res = await ctx.app.request('/api/password-reset');
+    expect((await res.json()) as PasswordResetAvailability).toEqual({ selfService: true });
+  });
+});
+
+describe('管理者が再設定のリンクを発行する（D46）', () => {
+  const issue = async (cookie: string, userId: string, app = ctx.app) =>
+    app.request(`/api/admin/users/${userId}/password-reset`, {
+      method: 'POST',
+      headers: { ...jsonHeaders, cookie },
+      body: '{}',
+    });
+  const tokenFromUrl = (url: string) => new URL(url).searchParams.get('token')!;
+
+  it('発行したリンクで本人が再設定でき、新しいパスワードでログインできる。操作履歴に残る', async () => {
+    const adminUser = await createUser(ctx.db, { role: 'admin' });
+    const admin = await login(ctx, adminUser.email, adminUser.password);
+    const user = await createUser(ctx.db, { password: 'old-password-1' });
+    const res = await issue(admin, user.id);
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as IssuedLink;
+    expect(body.url).toContain(`${TEST_APP_URL}/reset-password?token=`);
+    expect(new Date(body.expiresAt).getTime() - Date.now()).toBeLessThanOrEqual(60 * 60 * 1000);
+    // メールの設定があれば、本人にも送る
+    expect(body.mailSent).toBe(true);
+    expect(ctx.sent.at(-1)!.to).toBe(user.email);
+    expect((await confirm(tokenFromUrl(body.url), 'new-password-1')).status).toBe(200);
+    expect(await loginStatus(user.email, 'new-password-1')).toBe(200);
+
+    const logs = await callApi(ctx, admin, 'GET', '/api/admin/audit-logs');
+    const { auditLogs } = (await logs.json()) as { auditLogs: AuditLogEntry[] };
+    expect(auditLogs[0]).toMatchObject({ action: 'password_reset_issued', actorName: adminUser.name, targetName: user.name });
+  });
+
+  it('メールの設定がなくても発行でき（mailSent: false）、前に渡したリンクは使えなくなる', async () => {
+    const adminUser = await createUser(ctx.db, { role: 'admin' });
+    const admin = await login(ctx, adminUser.email, adminUser.password);
+    const user = await createUser(ctx.db);
+    const noMail = createApp({ db: ctx.db, appUrl: TEST_APP_URL });
+    const first = (await (await issue(admin, user.id, noMail)).json()) as IssuedLink;
+    const second = (await (await issue(admin, user.id, noMail)).json()) as IssuedLink;
+    expect(second.mailSent).toBe(false);
+    expect((await confirm(tokenFromUrl(first.url))).status).toBe(400);
+    expect((await confirm(tokenFromUrl(second.url))).status).toBe(200);
+  });
+
+  it('無効化・退会したユーザーには発行できない（409）', async () => {
+    const adminUser = await createUser(ctx.db, { role: 'admin' });
+    const admin = await login(ctx, adminUser.email, adminUser.password);
+    const user = await createUser(ctx.db);
+    await ctx.db.update(schema.users).set({ status: 'disabled' }).where(eq(schema.users.id, user.id));
+    expect((await issue(admin, user.id)).status).toBe(409);
+  });
+
+  it('管理者でなければ発行できない（403）', async () => {
+    const officer = await createUser(ctx.db, { role: 'officer' });
+    const cookie = await login(ctx, officer.email, officer.password);
+    const user = await createUser(ctx.db);
+    expect((await issue(cookie, user.id)).status).toBe(403);
   });
 });

@@ -43,6 +43,11 @@ export interface MeResponse {
 /** パスワード再設定のリンクの有効期限（MVP 2章「ログイン」） */
 export const PASSWORD_RESET_TTL_MINUTES = 60;
 
+/** GET /api/password-reset：本人がメールで再設定を申請できるか（メールの設定がなければ、管理者がリンクを発行する、D46） */
+export interface PasswordResetAvailability {
+  selfService: boolean;
+}
+
 /** 再設定メールを送ってもらう（POST /api/password-reset/request） */
 export const passwordResetRequestSchema = z.object({ email: emailSchema });
 export type PasswordResetRequestInput = z.input<typeof passwordResetRequestSchema>;

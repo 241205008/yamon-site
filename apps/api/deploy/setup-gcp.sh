@@ -115,6 +115,15 @@ ask_secret() {
   done
   store_secret "$name" "$value"
 }
+# 任意の値（メールの設定、D46）。空のまま Enter なら登録しない
+ask_optional_secret() {
+  local name=$1 prompt=$2 value
+  should_write "$name" || { echo "  $name はそのまま"; return; }
+  read -rsp "  ${prompt}（入力は表示されません。使わないなら空のまま Enter）: " value
+  echo
+  if [ -z "$value" ]; then echo "  $name は登録しません（メールは送らず、リンクは管理者画面に出ます）"; return; fi
+  store_secret "$name" "$value"
+}
 generated=""
 generate_secret() {
   local name=$1 value
@@ -125,7 +134,7 @@ generate_secret() {
 }
 
 ask_secret yamon-database-url "Neon の接続文字列（postgresql://...?sslmode=require）"
-ask_secret yamon-smtp-pass "サークルの Gmail のアプリパスワード（16文字、空白なし）"
+ask_optional_secret yamon-smtp-pass "メールも送る場合だけ、Gmail のアプリパスワード（16文字、空白なし）"
 ask_secret yamon-github-map-data-token "地図データ更新用の GitHub の fine-grained token"
 generate_secret yamon-proxy-secret
 generate_secret yamon-setup-token

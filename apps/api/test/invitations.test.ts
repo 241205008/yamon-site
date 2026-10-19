@@ -1,4 +1,4 @@
-import type { AdminInvitation, ApiErrorBody, InvitationInfo, MeResponse } from '@yamon/shared';
+import type { AdminInvitation, ApiErrorBody, InvitationInfo, IssuedInvitation, MeResponse } from '@yamon/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app';
@@ -33,13 +33,27 @@ beforeEach(async () => {
 let emailSeq = 0;
 const nextEmail = () => `invitee${++emailSeq}@example.com`;
 
-/** 管理者が招待し、メールのリンクのトークンを返す */
+/** 管理者が招待し、応答のリンクのトークンを返す（D46） */
 async function invite(email: string, role = 'member') {
   const res = await callApi(ctx, admin, 'POST', '/api/admin/invitations', { email, role });
   expect(res.status).toBe(201);
-  const mail = ctx.sent.at(-1)!;
-  return { id: ((await res.json()) as { id: string }).id, token: tokenFromMail(mail.text), mail };
+  const body = (await res.json()) as IssuedInvitation;
+  return { id: body.id, token: tokenFromMail(body.url), body, mail: ctx.sent.at(-1)! };
 }
+
+const reissue = (id: string, app = ctx.app) =>
+  app.request(`/api/admin/invitations/${id}/reissue`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: admin },
+    body: '{}',
+  });
+
+/** メールを送れない mailer（SMTP の失敗） */
+const failingMailer = {
+  async send() {
+    throw new Error('SMTP error');
+  },
+};
 
 const lookup = (token: string) => callApi(ctx, undefined, 'POST', '/api/invitations/lookup', { token });
 const accept = (token: string, name = '新しい部員', password = 'new-password-1') =>
@@ -47,9 +61,19 @@ const accept = (token: string, name = '新しい部員', password = 'new-passwor
 const errorCode = async (res: Response) => ((await res.json()) as ApiErrorBody).error.code;
 
 describe('招待から登録まで', () => {
-  it('招待すると、相手に48時間有効の登録リンクのメールが届く', async () => {
+  it('招待すると、48時間有効の登録リンクが応答で返る（管理者が画面からコピーして渡す）', async () => {
     const email = nextEmail();
-    const { mail, token } = await invite(email);
+    const before = Date.now();
+    const { body, token } = await invite(email);
+    expect(body.url).toBe(`${TEST_APP_URL}/login?invite=${token}`);
+    expect(new Date(body.expiresAt).getTime() - before).toBeGreaterThan(47.9 * 60 * 60 * 1000);
+    expect(new Date(body.expiresAt).getTime() - before).toBeLessThanOrEqual(48 * 60 * 60 * 1000 + 5000);
+  });
+
+  it('メールの設定があれば、相手に同じリンクのメールも届く', async () => {
+    const email = nextEmail();
+    const { mail, token, body } = await invite(email);
+    expect(body.mailSent).toBe(true);
     expect(mail.to).toBe(email);
     expect(mail.subject).toBe('やもんサイトへの招待');
     expect(mail.text).toContain(`${TEST_APP_URL}/login?invite=${token}`);
@@ -118,23 +142,35 @@ describe('招待から登録まで', () => {
     expect(res.status).toBe(400);
   });
 
-  it('再送するとトークンが変わり、古いリンクは使えない', async () => {
+  it('リンクを作り直すとトークンが変わり、古いリンクは使えない', async () => {
     const { id, token: oldToken } = await invite(nextEmail());
-    const res = await callApi(ctx, admin, 'POST', `/api/admin/invitations/${id}/resend`);
+    const res = await reissue(id);
     expect(res.status).toBe(200);
-    const newToken = tokenFromMail(ctx.sent.at(-1)!.text);
+    const newToken = tokenFromMail(((await res.json()) as IssuedInvitation).url);
+    // メールの設定があれば、新しいリンクのメールも送る
+    expect(tokenFromMail(ctx.sent.at(-1)!.text)).toBe(newToken);
     expect(newToken).not.toBe(oldToken);
     expect((await lookup(oldToken)).status).toBe(404);
     expect((await accept(newToken)).status).toBe(201);
   });
 
-  it('期限切れの招待も再送でき、また48時間使える', async () => {
+  it('期限切れの招待もリンクを作り直せ、また48時間使える', async () => {
     const { id } = await invite(nextEmail());
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(Date.now() + 49 * 60 * 60 * 1000);
     admin = await login(ctx, adminUser.email, adminUser.password);
-    expect((await callApi(ctx, admin, 'POST', `/api/admin/invitations/${id}/resend`)).status).toBe(200);
-    expect((await accept(tokenFromMail(ctx.sent.at(-1)!.text))).status).toBe(201);
+    const res = await reissue(id);
+    expect(res.status).toBe(200);
+    expect((await accept(tokenFromMail(((await res.json()) as IssuedInvitation).url))).status).toBe(201);
+  });
+
+  it('登録済み・取り消し済みの招待は、リンクを作り直せない', async () => {
+    const used = await invite(nextEmail());
+    expect((await accept(used.token)).status).toBe(201);
+    expect((await reissue(used.id)).status).toBe(409);
+    const revoked = await invite(nextEmail());
+    await callApi(ctx, admin, 'POST', `/api/admin/invitations/${revoked.id}/revoke`);
+    expect((await reissue(revoked.id)).status).toBe(409);
   });
 
   it('同じアドレスに招待し直すと、前の招待は取り消される', async () => {
@@ -162,49 +198,43 @@ describe('招待から登録まで', () => {
     expect(invitations.find((i) => i.id === id)).toMatchObject({ email, role: 'officer', status: 'pending' });
   });
 
-  it('メールを送れなかったら 502 を返し、その招待は取り消す', async () => {
-    const failing = createApp({
-      db: ctx.db,
-      appUrl: TEST_APP_URL,
-      mailer: {
-        async send() {
-          throw new Error('SMTP error');
-        },
-      },
+  it('メールの設定がなくても招待でき、リンクから登録できる（mailSent は false）', async () => {
+    const noMail = createApp({ db: ctx.db, appUrl: TEST_APP_URL });
+    const res = await noMail.request('/api/admin/invitations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ email: nextEmail(), role: 'member' }),
     });
-    const email = nextEmail();
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as IssuedInvitation;
+    expect(body.mailSent).toBe(false);
+    expect((await accept(tokenFromMail(body.url))).status).toBe(201);
+  });
+
+  it('メールを送れなくても招待は残り、リンクから登録できる（mailSent は false）', async () => {
+    const failing = createApp({ db: ctx.db, appUrl: TEST_APP_URL, mailer: failingMailer });
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await failing.request('/api/admin/invitations', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },
-      body: JSON.stringify({ email, role: 'member' }),
+      body: JSON.stringify({ email: nextEmail(), role: 'member' }),
     });
-    expect(res.status).toBe(502);
-    expect(await errorCode(res)).toBe('mail_failed');
-    const [row] = await ctx.db.select().from(schema.invitations).where(eq(schema.invitations.email, email));
-    expect(row.revokedAt).not.toBeNull();
     consoleError.mockRestore();
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as IssuedInvitation;
+    expect(body.mailSent).toBe(false);
+    expect((await accept(tokenFromMail(body.url))).status).toBe(201);
   });
 
-  it('再送でメールを送れなかったら、古いリンクはそのまま使える', async () => {
-    const { id, token } = await invite(nextEmail());
-    const failing = createApp({
-      db: ctx.db,
-      appUrl: TEST_APP_URL,
-      mailer: {
-        async send() {
-          throw new Error('SMTP error');
-        },
-      },
-    });
+  it('作り直しでメールを送れなくても、新しいリンクは使える', async () => {
+    const { id } = await invite(nextEmail());
+    const failing = createApp({ db: ctx.db, appUrl: TEST_APP_URL, mailer: failingMailer });
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const res = await failing.request(`/api/admin/invitations/${id}/resend`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', cookie: admin },
-      body: '{}',
-    });
+    const res = await reissue(id, failing);
     consoleError.mockRestore();
-    expect(res.status).toBe(502);
-    expect((await lookup(token)).status).toBe(200);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as IssuedInvitation;
+    expect(body.mailSent).toBe(false);
+    expect((await accept(tokenFromMail(body.url))).status).toBe(201);
   });
 });

@@ -149,14 +149,17 @@ jobs:
       # 設定はすべてここに書き、デプロイのたびに同じ状態にする。秘密の値は Secret Manager から渡す（実値は GitHub にない）
       # - インスタンスは最大1台（想定外の課金を防ぐ）。アクセスがなければ0台になる
       # - 誰でも呼べる設定（--no-invoker-iam-check）にするが、PROXY_SECRET の付いたリクエスト（Worker 経由）以外は API が 403 で断る
+      # - メールは任意（D46）。Variable の SMTP_USER があるときだけ、SMTP_USER と Secret の yamon-smtp-pass を渡す
       - name: Deploy
         env:
           APP_URL: https://yamon-site.yamonken.workers.dev
           SMTP_USER: ${{ vars.SMTP_USER }}
         run: |
-          if [ -z "$SMTP_USER" ]; then
-            echo "::error::Variable の SMTP_USER（サークルの Gmail のアドレス）が未設定です（docs/DEPLOY_API.md）"
-            exit 1
+          env_vars="APP_URL=${APP_URL}"
+          secrets="DATABASE_URL=yamon-database-url:latest,PROXY_SECRET=yamon-proxy-secret:latest,SETUP_TOKEN=yamon-setup-token:latest,GITHUB_MAP_DATA_TOKEN=yamon-github-map-data-token:latest"
+          if [ -n "$SMTP_USER" ]; then
+            env_vars="${env_vars},SMTP_USER=${SMTP_USER}"
+            secrets="${secrets},SMTP_PASS=yamon-smtp-pass:latest"
           fi
           gcloud run deploy "$SERVICE" \
             --image "$IMAGE" \
@@ -169,8 +172,8 @@ jobs:
             --cpu 1 \
             --memory 512Mi \
             --timeout 60 \
-            --set-env-vars "APP_URL=${APP_URL},SMTP_USER=${SMTP_USER}" \
-            --set-secrets "DATABASE_URL=yamon-database-url:latest,PROXY_SECRET=yamon-proxy-secret:latest,SETUP_TOKEN=yamon-setup-token:latest,SMTP_PASS=yamon-smtp-pass:latest,GITHUB_MAP_DATA_TOKEN=yamon-github-map-data-token:latest" \
+            --set-env-vars "$env_vars" \
+            --set-secrets "$secrets" \
             --quiet
           url=$(gcloud run services describe "$SERVICE" --region "$GCP_REGION" --format 'value(status.url)')
           {

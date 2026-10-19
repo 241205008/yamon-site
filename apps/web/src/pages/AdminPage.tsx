@@ -11,10 +11,12 @@ import {
   type AdminUser,
   type AuditLogEntry,
   type InvitationStatus,
+  type IssuedLink,
   type Role,
 } from '@yamon/shared';
-import { CheckCircle2, Clock, History, Mail, RotateCw, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, History, KeyRound, Mail, RotateCw, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { IssuedLinkModal, type IssuedLinkKind } from '../components/IssuedLinkModal';
 import { MainLocationPanel } from '../components/MainLocationPanel';
 import { MapDataPanel } from '../components/MapDataPanel';
 import { BackBar, Card, ErrorText, inputClass, Modal, PageBackground, StatCard } from '../components/ui';
@@ -26,7 +28,8 @@ import {
   fetchAuditLogs,
   fetchInvitations,
   fetchUsers,
-  resendInvitation,
+  issuePasswordReset,
+  reissueInvitation,
   revokeInvitation,
   withdrawUser,
 } from '../lib/admin';
@@ -34,6 +37,13 @@ import { ApiError } from '../lib/api';
 import { getCurrentUser, refresh, useCurrentUser } from '../lib/auth';
 
 const toMessage = (e: unknown) => (e instanceof ApiError ? e.message : '処理に失敗しました');
+
+/** 発行したリンクを見せている相手と内容（IssuedLinkModal） */
+interface ShownLink {
+  kind: IssuedLinkKind;
+  to: string;
+  link: IssuedLink;
+}
 
 const ROLE_BADGE: Record<Role, string> = {
   admin: 'bg-purple-100 text-purple-700',
@@ -135,8 +145,9 @@ function InvitationPanel({ invitations, onChanged }: { invitations: AdminInvitat
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState<ShownLink | null>(null);
 
-  const run = async (fn: () => Promise<unknown>, done: string) => {
+  const run = async (fn: () => Promise<unknown>, done: string | null) => {
     setError(null);
     setNotice(null);
     setBusy(true);
@@ -156,7 +167,11 @@ function InvitationPanel({ invitations, onChanged }: { invitations: AdminInvitat
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const sentTo = email.trim();
-    if (await run(() => createInvitation({ email: sentTo, role }), `${sentTo} に招待メールを送りました`)) {
+    const created = await run(async () => {
+      const link = await createInvitation({ email: sentTo, role });
+      setShown({ kind: 'invitation', to: sentTo, link });
+    }, null);
+    if (created) {
       setEmail('');
       setRole('member');
       setFormOpen(false);
@@ -175,7 +190,7 @@ function InvitationPanel({ invitations, onChanged }: { invitations: AdminInvitat
           onClick={() => setFormOpen((v) => !v)}
           className="rounded-lg bg-purple-600 px-4 py-2 text-white transition-colors hover:bg-purple-700"
         >
-          {formOpen ? '閉じる' : '招待を送る'}
+          {formOpen ? '閉じる' : '招待する'}
         </button>
       </div>
 
@@ -209,14 +224,14 @@ function InvitationPanel({ invitations, onChanged }: { invitations: AdminInvitat
             </select>
           </div>
           <p className="text-xs text-gray-600">
-            招待メールが届きます。リンクの有効期限は{INVITATION_TTL_HOURS}時間で、1回だけ使えます。
+            招待リンクを作ります。LINE などで本人に送ってください。リンクの有効期限は{INVITATION_TTL_HOURS}時間で、1回だけ使えます。
           </p>
           <button
             type="submit"
             disabled={busy}
             className="w-full rounded-lg bg-purple-600 py-2.5 text-white hover:bg-purple-700 disabled:opacity-60"
           >
-            {busy ? '送信中…' : '招待メールを送る'}
+            {busy ? '作成中…' : '招待リンクを作る'}
           </button>
         </form>
       )}
@@ -264,11 +279,17 @@ function InvitationPanel({ invitations, onChanged }: { invitations: AdminInvitat
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => void run(() => resendInvitation(inv.id), `${inv.email} に招待メールを送り直しました`)}
+                        onClick={() => {
+                          if (!window.confirm(`${inv.email} への招待リンクを作り直しますか？前に送ったリンクは使えなくなります。`)) return;
+                          void run(async () => {
+                            const link = await reissueInvitation(inv.id);
+                            setShown({ kind: 'invitation', to: inv.email, link });
+                          }, null);
+                        }}
                         className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 disabled:opacity-60"
                       >
                         <RotateCw className="h-3.5 w-3.5" />
-                        再送
+                        リンクを作り直す
                       </button>
                       <button
                         type="button"
@@ -291,6 +312,7 @@ function InvitationPanel({ invitations, onChanged }: { invitations: AdminInvitat
           })}
         </ul>
       )}
+      {shown && <IssuedLinkModal {...shown} onClose={() => setShown(null)} />}
     </Card>
   );
 }
@@ -304,6 +326,7 @@ function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => 
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [withdrawTarget, setWithdrawTarget] = useState<AdminUser | null>(null);
+  const [shown, setShown] = useState<ShownLink | null>(null);
 
   const run = async (u: AdminUser, fn: () => Promise<unknown>) => {
     setError(null);
@@ -322,6 +345,14 @@ function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => 
     } finally {
       setBusyId(null);
     }
+  };
+
+  const issueReset = (u: AdminUser) => {
+    if (!window.confirm(`${u.name} のパスワード再設定のリンクを発行しますか？前に発行したリンクは使えなくなります。`)) return;
+    void run(u, async () => {
+      const link = await issuePasswordReset(u.id);
+      setShown({ kind: 'passwordReset', to: u.name, link });
+    });
   };
 
   const onRoleChange = (u: AdminUser, role: Role) => {
@@ -391,6 +422,17 @@ function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => 
                     >
                       {u.status === 'active' ? '無効化' : '有効化'}
                     </button>
+                    {u.status === 'active' && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => issueReset(u)}
+                        className="flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                        再設定リンク
+                      </button>
+                    )}
                     <button
                       type="button"
                       disabled={busy}
@@ -410,6 +452,7 @@ function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => 
         <p className="mt-4 text-sm text-gray-500">退会済みユーザー：{withdrawn.length}名（記録は「退会済みユーザー」の記録として残っています）</p>
       )}
 
+      {shown && <IssuedLinkModal {...shown} onClose={() => setShown(null)} />}
       {withdrawTarget && (
         <WithdrawModal
           target={withdrawTarget}

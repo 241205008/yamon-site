@@ -15,6 +15,13 @@
       "when": 1792118531872,
       "tag": "0001_login_failures",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792394040296,
+      "tag": "0002_password_reset_issued",
+      "breakpoints": true
     }
   ]
 }

@@ -5,7 +5,7 @@ import { Link, useSearchParams } from 'react-router';
 import { AuthCard } from '../components/AuthCard';
 import { ErrorText, inputClass } from '../components/ui';
 import { ApiError } from '../lib/api';
-import { confirmPasswordReset, requestPasswordReset } from '../lib/auth';
+import { confirmPasswordReset, fetchPasswordResetAvailability, requestPasswordReset } from '../lib/auth';
 
 const toMessage = (e: unknown) => (e instanceof ApiError ? e.message : '処理に失敗しました');
 
@@ -17,8 +17,29 @@ const backToLogin = (
   </p>
 );
 
-/** /forgot-password：メールアドレスを入れて、再設定のメールを送ってもらう（#5） */
+/** メールで再設定できない環境（D46）の案内。管理者がリンクを発行して渡す */
+const askAdmin = (
+  <p className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+    パスワードを忘れた場合は、サークルの管理者に連絡してください。管理者が再設定のリンクを発行して、LINE などで送ります。
+  </p>
+);
+
+/**
+ * /forgot-password：メールアドレスを入れて、再設定のメールを送ってもらう（#5）。
+ * メールの設定がない環境では、管理者に連絡するよう案内する（D46）
+ */
 export function ForgotPasswordPage() {
+  // 確かめている間（undefined）はフォームを出さない。確かめられなかったときは、フォームを出して申請の結果に任せる
+  const [selfService, setSelfService] = useState<boolean | undefined>(undefined);
+  useEffect(() => {
+    let active = true;
+    fetchPasswordResetAvailability()
+      .then((r) => active && setSelfService(r.selfService))
+      .catch(() => active && setSelfService(true));
+    return () => {
+      active = false;
+    };
+  }, []);
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +61,11 @@ export function ForgotPasswordPage() {
 
   return (
     <AuthCard icon={Mail} subtitle="パスワードの再設定">
-      {sent ? (
+      {selfService === undefined ? (
+        <p className="py-6 text-center text-sm text-gray-500">読み込み中…</p>
+      ) : !selfService ? (
+        askAdmin
+      ) : sent ? (
         <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
           {sent}
         </p>
@@ -119,11 +144,11 @@ export function ResetPasswordPage() {
         </p>
       ) : !token ? (
         <p className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
-          再設定のリンクが正しくありません。メールのリンクをそのまま開くか、もう一度
+          再設定のリンクが正しくありません。受け取ったリンクをそのまま開いてください。分からないときは、
           <Link to="/forgot-password" className="mx-1 text-green-700 underline">
-            再設定のメールを送って
+            再設定の方法
           </Link>
-          ください。
+          を確かめてください。
         </p>
       ) : (
         <form onSubmit={submit} className="space-y-6">
@@ -158,11 +183,11 @@ export function ResetPasswordPage() {
           <ErrorText message={error} />
           {linkInvalid && (
             <p className="text-sm text-gray-600">
-              リンクが使えないときは、もう一度
+              リンクが使えないときは、
               <Link to="/forgot-password" className="mx-1 text-green-700 underline">
-                再設定のメールを送って
+                再設定の方法
               </Link>
-              ください。
+              を確かめて、新しいリンクを受け取ってください。
             </p>
           )}
           <button

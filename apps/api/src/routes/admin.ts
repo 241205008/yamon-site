@@ -6,6 +6,8 @@ import {
   WITHDRAWN_USER_NAME,
   type AdminInvitation,
   type AdminUser,
+  type IssuedInvitation,
+  type IssuedLink,
   type AuditAction,
   type AuditLogEntry,
   type Role,
@@ -19,8 +21,9 @@ import { z } from 'zod';
 import { requirePermission, type AuthedEnv } from '../auth/middleware';
 import { newToken, sha256 } from '../auth/session';
 import { schema, type Db } from '../db/client';
-import { errorBody } from '../errors';
 import { invitationExpiresAt, invitationMail, invitationStatus, invitationUrl } from '../invitations';
+import { trySend } from '../mail';
+import { issueResetToken, resetMail, resetUrl } from '../passwordResetLinks';
 import { validate } from '../validator';
 
 const { users, invitations, auditLogs, sessions, passwordResetTokens } = schema;
@@ -184,6 +187,26 @@ export const adminRoutes = new Hono<AuthedEnv>()
     return c.json({ user: toAdminUser(user) });
   })
 
+  /**
+   * パスワード再設定のリンクを発行する（D46）。リンクは応答でだけ返し、管理者が LINE などで本人に渡す。
+   * メールの設定があれば本人にも送る。管理者は本人になりすませるので、発行は操作履歴に残す
+   */
+  .post('/users/:id/password-reset', idParam, async (c) => {
+    const actor = c.get('user');
+    const { id } = c.req.valid('param');
+    const { email, token, expiresAt } = await withUserLocked(c.get('db'), actor, id, async (tx, target) => {
+      if (target.status !== 'active' || !target.email) {
+        throw conflict('有効なユーザーにだけ、再設定のリンクを発行できます');
+      }
+      const issued = await issueResetToken(tx, id);
+      await audit(tx, actor, id, 'password_reset_issued');
+      return { email: target.email, ...issued };
+    });
+    const url = resetUrl(c.get('appUrl'), c.req, token);
+    const mailSent = await trySend(c.get('mailer'), resetMail(email, url));
+    return c.json({ url, expiresAt: expiresAt.toISOString(), mailSent } satisfies IssuedLink, 201);
+  })
+
   // ---------------------------------------------------------------- 招待
   .get('/invitations', async (c) => {
     const inviter = alias(users, 'inviter');
@@ -232,38 +255,38 @@ export const adminRoutes = new Hono<AuthedEnv>()
       return created;
     });
 
-    try {
-      await c.get('mailer').send(invitationMail(email, invitationUrl(c.get('appUrl'), c.req, token)));
-    } catch (err) {
-      console.error(err);
-      // 届かない招待を残さない
-      await db.update(invitations).set({ revokedAt: new Date() }).where(eq(invitations.id, inv.id));
-      return c.json(errorBody('mail_failed', '招待メールを送れませんでした。しばらくしてからもう一度お試しください'), 502);
-    }
-    return c.json({ id: inv.id }, 201);
+    // リンクは応答で返し、管理者が画面からコピーして渡す（D46）。メールの設定があれば本人にも送る
+    const url = invitationUrl(c.get('appUrl'), c.req, token);
+    const mailSent = await trySend(c.get('mailer'), invitationMail(email, url));
+    return c.json(
+      { id: inv.id, url, expiresAt: inv.expiresAt.toISOString(), mailSent } satisfies IssuedInvitation,
+      201,
+    );
   })
 
-  /** 再送：トークンを作り直して有効期限を48時間に戻し、メールを送り直す。古いリンクは使えなくなる */
-  .post('/invitations/:id/resend', idParam, async (c) => {
+  /**
+   * リンクの作り直し：トークンを作り直して有効期限を48時間に戻す。古いリンクは使えなくなる。
+   * 新しいリンクは応答で返す（メールの設定があれば本人にも送る）
+   */
+  .post('/invitations/:id/reissue', idParam, async (c) => {
     const db = c.get('db');
     const { id } = c.req.valid('param');
     const [inv] = await db.select().from(invitations).where(eq(invitations.id, id)).limit(1);
     if (!inv) throw new HTTPException(404, { message: '招待が見つかりません' });
     const status = invitationStatus(inv);
-    if (status === 'used' || status === 'revoked') throw conflict('この招待は再送できません');
-    // 送れてから新しいトークンに入れ替える（送れなかったときに、相手の手元の古いリンクまで使えなくしない）
+    if (status === 'used' || status === 'revoked') throw conflict('この招待のリンクは作り直せません');
     const token = newToken();
-    try {
-      await c.get('mailer').send(invitationMail(inv.email, invitationUrl(c.get('appUrl'), c.req, token)));
-    } catch (err) {
-      console.error(err);
-      return c.json(errorBody('mail_failed', '招待メールを送れませんでした。しばらくしてからもう一度お試しください'), 502);
-    }
-    await db
+    const expiresAt = invitationExpiresAt();
+    // 確かめてから書き換えるまでの間に登録・取り消しされたものは書き換えない
+    const [updated] = await db
       .update(invitations)
-      .set({ tokenHash: sha256(token), expiresAt: invitationExpiresAt() })
-      .where(eq(invitations.id, id));
-    return c.json({ id });
+      .set({ tokenHash: sha256(token), expiresAt })
+      .where(and(eq(invitations.id, id), isNull(invitations.usedAt), isNull(invitations.revokedAt)))
+      .returning({ id: invitations.id });
+    if (!updated) throw conflict('この招待のリンクは作り直せません');
+    const url = invitationUrl(c.get('appUrl'), c.req, token);
+    const mailSent = await trySend(c.get('mailer'), invitationMail(inv.email, url));
+    return c.json({ id, url, expiresAt: expiresAt.toISOString(), mailSent } satisfies IssuedInvitation);
   })
 
   .post('/invitations/:id/revoke', idParam, async (c) => {
