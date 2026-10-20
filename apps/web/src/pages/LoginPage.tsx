@@ -156,12 +156,12 @@ function LoginForm({ onDone, onRegister }: { onDone: () => void; onRegister: () 
         <p className="text-center text-sm text-blue-800">
           このサイトは招待制です。
           <br />
-          管理者からの招待メールを受け取った方のみ新規登録できます。
+          管理者から招待リンクを受け取った方のみ新規登録できます。
         </p>
       </div>
 
       <p className="mt-4 text-center text-sm text-gray-600">
-        招待メールをお持ちの方は{' '}
+        招待リンクをお持ちの方は{' '}
         <button type="button" onClick={onRegister} className="text-green-600 hover:text-green-700">
           新規登録へ進む
         </button>
@@ -246,10 +246,10 @@ function RegisterForm({
               required
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="招待メールに記載されたトークン"
+              placeholder="招待リンクの invite= の後ろの文字列"
               className={`${inputClass} font-mono text-sm`}
             />
-            <p className="mt-1 text-xs text-gray-500">招待メールのリンクから開いた場合は自動で入力されます。</p>
+            <p className="mt-1 text-xs text-gray-500">招待リンクから開いた場合は自動で入力されます。</p>
           </div>
           <ErrorText message={error} />
           <button type="submit" className="w-full rounded-lg bg-green-600 py-3 text-white transition-colors hover:bg-green-700">

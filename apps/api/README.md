@@ -13,7 +13,7 @@
 | `API_PORT` | 開発で待ち受けるポート。既定 8787（`apps/web/vite.config.ts` の転送先と同じ。変えたら `API_URL` も合わせる） |
 | `PGLITE_DIR` | 開発で PGlite のデータを置くフォルダ。既定 `.data/pglite` |
 | `APP_URL` | メールに入れるリンクの起点（本番は `https://yamon-site.yamonken.workers.dev`）。なければ画面からのリクエストの `Origin` を使う。本番では設定する |
-| `SMTP_USER` / `SMTP_PASS` | メール送信（サークルの Gmail のアドレスとアプリパスワード、D22）。なければ、開発ではメールをログに出し、本番では送らずにエラーにする |
+| `SMTP_USER` / `SMTP_PASS` | 任意。メール送信（サークルの Gmail のアドレスとアプリパスワード、D22・D46）。なければメールは送らない（招待・パスワード再設定のリンクは管理者画面にだけ出す） |
 | `SMTP_HOST` / `SMTP_PORT` | 既定は `smtp.gmail.com` / `465` |
 | `MAIL_FROM` | 送信元の表示。既定は `やもんサイト <SMTP_USER>` |
 | `SETUP_TOKEN` | 初回セットアップ（ユーザーが0人のときに最初の管理者を登録する）のトークン。20文字以上。なければ初回セットアップはできない（D38） |

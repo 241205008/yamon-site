@@ -18,9 +18,9 @@ const { invitations, users } = schema;
 
 /** 招待リンクが使えない理由。リンクを開いた人に、管理者へ何を頼めばよいかが分かるように出す */
 const UNUSABLE = {
-  invalid: { status: 404, code: 'invitation_invalid', message: '招待リンクが正しくありません。メールのリンクをそのまま開いてください' },
+  invalid: { status: 404, code: 'invitation_invalid', message: '招待リンクが正しくありません。受け取ったリンクをそのまま開いてください' },
   used: { status: 410, code: 'invitation_used', message: 'この招待リンクはすでに使われています。登録済みの場合はログインしてください' },
-  expired: { status: 410, code: 'invitation_expired', message: 'この招待リンクは有効期限（48時間）が切れています。管理者に再送を頼んでください' },
+  expired: { status: 410, code: 'invitation_expired', message: 'この招待リンクは有効期限（48時間）が切れています。管理者にリンクを作り直してもらってください' },
   revoked: { status: 410, code: 'invitation_revoked', message: 'この招待は取り消されています。管理者に問い合わせてください' },
 } as const;
 

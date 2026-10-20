@@ -68,7 +68,7 @@ export function callApi(ctx: TestContext, cookie: string | undefined, method: st
   });
 }
 
-/** メール本文の招待リンクからトークンを取り出す */
+/** 招待リンク（メールの本文、または API の応答の url）からトークンを取り出す */
 export function tokenFromMail(text: string): string {
   const match = /\/login\?invite=([A-Za-z0-9_-]+)/.exec(text);
   if (!match) throw new Error(`招待リンクがありません：${text}`);

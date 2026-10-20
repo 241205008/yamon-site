@@ -1,16 +1,17 @@
 import {
-  PASSWORD_RESET_TTL_MINUTES,
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
+  type PasswordResetAvailability,
 } from '@yamon/shared';
 import { and, count, eq, gt, isNull, lte, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { AppEnv } from '../app';
 import { hashPassword } from '../auth/password';
-import { newToken, sha256 } from '../auth/session';
+import { sha256 } from '../auth/session';
 import { schema } from '../db/client';
 import { errorBody } from '../errors';
-import { appOrigin } from '../invitations';
+import { trySend } from '../mail';
+import { issueResetToken, resetMail, resetUrl } from '../passwordResetLinks';
 import { validate } from '../validator';
 
 const { users, sessions, passwordResetTokens, loginFailures } = schema;
@@ -32,28 +33,24 @@ const REQUEST_ACCEPTED = {
 
 const INVALID_LINK = errorBody(
   'reset_link_invalid',
-  'この再設定のリンクは使えません（有効期限の1時間を過ぎたか、すでに使われています）。もう一度、再設定のメールを送ってください',
+  'この再設定のリンクは使えません（有効期限の1時間を過ぎたか、すでに使われています）。新しいリンクを受け取ってください',
 );
-
-function resetMail(to: string, url: string) {
-  return {
-    to,
-    subject: 'やもんサイトのパスワード再設定',
-    text: [
-      'やもんサイトのパスワード再設定の申請を受け付けました。',
-      `次のリンクを開き、新しいパスワードを設定してください。リンクの有効期限は${PASSWORD_RESET_TTL_MINUTES}分で、1回だけ使えます。`,
-      '',
-      url,
-      '',
-      'このメールに心当たりがない場合は、何もせずに削除してください。パスワードは変わりません。',
-    ].join('\n'),
-  };
-}
 
 // トークンは URL のパスに入れない（アクセスログに残さない。D36 と同じ）
 export const passwordResetRoutes = new Hono<AppEnv>()
+  /** 本人がメールで再設定を申請できるか。メールの設定がなければ、画面は「管理者に連絡」と案内する（D46） */
+  .get('/', (c) => c.json({ selfService: c.get('mailer') !== undefined } satisfies PasswordResetAvailability))
+
   .post('/request', validate('json', passwordResetRequestSchema), async (c) => {
     const db = c.get('db');
+    const mailer = c.get('mailer');
+    // メールを送れない環境では受け付けない。登録の有無とは関係なく同じ応答なので、登録の有無は漏れない
+    if (!mailer) {
+      return c.json(
+        errorBody('mail_unavailable', 'メールでの再設定は使えません。管理者に、パスワード再設定のリンクを発行してもらってください'),
+        503,
+      );
+    }
     const { email } = c.req.valid('json');
 
     // 送りすぎの確認：先に1行記録してから数える（同時に送られてもすり抜けない）
@@ -75,23 +72,9 @@ export const passwordResetRoutes = new Hono<AppEnv>()
       .limit(1);
     if (!user) return c.json(REQUEST_ACCEPTED);
 
-    const token = newToken();
-    await db.transaction(async (tx) => {
-      // 前に送ったリンクは使えなくする（最後に届いたメールのリンクだけが使える）
-      await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, user.id));
-      await tx.insert(passwordResetTokens).values({
-        tokenHash: sha256(token),
-        userId: user.id,
-        expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MINUTES * 60 * 1000),
-      });
-    });
-    const url = `${appOrigin(c.get('appUrl'), c.req)}/reset-password?token=${encodeURIComponent(token)}`;
-    try {
-      await c.get('mailer').send(resetMail(email, url));
-    } catch (err) {
-      // 送れなかったことも応答では分からないようにする（登録の有無を漏らさない）。ログで気づく
-      console.error(err);
-    }
+    const { token } = await db.transaction((tx) => issueResetToken(tx, user.id));
+    // 送れなかったことも応答では分からないようにする（登録の有無を漏らさない）。ログで気づく
+    await trySend(mailer, resetMail(email, resetUrl(c.get('appUrl'), c.req, token)));
     return c.json(REQUEST_ACCEPTED);
   })
 

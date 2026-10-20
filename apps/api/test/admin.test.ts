@@ -46,7 +46,8 @@ describe('管理者以外は使えない', () => {
     ['POST', '/api/admin/users/00000000-0000-4000-8000-000000000000/disable'],
     ['POST', '/api/admin/users/00000000-0000-4000-8000-000000000000/enable'],
     ['POST', '/api/admin/users/00000000-0000-4000-8000-000000000000/withdraw'],
-    ['POST', '/api/admin/invitations/00000000-0000-4000-8000-000000000000/resend'],
+    ['POST', '/api/admin/invitations/00000000-0000-4000-8000-000000000000/reissue'],
+    ['POST', '/api/admin/users/00000000-0000-4000-8000-000000000000/password-reset'],
     ['POST', '/api/admin/invitations/00000000-0000-4000-8000-000000000000/revoke'],
   ];
 

@@ -57,7 +57,7 @@ const app = createApp({
   db: handle.db,
   log: true,
   cookieSecure: isProduction,
-  mailer: await mailerFromEnv(process.env, isProduction),
+  mailer: await mailerFromEnv(process.env),
   appUrl: process.env.APP_URL,
   setupToken,
   mapData: { workflow: mapDataWorkflow, authorize: requirePermission('mapData.update') },

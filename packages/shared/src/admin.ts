@@ -34,6 +34,22 @@ export const invitationAcceptInputSchema = z.object({
 });
 export type InvitationAcceptInput = z.input<typeof invitationAcceptInputSchema>;
 
+/**
+ * 管理者が発行したリンク（招待・パスワード再設定、D46）。リンクはこの応答でだけ受け取れる（DB にはハッシュだけ）。
+ * 管理者は画面でコピーして、LINE などで本人に渡す
+ */
+export interface IssuedLink {
+  url: string;
+  expiresAt: string;
+  /** メールの設定（SMTP）がある環境で、本人にメールでも送れたか */
+  mailSent: boolean;
+}
+
+/** POST /api/admin/invitations・/invitations/:id/reissue の応答 */
+export interface IssuedInvitation extends IssuedLink {
+  id: string;
+}
+
 /** 招待リンクを開いたときに見せる内容（POST /api/invitations/lookup） */
 export interface InvitationInfo {
   email: string;
@@ -72,7 +88,7 @@ export interface AdminInvitation {
   expiresAt: string;
 }
 
-export const AUDIT_ACTIONS = ['role_changed', 'disabled', 'enabled', 'withdrawn'] as const;
+export const AUDIT_ACTIONS = ['role_changed', 'disabled', 'enabled', 'withdrawn', 'password_reset_issued'] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
@@ -80,6 +96,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   disabled: '無効化',
   enabled: '有効化',
   withdrawn: '退会処理',
+  password_reset_issued: '再設定リンクの発行',
 };
 
 /** 操作履歴（GET /api/admin/audit-logs） */

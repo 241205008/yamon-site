@@ -5,7 +5,7 @@ import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { sameSecret } from './auth/session';
 import type { Db } from './db/client';
-import { consoleMailer, type Mailer } from './mail';
+import type { Mailer } from './mail';
 import { errorBody, handleError } from './errors';
 import { adminRoutes } from './routes/admin';
 import { authRoutes } from './routes/auth';
@@ -21,7 +21,8 @@ import { setupRoutes } from './routes/setup';
 export interface AppEnv {
   Variables: {
     db: Db;
-    mailer: Mailer;
+    /** メールの送り方。設定がなければ undefined（リンクは管理者画面にだけ出す、D46） */
+    mailer: Mailer | undefined;
     /** メールに入れるリンクの起点（例 https://yamon.pages.dev）。なければリクエストの Origin を使う */
     appUrl: string | undefined;
     /** 初回セットアップのトークン（環境変数 SETUP_TOKEN）。なければ初回セットアップはできない */
@@ -42,7 +43,7 @@ export interface AppDeps {
    * 開発（http://localhost）では付けない（Safari は localhost でも Secure の Cookie を送らない）
    */
   cookieSecure?: boolean;
-  /** メールの送り方（mail.ts）。既定は送らずにログに出す */
+  /** メールの送り方（mail.ts）。既定は送らない（招待・再設定のリンクは管理者画面にだけ出す、D46） */
   mailer?: Mailer;
   /** メールに入れるリンクの起点（環境変数 APP_URL） */
   appUrl?: string;
@@ -71,7 +72,7 @@ export function createApp({
   db,
   log = false,
   cookieSecure = true,
-  mailer = consoleMailer,
+  mailer,
   appUrl,
   setupToken,
   mapData = {},

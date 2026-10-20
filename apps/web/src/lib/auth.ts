@@ -2,6 +2,7 @@ import type {
   InvitationAcceptInput,
   InvitationInfo,
   MeResponse,
+  PasswordResetAvailability,
   PasswordResetConfirmInput,
   SessionUser,
   SetupInput,
@@ -98,6 +99,11 @@ export async function setupFirstAdmin(input: SetupInput): Promise<SessionUser> {
   const { user } = await apiFetch<MeResponse>('/api/setup', { method: 'POST', body: input });
   setUser(user);
   return user!;
+}
+
+/** 本人がメールで再設定を申請できるか（メールの設定がなければ、管理者がリンクを発行する、D46） */
+export async function fetchPasswordResetAvailability(): Promise<PasswordResetAvailability> {
+  return apiFetch<PasswordResetAvailability>('/api/password-reset');
 }
 
 /** パスワード再設定のメールを送ってもらう。登録されていてもいなくても同じ案内（message）が返る */

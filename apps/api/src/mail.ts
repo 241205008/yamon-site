@@ -1,6 +1,7 @@
 /**
- * メール送信（D22・D36）。送り方はこのインターフェースの裏に隠し、Gmail（SMTP）と Resend などを差し替えられるようにする。
- * ルートは c.get('mailer') で受け取る。テストでは送ったメールを配列にためる mailer を渡す
+ * メール送信（D22・D36・D46）。送り方はこのインターフェースの裏に隠し、Gmail（SMTP）と Resend などを差し替えられるようにする。
+ * ルートは c.get('mailer') で受け取る。設定（SMTP）がなければ undefined で、招待・再設定のリンクは管理者画面にだけ出す。
+ * テストでは送ったメールを配列にためる mailer を渡す
  */
 export interface MailMessage {
   to: string;
@@ -12,19 +13,20 @@ export interface Mailer {
   send(message: MailMessage): Promise<void>;
 }
 
-/** 開発用：実際には送らず、ログに出す（招待やパスワード再設定のリンクを、ログからコピーして開ける） */
-export const consoleMailer: Mailer = {
-  async send({ to, subject, text }) {
-    console.log(`[mail] To: ${to}\n[mail] Subject: ${subject}\n${text}\n[mail] ----`);
-  },
-};
-
-/** 送信の設定がない本番：送らずにエラーにする（リンクをログに残さない） */
-export const unconfiguredMailer: Mailer = {
-  async send() {
-    throw new Error('メール送信が設定されていません（SMTP_USER・SMTP_PASS）');
-  },
-};
+/**
+ * 送れるならメールを送り、送れたかを返す。送り方がない・送れなかったときは false。
+ * リンクは管理者画面に出ているので、送れなくても操作は失敗にしない。失敗はログにだけ出す
+ */
+export async function trySend(mailer: Mailer | undefined, message: MailMessage): Promise<boolean> {
+  if (!mailer) return false;
+  try {
+    await mailer.send(message);
+    return true;
+  } catch (err) {
+    console.error(err);
+    return false;
+  }
+}
 
 export interface SmtpOptions {
   host: string;
@@ -52,8 +54,8 @@ export async function createSmtpMailer(options: SmtpOptions): Promise<Mailer> {
   };
 }
 
-/** 環境変数から送り方を決める（src/index.ts から呼ぶ） */
-export async function mailerFromEnv(env: NodeJS.ProcessEnv, isProduction: boolean): Promise<Mailer> {
+/** 環境変数から送り方を決める（src/index.ts から呼ぶ）。SMTP の設定がなければ送らない（undefined） */
+export async function mailerFromEnv(env: NodeJS.ProcessEnv): Promise<Mailer | undefined> {
   const { SMTP_USER: user, SMTP_PASS: pass } = env;
   if (user && pass) {
     const port = Number(env.SMTP_PORT ?? 465);
@@ -68,11 +70,8 @@ export async function mailerFromEnv(env: NodeJS.ProcessEnv, isProduction: boolea
       from: env.MAIL_FROM ?? `やもんサイト <${user}>`,
     });
   }
-  if (isProduction) {
-    console.warn('SMTP_USER・SMTP_PASS がないため、メールを送れません（招待・パスワード再設定は失敗します）');
-    return unconfiguredMailer;
-  }
-  return consoleMailer;
+  console.log('SMTP_USER・SMTP_PASS がないため、メールは送りません（招待・パスワード再設定のリンクは管理者画面に出ます）');
+  return undefined;
 }
 
 /** 送ったメールをためるだけの mailer（テスト用） */
