@@ -61,7 +61,7 @@ export function IssuedLinkModal({
   };
 
   return (
-    <Modal open onClose={onClose} title={text.title}>
+    <Modal open onClose={onClose} title={text.title} dismissible={false}>
       <div className="space-y-4">
         <p className="text-sm text-gray-700">
           <span className="font-bold break-all">{to}</span> に、次の文を LINE などで送ってください。

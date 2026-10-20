@@ -83,25 +83,28 @@ export function Modal({
   title,
   children,
   wide = false,
+  dismissible = true,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
   wide?: boolean;
+  /** false なら、外側のクリックや Esc では閉じない（×と閉じるボタンだけ）。閉じると取り戻せない内容を見せるときに使う */
+  dismissible?: boolean;
 }) {
   useEffect(() => {
-    if (!open) return;
+    if (!open || !dismissible) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, dismissible]);
 
   if (!open) return null;
   return (
     <div
       className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
+      onClick={dismissible ? onClose : undefined}
     >
       <div
         role="dialog"
