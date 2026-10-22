@@ -3,7 +3,7 @@
 #
 # 1段目で依存を入れて1ファイルにまとめ（build.mjs）、2段目には実行に要るものだけを置く
 
-FROM node:22-bookworm-slim AS build
+FROM node:22.23.4-bookworm-slim AS build
 WORKDIR /repo
 # workspace の解決に各 package.json が要る。依存のインストールは @yamon/api の分だけにする
 COPY package.json package-lock.json ./
@@ -15,7 +15,7 @@ COPY packages/shared packages/shared
 COPY apps/api apps/api
 RUN npm run build -w @yamon/api
 
-FROM node:22-bookworm-slim
+FROM node:22.23.4-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /repo/apps/api/dist ./dist
