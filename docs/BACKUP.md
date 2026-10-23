@@ -92,14 +92,14 @@ PR でこれらのスクリプトか `backup.yml` かマイグレーション（
 1. Actions 画面の「DB backup」で、毎日成功していること、最後の実行が昨日か今日であることを見る
 2. R2 の `yamon-backup` に、3日分（3〜4個）のファイルがあることを見る（多すぎればライフサイクルルールを、少なければ失敗を確かめる）
 3. 一番新しいファイルを落とし、「復元」の手順2〜3で、Neon の確認用のデータベース（例 `restore_check`）に戻す
-4. 本番と比べる（戻してから比べるまでの間に増えた記録の分だけ違うことがある。表の行数がほぼ同じなら OK）
+4. 本番と、表ごとの行数を並べて見る。本番はバックアップの後も記録やログインで変わるので、ぴったりは一致しない。`users`・`observation_records`・`events`・`creatures`・`main_locations` の行数がほぼ同じ（バックアップの後に増えた分だけ本番が多い）なら OK。戻した方が明らかに少ない・表がない（`-`）なら、バックアップが壊れている
 
    ```bash
    read -rsp "本番の接続文字列: " PROD_URL && echo
    ```
 
    ```bash
-   bash scripts/db-backup/compare.sh "$PROD_URL" "$TARGET_DATABASE_URL"
+   bash scripts/db-backup/compare.sh --counts "$PROD_URL" "$TARGET_DATABASE_URL"
    ```
 
 5. 確認用のデータベースを Neon で消し、落としたファイルを消す（`rm`）。`unset PROD_URL TARGET_DATABASE_URL` で接続文字列も消す

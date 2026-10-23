@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 # 2つの DB の中身が同じかを、表ごとの行数と、全行をつないだ文字列の MD5 で比べる（D49、docs/BACKUP.md）。
 #   bash scripts/db-backup/compare.sh <元の DB の URL> <戻した DB の URL>
-# 同じなら終了コード 0、違えば差分を出して 1
+# 同じなら終了コード 0、違えば差分を出して 1。
+#   bash scripts/db-backup/compare.sh --counts <本番の URL> <戻した DB の URL>
+# は、使っている本番と比べる月1回の確認用。表ごとの行数を左右に並べて出すだけで、失敗にはしない
+# （本番はバックアップの後も記録やログインで変わるため、ぴったりは一致しない）
 set -euo pipefail
 
-a="${1:?使い方: bash scripts/db-backup/compare.sh <URL1> <URL2>}"
-b="${2:?使い方: bash scripts/db-backup/compare.sh <URL1> <URL2>}"
+counts_only=""
+if [ "${1:-}" = "--counts" ]; then
+  counts_only=1
+  shift
+fi
+a="${1:?使い方: bash scripts/db-backup/compare.sh [--counts] <URL1> <URL2>}"
+b="${2:?使い方: bash scripts/db-backup/compare.sh [--counts] <URL1> <URL2>}"
 PG_IMAGE="${PG_IMAGE:-postgres:17}"
 
 # システム以外のすべての表（マイグレーションの記録 drizzle.__drizzle_migrations も含む）について
@@ -29,6 +37,14 @@ right=$(summary "$b")
 if [ -z "$left" ]; then
   echo "元の DB に表がありません" >&2
   exit 1
+fi
+if [ -n "$counts_only" ]; then
+  echo "表ごとの行数（左：1つ目の DB、右：2つ目の DB）"
+  join -a 1 -a 2 -e '-' -o 0,1.2,2.2 <(printf '%s
+' "$left" | awk '{print $1, $2}' | sort)     <(printf '%s
+' "$right" | awk '{print $1, $2}' | sort) | awk '{printf "  %-40s %8s %8s
+", $1, $2, $3}'
+  exit 0
 fi
 if [ "$left" != "$right" ]; then
   echo "中身が違います（< 元 / > 戻した方）：" >&2

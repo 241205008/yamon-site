@@ -156,3 +156,7 @@ jobs:
             exit 1
           fi
           echo "違いを見つけた（期待どおり）"
+          # 月1回の確認用（--counts）は、違いがあっても失敗にせず行数を並べる
+          out=$(bash scripts/db-backup/compare.sh --counts "$SOURCE_URL" "$TARGET_URL")
+          echo "$out"
+          echo "$out" | grep -Eq 'public\.observation_records +3 +2$'
