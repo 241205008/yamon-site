@@ -146,3 +146,13 @@ jobs:
         run: |
           docker run --rm --network host -e DATABASE_URL="$TARGET_URL" yamon-api node dist/migrate.js
           bash scripts/db-backup/compare.sh "$SOURCE_URL" "$TARGET_URL"
+      # 比べ方が違いを見逃さないこと（1行消すと失敗する）
+      - name: Compare detects a difference
+        run: |
+          docker run --rm --network host "$PG_IMAGE" psql "$TARGET_URL" --quiet \
+            -c "delete from observation_records where location_type = 'none'"
+          if bash scripts/db-backup/compare.sh "$SOURCE_URL" "$TARGET_URL"; then
+            echo "::error::1行消しても「同じ」と判定しました"
+            exit 1
+          fi
+          echo "違いを見つけた（期待どおり）"
