@@ -66,7 +66,8 @@ export function MapPage() {
     <PageBackground>
       <BackBar to="/" label="記録画面に戻る" />
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-4">
-        <aside className="h-fit rounded-xl bg-white p-6 shadow-md lg:col-span-1">
+        {/* lg より狭い画面では地図を先に出し、フィルターは地図の下に並べる（#39、D48）。パソコンは左にフィルター・右に地図 */}
+        <aside className="order-2 h-fit rounded-xl bg-white p-6 shadow-md lg:order-1 lg:col-span-1">
           <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-900">
             <Filter className="h-5 w-5" />
             生き物フィルター
@@ -128,7 +129,7 @@ export function MapPage() {
           </div>
         </aside>
 
-        <section className="relative h-[600px] overflow-hidden rounded-xl shadow-md lg:col-span-3">
+        <section className="relative order-1 h-[60vh] min-h-[360px] overflow-hidden rounded-xl shadow-md lg:order-2 lg:col-span-3 lg:h-[600px]">
           <SurveyMap center={MAP_CENTER} zoom={14} className="h-full w-full">
             <CenterTracker onChange={setCenter} />
             {groups.map((g) => (
