@@ -784,18 +784,21 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
 
 - **背景（2026-10-22、#62）**：Node.js の 2026-10-21 のセキュリティリリースで、22.x に影響する脆弱性7件（High 3件：Brotli のデコーダーの範囲外書き込み CVE-2026-111497、TLS 証明書のホスト名の確認のすり抜け CVE-2026-106069、`dns.resolve` の名前の切り詰め CVE-2026-105482）が 22.23.4 で直った。これまでは API の Docker イメージを `node:22-bookworm-slim`、CI を `node-version: 22` とメジャー版だけで指定していたため、どの版で動くかがビルドの時期や runner のキャッシュで変わり、修正が入ったかどうかをリポジトリから確かめられなかった。PHP はこのリポジトリで使っていない。画面（Cloudflare Workers）は workerd で動くため、Node.js の影響を受けない。
 - **決定**
-  - API の Dockerfile（2か所）を `node:22.23.4-bookworm-slim`、`ci.yml`・`map-data.yml` の `node-version` を `22.23.4` に固定する。
-  - Node.js のセキュリティリリース（[公式の一覧](https://nodejs.org/en/blog/vulnerability)）が出たら、Issue を立てて3か所の版を上げ、main へのマージで API を再デプロイする。
+  - 版はリポジトリのルートの `.node-version`（今は `22.23.4`）で決める。手元の nvm・fnm・Volta もこのファイルを読む。
+  - CI：`ci.yml` の check と `map-data.yml` は `setup-node` の `node-version-file: .node-version` で入れる。checkout しない deploy ジョブ（wrangler でのデプロイ）は、check ジョブの出力で同じ版を `setup-node` で入れる。入れないと、wrangler は runner に入っている版で動く。
+  - API のイメージ：Dockerfile は `ARG NODE_VERSION` の `node:${NODE_VERSION}-bookworm-slim`（ビルドと実行の2段とも）。CI は `--build-arg NODE_VERSION="$(cat .node-version)"` で渡す。ARG の既定値（手元でのビルド用）が `.node-version` と違うと、CI の check が失敗する。
+  - Node.js のセキュリティリリース（[公式の一覧](https://nodejs.org/en/blog/vulnerability)）が出たら、Issue を立てて `.node-version` と Dockerfile の ARG の既定値の2か所を上げ、main へのマージで API を再デプロイする。
   - メジャー版は 22 のまま（D31）。
 - **採用理由**
   - 動く版がリポジトリに書かれるので、修正版が入ったことを差分と CI のログで確かめられる。
-  - 本番の API・CI・地図の切り出しが同じ版で動く。
+  - 本番の API・CI・wrangler でのデプロイ・地図の切り出しが同じ版で動く。版を書く場所は2か所で、ずれたら CI が止める。
   - main へのマージで新しいイメージがビルドされ、Cloud Run に再デプロイされる（D23・D44 の CI）。
 - **比較した案**
   - **メジャー版だけの指定のまま**（`node:22-bookworm-slim`、`node-version: 22`）：何もしなくても、次のビルドで最新の 22.x が入ることが多い。ただし setup-node は runner にキャッシュされた古い版を使うことがあり、Docker もビルドのキャッシュで古いイメージを使うことがある。修正が入ったかをリポジトリから確かめられない。
   - **`node-version: 22` に `check-latest: true` を付ける**：CI は毎回最新の 22.x を取りに行くが、Docker 側の問題は残り、CI と本番の版がずれることがある。
+  - **ファイルにまとめず、各所に版を直接書く**：分かりやすいが、Dockerfile の2段・CI の各ジョブと書く場所が増え、上げ忘れが起きやすい。最初の案ではこの形で、wrangler のジョブが漏れていた。
   - **イメージを digest（`@sha256:...`）で固定する**：もっとも厳密だが、上げるたびに digest を調べる手間が増え、引き継ぎ（D21）で扱いにくい。
   - **Dependabot・Renovate で自動で上げる PR を出す**：上げ忘れを防げるが、設定とレビューの手間が増える。サークルに保守できる人がいないため、今は入れない。
   - **Node.js 24（LTS）に上げる**：組み込みの `crypto.argon2`（D33）を使えるが、変更が大きく、締め切り（10/21）の後の修正としては範囲が広い。22.x の保守は 2027-04 まで続く。
-- **弱くなること**：セキュリティリリースのたびに、手で3か所を上げる必要がある。引き継ぎ資料（#16）に手順を書く。
+- **弱くなること**：セキュリティリリースのたびに、手で2か所を上げる必要がある。引き継ぎ資料（#16）に手順を書く。手元の Node.js は自動では上がらない（nvm などを使わない人は、自分で入れ直す）。
 - **再検討する条件**：Node.js 22 の保守が終わる前（2027-04）。上げ忘れが起きたら、Dependabot を入れる。
