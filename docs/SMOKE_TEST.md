@@ -31,7 +31,7 @@ CLOUD_RUN_URL=https://yamon-api-xxxx.asia-southeast1.run.app bash scripts/smoke-
 - PR のプレビュー：`bash scripts/smoke-test.sh https://pr-<番号>-yamon-site.yamonken.workers.dev --preview`（API につながらず 503 になることを確かめる、D45）
 - 手元の開発環境：`npm run dev` の後に `bash scripts/smoke-test.sh http://localhost:5173 --no-map`（地図データを手元に置いていなければ `--no-map`）
 
-失敗が1つでもあれば、終わりに「失敗 N件」と出て、終了コードが 1 になります。
+失敗が1つでもあれば、終わりに「失敗 N件」と出て、終了コードが 1 になります。Worker 経由の `/api/health` が通らないときは、後の API の確認を飛ばします（同じ理由で失敗するだけのため）。
 
 ## 2. 画面での確認（チェックリスト）
 
@@ -48,10 +48,10 @@ CLOUD_RUN_URL=https://yamon-api-xxxx.asia-southeast1.run.app bash scripts/smoke-
 
 幹部から届いた一覧（CSV：`名前,緯度,経度`）を本番の DB に入れます（D37）。一覧がまだなら、管理者画面の「主な場所」から手で足すか、後に回します。
 
-1. 本番の DB の接続文字列（Neon）を、そのときだけ環境変数に入れる。大学などのネットワークで 5432 番につながらないときは、Cloud Shell（リポジトリを clone して `npm ci`）で行う
+1. 本番の DB の接続文字列（Neon）を、そのときだけ環境変数に入れる。次を実行すると、何も表示されずに入力待ちになるので、接続文字列を貼り付けて Enter を押す（貼り付けた文字は表示されない）。大学などのネットワークで 5432 番につながらないときは、Cloud Shell（リポジトリを clone して `npm ci`）で行う
 
    ```bash
-   read -rs DATABASE_URL && export DATABASE_URL
+   read -rsp "接続文字列: " DATABASE_URL && echo && export DATABASE_URL
    ```
 
 2. 確認だけ（DB は変わらない）。追加される場所の一覧が出る
