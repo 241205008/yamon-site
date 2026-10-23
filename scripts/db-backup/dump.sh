@@ -17,8 +17,7 @@ docker run --rm --network host -e DATABASE_URL -v "$dir:/backup" "$PG_IMAGE" \
 # 書き出したファイルの目次が読めることを確かめる（壊れたファイルを置かない）
 # pg_restore が失敗したら（set -e で）ここで止まる。grep の「0件」だけを許す
 list=$(docker run --rm -v "$dir:/backup" "$PG_IMAGE" pg_restore --list "/backup/$name")
-tables=$(printf '%s
-' "$list" | grep -c ' TABLE DATA ' || true)
+tables=$(printf '%s\n' "$list" | grep -c ' TABLE DATA ' || true)
 if [ "$tables" -eq 0 ]; then
   echo "書き出したファイルに表のデータがありません：$out" >&2
   exit 1

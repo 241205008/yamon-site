@@ -40,10 +40,10 @@ if [ -z "$left" ]; then
 fi
 if [ -n "$counts_only" ]; then
   echo "表ごとの行数（左：1つ目の DB、右：2つ目の DB）"
-  join -a 1 -a 2 -e '-' -o 0,1.2,2.2 <(printf '%s
-' "$left" | awk '{print $1, $2}' | sort)     <(printf '%s
-' "$right" | awk '{print $1, $2}' | sort) | awk '{printf "  %-40s %8s %8s
-", $1, $2, $3}'
+  join -a 1 -a 2 -e '-' -o 0,1.2,2.2 \
+    <(printf '%s\n' "$left" | awk '{print $1, $2}' | sort) \
+    <(printf '%s\n' "$right" | awk '{print $1, $2}' | sort) |
+    awk '{printf "  %-40s %8s %8s\n", $1, $2, $3}'
   exit 0
 fi
 if [ "$left" != "$right" ]; then
