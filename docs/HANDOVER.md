@@ -45,7 +45,7 @@
 ### 3-1. サークルの Gmail
 
 - [ ] パスワードを変える（前の代表が知っている値を使えなくする）
-- [ ] 2段階認証の電話番号・認証アプリを、新しい代表のものに変える。バックアップコードを作り直し、紙で保管する（古い紙は捨てる）
+- [ ] 2段階認証が設定されていなければ設定する（各サービスの持ち主のアカウントなので、パスワードだけで守らない）。設定済みなら、電話番号・認証アプリを新しい代表のものに変える。どちらの場合も、バックアップコードを作り直して紙で保管する（古い紙は捨てる）
 - [ ] 再設定用のメールアドレス・電話番号を、新しい代表のものに変える
 - [ ] メールも送る設定（`yamon-smtp-pass`）を使っている場合だけ：パスワードを変えるとアプリパスワードが無効になるので、作り直して開発者に渡し、Secret Manager を上書きしてもらう（D22・D46）
 
@@ -88,7 +88,7 @@
 
 リポジトリの名前が変わるため、次の3か所を直さないと、自動デプロイ・バックアップが止まります。開発者と一緒に行います。
 
-- [ ] 「Settings → Transfer」で移す。Issue・PR・履歴・Secret・Variable・Actions はそのまま残る
+- [ ] 移す前に、2章の Secret・Variable の名前の一覧を控える（値は控えない）。「Settings → Transfer」で移す。Issue・PR・履歴は残る。Secret・Variable・環境（production）が残るかは【本番後に確認】：移した後に `gh secret list`・`gh variable list`・`gh secret list --env production` で確かめ、なければ作り直して登録する
 - [ ] Google Cloud の Workload Identity 連携の条件（`apps/api/deploy/setup-gcp.sh` の `GITHUB_SUBJECT`、`repo:<持ち主>/<名前>:environment:production`）を新しい名前に直し、プロバイダの条件とサービスアカウントの権限を作り直す【本番後に確認】：手順を実際に試す
 - [ ] 地図データの更新用の token（`yamon-github-map-data-token`）を、新しいリポジトリを対象にして作り直す。API の環境変数 `GITHUB_REPOSITORY`（なければ `241205008/yamon-site`）を、`ci.yml` の `--set-env-vars` に新しい名前で足す
 - [ ] DB のバックアップの失敗通知は、`backup.yml` の `cron` の行を最後に変えた人に届く。新しい担当者が `cron` の行を変える commit を入れる（docs/BACKUP.md の「失敗したとき」）
