@@ -127,7 +127,7 @@ docs/
 
 GitHub Actions（`.github/workflows/ci.yml`）で、型チェック・テスト・ビルドが通ったあとに Cloudflare Workers へデプロイします。画面のファイルは静的アセットとして配信し、`/map/*`（地図データ）と `/api/*`（API。Cloud Run へ転送する）だけ Worker を通します。main では、画面の前に API を Cloud Run へデプロイします。理由と他の案は [docs/DECISIONS.md の D42・D23・D44・D45](docs/DECISIONS.md) を参照してください。
 
-API・DB・メール（Cloud Run・Neon・Gmail）の準備は [docs/DEPLOY_API.md](docs/DEPLOY_API.md) を参照してください。準備が終わるまで（GitHub の Variable `GCP_PROJECT_ID` がない間）は、API のデプロイを省略します。サークルへの引き継ぎは [docs/HANDOVER.md](docs/HANDOVER.md)（下書き）を参照してください。
+API・DB・メール（Cloud Run・Neon・Gmail）の準備は [docs/DEPLOY_API.md](docs/DEPLOY_API.md) を参照してください。準備が終わるまで（GitHub の Variable `GCP_PROJECT_ID` がない間）は、API のデプロイを省略します。公開した後の確認（スモークテスト）は [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md) の順に行います（`bash scripts/smoke-test.sh` で外から確かめられる点をまとめて確かめる）。DB のバックアップと復元は [docs/BACKUP.md](docs/BACKUP.md) を参照してください。サークルへの引き継ぎは [docs/HANDOVER.md](docs/HANDOVER.md)（下書き）を参照してください。
 
 | きっかけ | デプロイ先 |
 |---|---|

@@ -1,0 +1,162 @@
+name: DB backup
+
+# 本番の DB（Neon）を毎日 pg_dump で書き出し、R2 のバックアップ用バケットに置く（DECISIONS D32・D49、docs/BACKUP.md）。
+# 古いものは R2 のライフサイクルルールで3日後に消える。失敗したら GitHub Actions の失敗通知が届く。
+# verify ジョブは、テスト用の DB で「書き出し → 別の DB に戻す → 中身を比べる」を流し、手順が壊れていないかを確かめる
+on:
+  schedule:
+    # 毎日 3:00（日本時間）。GitHub の混雑で数十分遅れることがある
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/backup.yml
+      - scripts/db-backup/**
+      - apps/api/drizzle/**
+
+permissions:
+  contents: read
+
+# 2つ同時に走らせない（同じ時刻の名前で上書きしないように）
+concurrency:
+  group: db-backup-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+
+env:
+  # 本番の Neon と同じメジャー版（D17・D44）。pg_dump・pg_restore はこのイメージで動かす
+  PG_IMAGE: postgres:17
+
+# runner は ubuntu-24.04 に固定する（D43）
+jobs:
+  backup:
+    name: Backup (Neon → R2)
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # DATABASE_URL は production 環境の Secret（main からしか使えない、D44）
+    environment: production
+    steps:
+      # 本番の準備（#14・#15）が終わるまでは Secret がないので、失敗にせず警告を出して省略する
+      - name: Check secrets
+        id: secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_R2_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+          BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BACKUP_BUCKET: ${{ vars.BACKUP_BUCKET }}
+        run: |
+          missing=""
+          for name in DATABASE_URL BACKUP_R2_ACCESS_KEY_ID BACKUP_R2_SECRET_ACCESS_KEY CLOUDFLARE_ACCOUNT_ID BACKUP_BUCKET; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::warning::次の Secret / Variable が未設定のため、バックアップを省略します:$missing（docs/BACKUP.md）"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          sparse-checkout: scripts/db-backup
+
+      - name: Dump
+        id: dump
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          # 名前は UTC の日時。並べると古い順になる
+          key="yamon-$(date -u +%Y%m%d-%H%M%S).dump"
+          bash scripts/db-backup/dump.sh "$RUNNER_TEMP/$key"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -c %s "$RUNNER_TEMP/$key")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to R2
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # 新しい aws cli は R2 が対応していない checksum を既定で付けるため、必要なときだけにする（D34）
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          BUCKET: ${{ vars.BACKUP_BUCKET }}
+          KEY: ${{ steps.dump.outputs.key }}
+          SIZE: ${{ steps.dump.outputs.size }}
+        run: |
+          aws s3 cp "$RUNNER_TEMP/$KEY" "s3://$BUCKET/$KEY" \
+            --endpoint-url "$R2_ENDPOINT" --content-type application/octet-stream --only-show-errors
+          # 置いたものの大きさを確かめる
+          uploaded=$(aws s3api head-object --bucket "$BUCKET" --key "$KEY" --endpoint-url "$R2_ENDPOINT" | jq -r '.ContentLength')
+          if [ "$uploaded" != "$SIZE" ]; then echo "::error::アップロードした大きさが違います: $uploaded（期待: $SIZE）"; exit 1; fi
+          # 残っているバックアップの数（3日分のはず。ライフサイクルルールが効いているかの目安）
+          count=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix yamon- --endpoint-url "$R2_ENDPOINT" | jq '[.Contents[]?] | length')
+          {
+            echo "### DB のバックアップ"
+            echo "- ファイル: \`$KEY\`（$SIZE バイト）"
+            echo "- バケットにあるバックアップ: ${count}個"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$count" -gt 5 ]; then
+            echo "::warning::バックアップが ${count}個あります。R2 のライフサイクルルール（3日で削除）を確かめてください（docs/BACKUP.md）"
+          fi
+
+  verify:
+    name: Verify dump and restore
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SOURCE_URL: postgres://postgres:postgres@localhost:5432/source
+      TARGET_URL: postgres://postgres:postgres@localhost:5432/restored
+    steps:
+      - uses: actions/checkout@v7
+      # 本番と同じテーブル定義にするため、API のイメージでマイグレーションを流す（D30）
+      - name: Prepare source DB
+        run: |
+          docker build -f apps/api/Dockerfile --build-arg NODE_VERSION="$(cat .node-version)" -t yamon-api .
+          docker run --rm --network host "$PG_IMAGE" psql postgres://postgres:postgres@localhost:5432/postgres \
+            -c 'create database source' -c 'create database restored'
+          docker run --rm --network host -e DATABASE_URL="$SOURCE_URL" yamon-api node dist/migrate.js
+          docker run --rm -i --network host "$PG_IMAGE" psql "$SOURCE_URL" --set ON_ERROR_STOP=1 --quiet \
+            < scripts/db-backup/sample-data.sql
+      - name: Dump
+        run: DATABASE_URL="$SOURCE_URL" bash scripts/db-backup/dump.sh "$RUNNER_TEMP/test.dump"
+      - name: Restore into another DB
+        run: TARGET_DATABASE_URL="$TARGET_URL" bash scripts/db-backup/restore.sh "$RUNNER_TEMP/test.dump"
+      - name: Compare
+        run: bash scripts/db-backup/compare.sh "$SOURCE_URL" "$TARGET_URL"
+      # 戻した DB でも、マイグレーションの記録が引き継がれ、マイグレーションを流し直しても何も変わらない
+      - name: Migrate restored DB
+        run: |
+          docker run --rm --network host -e DATABASE_URL="$TARGET_URL" yamon-api node dist/migrate.js
+          bash scripts/db-backup/compare.sh "$SOURCE_URL" "$TARGET_URL"
+      # 比べ方が違いを見逃さないこと（1行消すと失敗する）
+      - name: Compare detects a difference
+        run: |
+          docker run --rm --network host "$PG_IMAGE" psql "$TARGET_URL" --quiet \
+            -c "delete from observation_records where location_type = 'none'"
+          if bash scripts/db-backup/compare.sh "$SOURCE_URL" "$TARGET_URL"; then
+            echo "::error::1行消しても「同じ」と判定しました"
+            exit 1
+          fi
+          echo "違いを見つけた（期待どおり）"
+          # 月1回の確認用（--counts）は、違いがあっても失敗にせず行数を並べる
+          out=$(bash scripts/db-backup/compare.sh --counts "$SOURCE_URL" "$TARGET_URL")
+          echo "$out"
+          echo "$out" | grep -Eq 'public\.observation_records +3 +2$'
