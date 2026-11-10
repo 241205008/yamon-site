@@ -26,7 +26,7 @@ PR でこれらのスクリプトか `backup.yml` かマイグレーション（
 
 ## 初回の設定
 
-本番の DB（[DEPLOY_API.md](DEPLOY_API.md)）ができた後に行います。Cloudflare はサークルのアカウントで作業します（D21）。R2 を使うには、Cloudflare のアカウントにお支払い方法の登録が要ることがあります（無料枠の範囲なら請求は0円）。
+本番の DB（[DEPLOY_API.md](DEPLOY_API.md)）ができた後に行います。Cloudflare はサークルのアカウントで作業します（D21）。R2 を使うには、Cloudflare のアカウントにお支払い方法の登録が要ります（無料枠の範囲なら請求は0円）。今は開発者のカードを登録しています（docs/HANDOVER.md の 1・3-2）。
 
 1. **バケットを作る**：Cloudflare の「R2 Object Storage」→「Create bucket」。名前 `yamon-backup`、Location は「Automatic」（または Asia-Pacific）。地図データのバケット（#25）とは分ける
 2. **3日で消すルール**：作ったバケットの「Settings」→「Object lifecycle rules」→「Add rule」
