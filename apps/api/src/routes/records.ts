@@ -159,7 +159,7 @@ export const recordRoutes = new Hono<AuthedEnv>()
     };
     return c.json(body);
   })
-  /** マップに出す記録（座標があり、場所を指定した記録）。絞り込みはすべて AND */
+  /** マップに出す記録（座標があり、場所を指定した記録。位置を隠す記録は除く）。絞り込みはすべて AND */
   .get('/map', requirePermission('records.view'), validate('query', mapQuerySchema), async (c) => {
     const { creatureId, month, timeOfDay } = c.req.valid('query');
     const rows = await selectRecords(c.get('db'))
@@ -174,7 +174,9 @@ export const recordRoutes = new Hono<AuthedEnv>()
       )
       .orderBy(...NEWEST_FIRST);
     const viewer = c.get('user');
-    return c.json({ records: rows.map((row) => toRecordView(row, viewer)) });
+    // 位置を隠す記録はピンを立てられないので、マップには出さない（D52）
+    const records = rows.map((row) => toRecordView(row, viewer)).filter((rec) => !rec.locationHidden);
+    return c.json({ records });
   })
   .post('/', requirePermission('records.create'), validate('json', recordInputSchema), async (c) => {
     const db = c.get('db');

@@ -157,7 +157,7 @@ function CreatureEditModal({
             <span>
               位置を保護する（各県のレッドデータブックで絶滅危惧種の生き物）
               <span className="block text-xs text-red-700">
-                部員と OB・OG には、記録の位置を約1km単位に丸めて表示します。記録した本人と管理者・幹部には正確な位置を表示します。
+                部員と OB・OG には、記録の場所（場所名・座標）を表示せず、マップにも出しません。記録した本人と管理者・幹部には正確な位置を表示します。
               </span>
             </span>
           </label>

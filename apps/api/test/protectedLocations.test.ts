@@ -1,4 +1,4 @@
-import { blurCoordinate, type CreatureView, type RecordPage, type RecordView, type Role } from '@yamon/shared';
+import type { CreatureView, EventView, LocationStatsResponse, RecordPage, RecordView, Role } from '@yamon/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { schema } from '../src/db/client';
@@ -7,8 +7,10 @@ import { createUser, jsonHeaders, login, setupTestApp, type TestContext } from '
 let ctx: TestContext;
 const cookies = {} as Record<Role | 'graduate', string>;
 const ids = {} as Record<Role | 'graduate', string>;
+let parkId: string;
+const PARK = { name: '秘密の湿地公園', lat: 35.14111, lng: 136.98222 };
 
-// 名古屋市天白区周辺（主な場所と同じ辺り）の、丸める前の正確な位置
+// 名古屋市天白区周辺の正確な位置（部員・OB・OG の応答には、この値も丸めた値も出さない）
 const EXACT = { lat: 35.13872, lng: 136.97641 };
 
 beforeAll(async () => {
@@ -22,6 +24,7 @@ beforeAll(async () => {
   const graduate = await createUser(ctx.db, { role: 'member' });
   ids.graduate = graduate.id;
   cookies.graduate = await login(ctx, graduate.email, graduate.password);
+  [{ id: parkId }] = await ctx.db.insert(schema.mainLocations).values(PARK).returning();
 });
 afterAll(() => ctx.close());
 
@@ -43,25 +46,45 @@ async function creature(who: Who, extra: Record<string, unknown> = {}) {
   return call<CreatureView>('POST', '/creatures', who, { name: `希少種${seq}`, category: 'アクア', ...extra });
 }
 
-async function recordBy(who: Who, creatureId: string) {
+const OTHER_PLACE = '池のほとり';
+
+async function recordBy(who: Who, creatureId: string, extra: Record<string, unknown> = {}) {
   const res = await call<RecordView>('POST', '/records', who, {
     creatureId,
     locationType: 'other',
-    otherLocationName: '池のほとり',
+    otherLocationName: OTHER_PLACE,
     ...EXACT,
     date: '2026-06-01',
     time: '20:00',
+    ...extra,
   });
   expect(res.status).toBe(201);
   return res.body;
 }
 
+/** 一覧とマップで、その記録がどう見えるか。raw は応答の全文（漏れを文字列で確かめる） */
 async function seenBy(who: Who, recordId: string) {
   const page = await call<RecordPage>('GET', '/records?limit=100', who);
   const fromList = page.body.records.find((r) => r.id === recordId)!;
   const map = await call<{ records: RecordView[] }>('GET', '/records/map', who);
-  const fromMap = map.body.records.find((r) => r.id === recordId)!;
+  const fromMap = map.body.records.find((r) => r.id === recordId);
   return { fromList, fromMap, raw: JSON.stringify(page.body) + JSON.stringify(map.body) };
+}
+
+const HIDDEN = { locationHidden: true, locationType: null, mainLocationId: null, locationName: '', lat: null, lng: null };
+
+/**
+ * 応答の全文に、正確な座標・丸めた座標・場所名・主な場所の ID が含まれない。
+ * 丸めた座標は、小数2桁の四捨五入（35.14）と切り捨て（35.13。D39 の区画の中心 35.135 もこれで見つかる）の両方を見る
+ */
+function expectNoLocation(raw: string, place: { lat: number; lng: number; name: string; id?: string }) {
+  for (const v of [place.lat, place.lng]) {
+    expect(raw).not.toContain(String(v));
+    expect(raw).not.toContain(v.toFixed(2));
+    expect(raw).not.toContain((Math.floor(v * 100) / 100).toFixed(2));
+  }
+  expect(raw).not.toContain(place.name);
+  if (place.id) expect(raw).not.toContain(place.id);
 }
 
 describe('「位置を保護する」印', () => {
@@ -102,53 +125,82 @@ describe('「位置を保護する」印', () => {
   });
 });
 
-describe('保護対象の記録の位置', () => {
-  it('部員・OB・OG には約1km単位に丸めた位置を返し、正確な座標は応答のどこにも含めない', async () => {
+describe('保護対象の記録の位置（D52）', () => {
+  it('部員・OB・OG には、その他の場所の記録の場所名・座標を返さず、マップにも出さない', async () => {
     const c = (await creature('officer', { locationProtected: true })).body;
     const rec = await recordBy('officer', c.id);
     for (const who of ['member', 'viewer'] as const) {
       const { fromList, fromMap, raw } = await seenBy(who, rec.id);
-      const blurred = { lat: blurCoordinate(EXACT.lat), lng: blurCoordinate(EXACT.lng), approximate: true };
-      expect(fromList).toMatchObject(blurred);
-      expect(fromMap).toMatchObject(blurred);
-      expect(raw).not.toContain(String(EXACT.lat));
-      expect(raw).not.toContain(String(EXACT.lng));
+      expect(fromList).toMatchObject({ ...HIDDEN, creatureName: c.name, date: '2026-06-01', time: '20:00' });
+      expect(fromMap).toBeUndefined();
+      expectNoLocation(raw, { ...EXACT, name: OTHER_PLACE });
     }
   });
 
-  it('管理者・幹部には正確な位置を返す', async () => {
+  it('部員・OB・OG には、主な場所の記録の主な場所（ID・名前・座標）を返さない', async () => {
+    const c = (await creature('officer', { locationProtected: true })).body;
+    const rec = await recordBy('officer', c.id, { locationType: 'main', mainLocationId: parkId, lat: null, lng: null });
+    expect(rec).toMatchObject({ mainLocationId: parkId, lat: PARK.lat });
+    for (const who of ['member', 'viewer'] as const) {
+      const { fromList, fromMap, raw } = await seenBy(who, rec.id);
+      expect(fromList).toMatchObject(HIDDEN);
+      expect(fromMap).toBeUndefined();
+      expectNoLocation(raw, { ...PARK, id: parkId });
+    }
+  });
+
+  it('観察会との紐づけは返す（観察会の詳細の記録一覧に出る。2026-11-10 ユーザー決定）', async () => {
+    const c = (await creature('officer', { locationProtected: true })).body;
+    const ev = await call<EventView>('POST', '/events', 'officer', {
+      name: '夜の観察会',
+      otherLocationName: '川沿い',
+      lat: null,
+      lng: null,
+      date: '2026-06-01',
+      time: '19:00',
+    });
+    const rec = await recordBy('officer', c.id, { eventId: ev.body.id });
+    const page = await call<RecordPage>('GET', `/records?eventId=${ev.body.id}`, 'member');
+    expect(page.body.records.find((r) => r.id === rec.id)).toMatchObject({ ...HIDDEN, eventId: ev.body.id });
+    expectNoLocation(JSON.stringify(page.body), { ...EXACT, name: OTHER_PLACE });
+  });
+
+  it('場所別の一覧には、保護対象の生き物も出す（2026-11-10 ユーザー決定）', async () => {
+    const c = (await creature('officer', { locationProtected: true })).body;
+    await recordBy('officer', c.id, { locationType: 'main', mainLocationId: parkId, lat: null, lng: null });
+    const stats = await call<LocationStatsResponse>('GET', '/stats/locations', 'member');
+    const park = stats.body.locations.find((l) => l.mainLocationId === parkId)!;
+    expect(park.creatures.map((x) => x.id)).toContain(c.id);
+  });
+
+  it('管理者・幹部には正確な位置を返し、マップにも出す', async () => {
     const c = (await creature('officer', { locationProtected: true })).body;
     const rec = await recordBy('member', c.id);
     for (const who of ['admin', 'officer'] as const) {
       const { fromList, fromMap } = await seenBy(who, rec.id);
-      expect(fromList).toMatchObject({ ...EXACT, approximate: false });
-      expect(fromMap).toMatchObject({ ...EXACT, approximate: false });
+      const exact = { ...EXACT, locationName: OTHER_PLACE, locationType: 'other', locationHidden: false };
+      expect(fromList).toMatchObject(exact);
+      expect(fromMap).toMatchObject(exact);
     }
   });
 
   it('記録した本人には、OB・OG になった後も正確な位置を返す', async () => {
     const c = (await creature('officer', { locationProtected: true })).body;
     const rec = await recordBy('graduate', c.id);
-    expect(rec).toMatchObject({ ...EXACT, approximate: false });
+    expect(rec).toMatchObject({ ...EXACT, locationHidden: false });
     await ctx.db.update(schema.users).set({ role: 'viewer' }).where(eq(schema.users.id, ids.graduate));
-    const { fromList } = await seenBy('graduate', rec.id);
-    expect(fromList).toMatchObject({ ...EXACT, approximate: false });
-    // 他の部員には丸めた位置
-    expect((await seenBy('member', rec.id)).fromList.approximate).toBe(true);
+    const { fromList, fromMap } = await seenBy('graduate', rec.id);
+    expect(fromList).toMatchObject({ ...EXACT, locationName: OTHER_PLACE, locationHidden: false });
+    expect(fromMap).toMatchObject({ ...EXACT, locationHidden: false });
+    // 他の部員には隠す
+    expect((await seenBy('member', rec.id)).fromList).toMatchObject(HIDDEN);
   });
 
   it('保護対象でない生き物の記録は、だれにでも正確な位置を返す', async () => {
     const c = (await creature('member')).body;
     const rec = await recordBy('officer', c.id);
-    expect((await seenBy('viewer', rec.id)).fromList).toMatchObject({ ...EXACT, approximate: false });
-  });
-});
-
-describe('blurCoordinate', () => {
-  it('0.01度の区画の中心に寄せる（区画の中ならどこでも同じ値）', () => {
-    expect(blurCoordinate(35.13872)).toBe(35.135);
-    expect(blurCoordinate(35.13001)).toBe(35.135);
-    expect(blurCoordinate(35.12)).toBe(35.125);
-    expect(blurCoordinate(136.97641)).toBe(136.975);
+    const { fromList, fromMap } = await seenBy('viewer', rec.id);
+    expect(fromList).toMatchObject({ ...EXACT, locationName: OTHER_PLACE, locationHidden: false });
+    expect(fromMap).toMatchObject({ ...EXACT, locationHidden: false });
   });
 });

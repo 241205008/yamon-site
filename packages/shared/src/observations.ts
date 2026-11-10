@@ -145,15 +145,19 @@ export interface RecordView {
   creatureName: string;
   category: Category;
   eventId: string | null;
-  locationType: LocationType;
+  /** locationHidden のときは null */
+  locationType: LocationType | null;
   mainLocationId: string | null;
-  /** 表示用の場所名。主な場所は今の名前を返す（名前を直すと過去の記録にも反映される） */
+  /** 表示用の場所名。主な場所は今の名前を返す（名前を直すと過去の記録にも反映される）。locationHidden のときは空 */
   locationName: string;
-  /** 座標がない記録は null。approximate のときは約1km単位に丸めた座標 */
+  /** 座標がない記録と、locationHidden の記録は null */
   lat: number | null;
   lng: number | null;
-  /** 保護対象の生き物で、見る人の役割に応じて位置を丸めてあるか（D24・D39） */
-  approximate: boolean;
+  /**
+   * 保護対象の生き物で、見る人の役割に応じて位置を隠してあるか（D24・D52）。
+   * true のときは、場所の種類・主な場所・場所名・座標を返さない（マップにも出さない）
+   */
+  locationHidden: boolean;
   date: string;
   time: string;
   memo: string;
