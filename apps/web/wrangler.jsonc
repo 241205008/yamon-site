@@ -16,10 +16,13 @@
     // 無料枠のリクエスト数も使わない（どのファイルにも当たらないリクエストは Worker に来る）
     "run_worker_first": ["/api/*", "/map/*"]
   },
-  // PR のプレビュー（wrangler preview）の設定。プレビューは上の本番の設定・Secret（API_ORIGIN・PROXY_SECRET）を引き継がない。
+  // R2 の地図データ（D28・D29、docs/MAP_DATA.md）。worker/map/serve.ts が env.MAP_DATA から読む。
+  // バケットを消したり名前を変えたりすると、デプロイが失敗する
+  "r2_buckets": [{ "binding": "MAP_DATA", "bucket_name": "yamon-map" }],
+  // PR のプレビュー（wrangler preview）の設定。プレビューは上の本番の設定・Secret（API_ORIGIN・PROXY_SECRET）・バインディングを引き継がない。
   // ここにも API の Secret を入れないので、プレビューの /api/* は 503 を返し、本番のデータにつながらない（D45）
-  "previews": {}
-  // R2 の地図データ（MAP_DATA）は、バケットを作ってから r2_buckets を足す（docs/MAP_DATA.md）。
-  // バケットがないまま書くとデプロイが失敗するため、それまでは /map/* が 503 を返す。
-  // プレビューで地図を出すには previews にも r2_buckets を書く（地図データは公開してよいものなので、同じバケットでよい）
+  "previews": {
+    // 地図データは公開してよいもので、Worker からは読むだけなので、プレビューも本番と同じバケットを読む
+    "r2_buckets": [{ "binding": "MAP_DATA", "bucket_name": "yamon-map" }]
+  }
 }
