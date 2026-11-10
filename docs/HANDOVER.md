@@ -1,11 +1,11 @@
 # 引き継ぎ資料（サークルの運用）
 
-> **下書き（2026-10-23、#66）**：本番ができる前に書いたものです。【本番後に確認】の印がある所は、本番の構築（#14・#15）の後に、実際の設定と照らして埋めます（#16）。
+> **2026-11-10 更新（#16）**：本番の構築（#14・#15）の後に、実際の設定と照らして埋めました（下書きは #66）。【移すときに確認】の印は、まだ一度も行っていない作業で、実際に行うときに確かめる所です。
 
 やもんサイト（自然観察会の記録）を、サークルが運用し続けるための資料です。保守（不具合の修正・更新）は開発者が担当します（D21）。この資料は、**代表が替わるときの引き継ぎ**と、**サークル側で行う定期の作業**を中心にしています。
 
 - 本番の URL：https://yamon-site.yamonken.workers.dev
-- 開発者の連絡先：【本番後に確認】（サークルの中で共有する。リポジトリには書かない）
+- 開発者の連絡先：サークルの LINE グループで共有する（リポジトリには書かない）。代表が替わったら、新しい代表がグループに入っていることを確かめる
 - パスワード・トークン・鍵の**実値はこの資料に書きません**。名前と置き場所だけを書きます
 
 ## 1. 使っているサービス
@@ -14,10 +14,10 @@
 
 | サービス | 使い道 | 持ち主・ログイン | 支払い | 管理画面 |
 |---|---|---|---|---|
-| Cloudflare | 画面の配信（Workers の `yamon-site`）、地図データ（R2）、DB のバックアップ（R2 の `yamon-backup`） | サークルの Gmail。開発者は Super Administrator のメンバー | 無料枠（Workers：1日10万リクエスト、R2：10GB）。R2 の利用にお支払い方法の登録が要る場合あり【本番後に確認】 | https://dash.cloudflare.com |
-| Google Cloud | API（Cloud Run の `yamon-api`、シンガポール）、イメージの置き場所（Artifact Registry）、秘密の値（Secret Manager） | サークルの Gmail。プロジェクト `yamon-site`（ID【本番後に確認】） | **開発者のクレジットカード**（請求先アカウント、D21）。無料枠の範囲で0円の見込み。予算アラートは月100円 | https://console.cloud.google.com |
-| Neon | DB（PostgreSQL 17、シンガポール） | サークルの Gmail（Google でログイン） | 無料プラン（0.5GB） | https://console.neon.tech |
-| GitHub | ソースコード（`241205008/yamon-site`）、自動デプロイ・バックアップ・地図データの更新（Actions） | **開発者の個人アカウント**（将来、サークルの Organization へ移す。下の 4-5） | 無料（公開リポジトリ） | https://github.com/241205008/yamon-site |
+| Cloudflare | 画面の配信（Workers の `yamon-site`）、地図データ（R2）、DB のバックアップ（R2 の `yamon-backup`） | サークルの Gmail。開発者は Super Administrator のメンバー | 無料枠（Workers：1日10万リクエスト、R2：10GB）。R2 を使うにはお支払い方法の登録が要り、**開発者のカード**を登録している（無料枠の範囲で0円。Google Cloud と同じく、支払い元を変えるときは 3-2） | https://dash.cloudflare.com |
+| Google Cloud | API（Cloud Run の `yamon-api`、シンガポール）、イメージの置き場所（Artifact Registry）、秘密の値（Secret Manager） | サークルの Gmail。プロジェクト `yamon-site`（プロジェクト ID も `yamon-site`、番号 `240554689888`）。組織（Organization）には入れていない（自動で作られた組織 `yamonken07-meijo-org` は使っていない） | **開発者のクレジットカード**（請求先アカウント、D21）。無料枠の範囲で0円の見込み。予算アラートは月100円 | https://console.cloud.google.com |
+| Neon | DB（PostgreSQL 17、シンガポール） | サークルの Gmail（Google でログイン）。組織「野生動物生態研究会」のプロジェクト `yamon-site`（ブランチ `production`、データベース `neondb`） | 無料プラン（0.5GB） | https://console.neon.tech |
+| GitHub | ソースコード（`241205008/yamon-site`）、自動デプロイ・バックアップ・地図データの更新（Actions） | **開発者の個人アカウント**（将来、サークルの Organization へ移す。下の 4-3） | 無料（公開リポジトリ） | https://github.com/241205008/yamon-site |
 | サークルの Gmail | 上のサービスの持ち主のアカウント。任意で招待・再設定のメールの送信元（D46） | 代表が引き継ぐ | 無料 | https://mail.google.com |
 
 アカウントのいらないもの：背景の地図（Protomaps のデータを R2 に置いて配信、D28）、航空写真（国土地理院のタイル）。
@@ -34,7 +34,7 @@
 | `yamon-proxy-secret` ／ Worker の `PROXY_SECRET` | Secret Manager ／ Cloudflare の Worker の Secret | Worker と API だけが知る値（D44）。**2か所に同じ値** | `setup-gcp.sh` で作り直し、Worker の方も同じ値に変える |
 | `API_ORIGIN` | Cloudflare の Worker の Secret | Cloud Run の URL | Cloud Run を作り直したときだけ |
 | `yamon-setup-token` | Secret Manager | 最初の管理者の登録用（D38）。登録が済んだら使われない | — |
-| `yamon-github-map-data-token` | Secret Manager | 管理者画面の「地図データを更新」用。**開発者の GitHub の fine-grained token**（Actions: Read and write だけ）。**有効期限がある**（【本番後に確認】：期限の日付） | 開発者が作り直し、`setup-gcp.sh` で上書きして CI を再実行（docs/DEPLOY_API.md の手順3） |
+| `yamon-github-map-data-token` | Secret Manager | 管理者画面の「地図データを更新」用。**開発者の GitHub の fine-grained token**（Actions: Read and write だけ）。**有効期限がある**（**2027-10-19 まで**。期限は GitHub の「Settings → Developer settings → Fine-grained tokens」で見られる） | 開発者が作り直し、`setup-gcp.sh` で上書きして CI を再実行（docs/DEPLOY_API.md の手順3） |
 | `yamon-smtp-pass`（任意） | Secret Manager | メールも送る場合だけ。サークルの Gmail のアプリパスワード（D46） | Gmail のパスワードを変えると無効になる。作り直して上書き |
 | `GCP_PROJECT_ID`・`GCP_WORKLOAD_IDENTITY_PROVIDER`・`GCP_SERVICE_ACCOUNT`・`SMTP_USER`・`BACKUP_BUCKET`・`MAP_DATA_BUCKET` | GitHub の Variable | 秘密ではない設定 | — |
 
@@ -45,14 +45,15 @@
 ### 3-1. サークルの Gmail
 
 - [ ] パスワードを変える（前の代表が知っている値を使えなくする）
-- [ ] 2段階認証が設定されていなければ設定する（各サービスの持ち主のアカウントなので、パスワードだけで守らない）。設定済みなら、電話番号・認証アプリを新しい代表のものに変える。どちらの場合も、バックアップコードを作り直して紙で保管する（古い紙は捨てる）
+- [ ] 2段階認証を引き継ぐ。今は有効で、ログインすると**確認用の端末に Google の確認画面が出て、それを押す**方式（2026-11-10 時点）。確認用の端末と電話番号を、新しい代表のものに変える（前の代表の端末は「セキュリティ → お使いのデバイス」から外す）。バックアップコードを作り直して紙で保管する（古い紙は捨てる）
 - [ ] 再設定用のメールアドレス・電話番号を、新しい代表のものに変える
 - [ ] メールも送る設定（`yamon-smtp-pass`）を使っている場合だけ：パスワードを変えるとアプリパスワードが無効になるので、作り直して開発者に渡し、Secret Manager を上書きしてもらう（D22・D46）
 
 ### 3-2. Cloudflare
 
 - [ ] サークルの Gmail でログインできることを確かめる（パスワードは Cloudflare の方も変える）
-- [ ] **2段階認証を設定する**（今は未設定。個人のメンバーは設定済み）。設定したら、リカバリーコードを紙で保管する
+- [ ] 2段階認証を引き継ぐ。今は**認証アプリ（Authenticator）**で設定済み（2026-11-10 時点）。新しい代表の認証アプリに移し（「My Profile → Authentication」で設定し直す）、リカバリーコードを作り直して紙で保管する（古い紙は捨てる）
+- [ ] 支払い元を変える場合：R2 のために開発者のカードを登録している。「Manage Account → Billing」で、新しいお支払い方法に替えてから、古いものを消す
 - [ ] 「Manage Account → Members」で、前の代表を外し、新しい代表を追加する（開発者は残す）
 - [ ] API トークンは Account API Token なので、人を外しても止まらない。漏れた心配があるときだけ Roll する
 
@@ -86,9 +87,9 @@
 
 ### 4-3. GitHub リポジトリを移すとき（サークルの Organization へ）
 
-リポジトリの名前が変わるため、次の3か所を直さないと、自動デプロイ・バックアップが止まります。開発者と一緒に行います。
+リポジトリの名前が変わるため、次の所を直さないと、自動デプロイ・バックアップが止まります。開発者と一緒に行います。
 
-- [ ] 移す前に、2章の Secret・Variable の名前の一覧を控える（値は控えない）。「Settings → Transfer」で移す。Issue・PR・履歴は残る。Secret・Variable・環境（production）が残るかは【本番後に確認】：移した後に `gh secret list`・`gh variable list`・`gh secret list --env production` で確かめ、なければ作り直して登録する
+- [ ] 移す前に、2章の Secret・Variable の名前の一覧を控える（値は控えない）。「Settings → Transfer」で移す。Issue・PR・履歴は残る。Secret・Variable・環境（production）が残るかは【移すときに確認】：移した後に `gh secret list`・`gh variable list`・`gh secret list --env production` で確かめ、なければ作り直して登録する
 - [ ] Google Cloud の Workload Identity 連携は、リポジトリの ID（数字）と環境（`production`）で判定しているので（D50）、移しても直さなくてよい（ID は移しても変わらない）。`apps/api/deploy/setup-gcp.sh` も直さなくてよい。移した後の最初の main の CI で `Deploy API` が通ることを確かめ、通らなければ Cloud Shell でスクリプトをもう一度実行する
 - [ ] 地図データの更新用の token（`yamon-github-map-data-token`）を、新しいリポジトリを対象にして作り直す。API の環境変数 `GITHUB_REPOSITORY`（なければ `241205008/yamon-site`）を、`ci.yml` の `--set-env-vars` に新しい名前で足す
 - [ ] DB のバックアップの失敗通知は、`backup.yml` の `cron` の行を最後に変えた人に届く。新しい担当者が `cron` の行を変える commit を入れる（docs/BACKUP.md の「失敗したとき」）
@@ -108,7 +109,7 @@
 | 毎月 | 請求額が0円（または数円）であることを見る | 代表 | Google Cloud の「お支払い → レポート」。予算アラートのメールが来たらすぐ見る |
 | 毎月 | DB のバックアップから戻せるかを確かめる | 開発者（できれば代表と一緒に） | docs/BACKUP.md の「月1回の確認」。毎日成功しているか、60日で止まっていないかも見る |
 | Node.js のセキュリティリリースのとき | Node.js の版を上げる | 開発者 | 下の 6-1 |
-| token の期限の前 | 地図データの更新用の token を作り直す | 開発者 | 2 の表の `yamon-github-map-data-token` |
+| token の期限（2027-10-19）の1か月前まで | 地図データの更新用の token を作り直す | 開発者 | 2 の表の `yamon-github-map-data-token` |
 | 代表が替わるとき | 3 のチェックリスト | 代表・開発者 | — |
 
 ### 6-1. Node.js の版を上げる（D47）
@@ -125,7 +126,9 @@
 - **主な場所の初期データ**：幹部から一覧（CSV：`名前,緯度,経度`）が届いたら、`npm run db:import-locations -w @yamon/api -- <CSV> --apply` で本番の DB に入れる。手順は [SMOKE_TEST.md](SMOKE_TEST.md) の 2-2。`--apply` を付けなければ確認だけ
 - **PR のプレビュー**：PR ごとに `https://pr-<番号>-yamon-site.yamonken.workers.dev` ができ、誰でも開ける。ただし API にはつながらないので、本番のデータは見えない（D45）
 - **初めのアクセスが遅い**：しばらく使われないと、API（Cloud Run）と DB（Neon）が止まる。止まった後の最初のアクセスは数秒かかる（D14）。故障ではない
-- **Cloudflare のサークルのアカウントの2段階認証**：今は未設定（3-2 で設定する）
+- **サークルのアカウントの2段階認証**：Gmail（確認用の端末で承認）と Cloudflare（認証アプリ）で設定済み。端末やアプリをなくしたときは、紙のバックアップコード・リカバリーコードでログインする。コードもないと、アカウントを取り戻すのに数日かかったり、取り戻せなかったりする
+- **LINE から開くと位置情報が取れない**：LINE の中のブラウザには位置情報の許可がないため、「現在位置を取得」が「位置情報の利用が許可されていません」になる。部員には、リンクを Chrome や Safari で開くよう案内する（招待リンクを送るときに一言添える）
+- **Cloud Shell と PC のターミナル**：手順書で「Cloud Shell で」と書いたコマンド（`setup-gcp.sh`、DB の復元）は、Google Cloud の画面の右上の「>_」で開く Cloud Shell で実行する。PC の PowerShell では動かない
 
 ## 8. 困ったとき
 
@@ -137,7 +140,7 @@
 
 ### 8-2. 管理者が全員パスワードを忘れた（D46）
 
-再設定リンクは管理者しか出せないので、DB に直接、再設定のトークンを入れます。開発者か、Neon にログインできる人が行います。【本番後に確認】：本番で一度試す
+再設定リンクは管理者しか出せないので、DB に直接、再設定のトークンを入れます。開発者か、Neon にログインできる人が行います。この手順は本番ではまだ試していません。SQL は実装（トークンの SHA-256 を16進で保存、リンクは `/reset-password?token=`）と照らして確かめました。初めて行うときは、先にテスト用のアカウントで試してください
 
 1. 長い乱数を作る（Cloud Shell や Git Bash で `openssl rand -hex 32`）。これがリンクのトークンになる。誰にも送らない
 2. Neon のダッシュボードの「SQL Editor」で、管理者の ID を調べる
@@ -168,8 +171,8 @@ update users set role = 'admin' where id = '<ユーザーの ID>' and status = '
 
 [BACKUP.md](BACKUP.md) の「復元」。戻るのは毎日 3:00 の時点まで。
 
-## 9. 本番ができてから埋める所（#16）
+## 9. まだ埋まっていない所
 
-- 【本番後に確認】の印の所（開発者の連絡先の共有先、Google Cloud のプロジェクト ID、R2 のお支払い方法の要否、地図の token の期限、8-2 の手順）
-- 2 の表の名前が、実際の Secret Manager・GitHub・Cloudflare の設定と合っているか
-- 3 のチェックリストを、実際の画面の名前と照らす（各サービスの画面の文言は変わることがある）
+- 【移すときに確認】：GitHub リポジトリを移したときに Secret・Variable・環境が残るか（4-3）
+- 2 の表の名前は、2026-11-10 に GitHub（`gh secret list`・`gh variable list`）と照らして合っていることを確かめた。Secret Manager と Cloudflare の名前は、本番の構築のときに登録した名前のまま
+- 各サービスの画面の文言は変わることがある。3 のチェックリストで画面が違ったら、この資料を直す PR を出す
