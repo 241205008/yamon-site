@@ -14,7 +14,7 @@ import {
   type IssuedLink,
   type Role,
 } from '@yamon/shared';
-import { CheckCircle2, Clock, History, KeyRound, Mail, RotateCw, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, History, KeyRound, Mail, RotateCw, ShieldCheck, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { IssuedLinkModal, type IssuedLinkKind } from '../components/IssuedLinkModal';
 import { MainLocationPanel } from '../components/MainLocationPanel';
@@ -388,9 +388,20 @@ function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => 
                 <span className="font-bold text-gray-900">{u.name}</span>
                 <span className={`rounded px-2 py-0.5 text-xs ${ROLE_BADGE[u.role]}`}>{ROLE_LABELS[u.role]}</span>
                 {u.status === 'disabled' && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">無効化中</span>}
+                {u.protected && (
+                  <span className="flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                    <ShieldCheck className="h-3 w-3" />
+                    保守担当
+                  </span>
+                )}
                 {isMe && <span className="text-xs text-gray-500">（あなた）</span>}
               </div>
               <p className="mt-1 text-sm break-all text-gray-600">{u.email}</p>
+              {u.protected && (
+                <p className="mt-1 text-xs text-gray-500">
+                  保守を担当する開発者として、サーバーの設定で保護されています。役割の変更・無効化・退会処理・再設定リンクの発行はできません。
+                </p>
+              )}
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <label className="sr-only" htmlFor={`role-${u.id}`}>
                   {u.name} の役割
@@ -398,7 +409,7 @@ function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => 
                 <select
                   id={`role-${u.id}`}
                   value={u.role}
-                  disabled={busy}
+                  disabled={busy || u.protected}
                   onChange={(e) => onRoleChange(u, e.target.value as Role)}
                   className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm disabled:opacity-60"
                 >
@@ -408,7 +419,7 @@ function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => 
                     </option>
                   ))}
                 </select>
-                {!isMe && (
+                {!isMe && !u.protected && (
                   <>
                     <button
                       type="button"

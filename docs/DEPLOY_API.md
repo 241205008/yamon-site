@@ -28,6 +28,7 @@
 | 初回セットアップ用のトークン（D38） | Google Secret Manager | `yamon-setup-token` |
 | Cloud Run の URL | Cloudflare の Worker の Secret | `API_ORIGIN` |
 | サークルの Gmail のアドレス（任意） | GitHub の Variable（秘密ではないが、公開のリポジトリに書かない） | `SMTP_USER` |
+| 守るユーザー（保守を担当する開発者）の ID（D51） | GitHub の Variable（秘密ではない） | `PROTECTED_USER_IDS` |
 
 ## 初回の設定
 
@@ -113,6 +114,20 @@ gh variable set SMTP_USER
 ```bash
 gh secret set DATABASE_URL --env production
 ```
+
+保守を担当する開発者のアカウントを、ほかの管理者の操作（降格・無効化・退会処理・再設定リンクの発行）から守る（D51）。開発者が本番で管理者として登録した後に行う。後からでも設定できる（登録して CI を再実行する）。
+
+1. 本番のサイトに開発者のアカウントでログインしたまま、同じブラウザで `https://yamon-site.yamonken.workers.dev/api/auth/me` を開く。表示された `"id"` の値（`xxxxxxxx-xxxx-...` の形）が、開発者のユーザー ID
+2. ID を Variable に登録する（聞かれたら ID を貼る。複数人を守るときはカンマ区切り）
+
+   ```bash
+   gh variable set PROTECTED_USER_IDS
+   ```
+
+3. Actions 画面で CI を main に対して手動実行する（Run workflow）。`Deploy API (Cloud Run)` が環境変数を渡す。Cloud Run のログに「守るユーザー（PROTECTED_USER_IDS）：1人」と出る
+4. 管理者画面で、開発者に「保守担当」の印が付いていることを確かめる
+
+Cloud Run の画面で環境変数を手で足しても、次のデプロイで消える（CI が毎回すべて上書きする）。必ず Variable で設定する。ID でない値を入れると API が起動しない（`Deploy API` が失敗する）ので、そのときは Variable を直して再実行する。
 
 最後に、リポジトリの「Settings」→「Environments」→「production」で「Deployment branches and tags」を「Selected branches and tags」にし、`main` だけを追加する（Neon の接続文字列と Google Cloud へのログインを、main の CI だけに限る）。
 

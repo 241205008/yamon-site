@@ -74,6 +74,11 @@ export interface AdminUser {
   email: string | null;
   role: Role;
   status: UserStatus;
+  /**
+   * サーバーの設定（PROTECTED_USER_IDS、D51）で守られているか。守られている人には、
+   * 役割の変更・無効化・退会処理・（本人以外からの）再設定リンクの発行ができない
+   */
+  protected: boolean;
   createdAt: string;
 }
 

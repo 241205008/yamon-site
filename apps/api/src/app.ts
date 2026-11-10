@@ -29,6 +29,8 @@ export interface AppEnv {
     setupToken: string | undefined;
     /** セッションの Cookie に Secure を付けるか */
     cookieSecure: boolean;
+    /** ほかの管理者が役割の変更・無効化・退会・再設定リンクの発行をできないユーザーの ID（環境変数 PROTECTED_USER_IDS、D51） */
+    protectedUserIds: ReadonlySet<string>;
     /** ログイン中のユーザー。まだ調べていなければ undefined、未ログインなら null（auth/middleware.ts） */
     user?: SessionUser | null;
   };
@@ -56,6 +58,11 @@ export interface AppDeps {
    * 渡したときは、PROXY_SECRET_HEADER に同じ値が付いたリクエストだけを受け付ける（Cloud Run への直接のアクセスを断る）
    */
   proxySecret?: string;
+  /**
+   * 守るユーザー（保守を担当する開発者、D21）の ID（環境変数 PROTECTED_USER_IDS、D51）。
+   * このユーザーには、管理者画面の API で役割の変更・無効化・退会・再設定リンクの発行（本人以外から）ができない。既定は守らない
+   */
+  protectedUserIds?: readonly string[];
 }
 
 /** Worker（apps/web/worker/api/proxy.ts）が秘密の値を入れるヘッダー。名前は Worker 側と同じにする */
@@ -77,7 +84,9 @@ export function createApp({
   setupToken,
   mapData = {},
   proxySecret,
+  protectedUserIds = [],
 }: AppDeps) {
+  const protectedIds: ReadonlySet<string> = new Set(protectedUserIds);
   const app = new Hono<AppEnv>().basePath('/api');
 
   if (log) app.use(logger());
@@ -98,6 +107,7 @@ export function createApp({
     c.set('mailer', mailer);
     c.set('appUrl', appUrl);
     c.set('setupToken', setupToken);
+    c.set('protectedUserIds', protectedIds);
     await next();
   });
   // CSRF 対策（D33）：Cookie は SameSite=Lax だが、さらに状態を変えるリクエストは Content-Type: application/json に限る。
