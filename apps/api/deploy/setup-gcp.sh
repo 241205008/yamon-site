@@ -9,8 +9,9 @@ PROJECT_ID="${1:?使い方: bash apps/api/deploy/setup-gcp.sh <プロジェク�
 # Neon（AWS のシンガポール）の近く。理由は D44
 REGION=asia-southeast1
 # このリポジトリの GitHub Actions の production 環境（main からしか使えない）のジョブだけが、デプロイ用のサービスアカウントになれる。
-# 判定にはリポジトリの名前ではなく ID を使う（名前の変更や Organization への移動で変わらない。D50）
-GITHUB_REPOSITORY="241205008/yamon-site"
+# 判定にはリポジトリの名前ではなく ID（数字）を使う（名前の変更や Organization への移動で変わらない。D50）。
+# ID は https://api.github.com/repos/<持ち主>/<名前> の "id"。リポジトリを作り直したときだけ変わるので、REPOSITORY_ID=<数字> を付けて実行する
+REPOSITORY_ID="${REPOSITORY_ID:-1416353408}"
 GITHUB_ENVIRONMENT=production
 
 gcloud config set project "$PROJECT_ID" >/dev/null
@@ -68,16 +69,13 @@ echo "== 4. GitHub Actions からのログイン（Workload Identity 連携。�
 if ! gcloud iam workload-identity-pools describe github --location=global >/dev/null 2>&1; then
   gcloud iam workload-identity-pools create github --location=global --display-name="GitHub Actions"
 fi
-# リポジトリの ID（数字）。公開リポジトリなので、GitHub の API からログインなしで取れる。取れないときは REPOSITORY_ID=<数字> を付けて実行する
-REPOSITORY_ID="${REPOSITORY_ID:-$(curl -fsS "https://api.github.com/repos/${GITHUB_REPOSITORY}" \
-  | python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])' || true)}"
 case "$REPOSITORY_ID" in
   '' | *[!0-9]*)
-    echo "リポジトリの ID が取れませんでした（GitHub の API の回数制限など）。https://api.github.com/repos/${GITHUB_REPOSITORY} の \"id\" を見て、REPOSITORY_ID=<数字> bash $0 ${PROJECT_ID} で実行し直してください" >&2
+    echo "REPOSITORY_ID は数字で指定してください: '${REPOSITORY_ID}'" >&2
     exit 1
     ;;
 esac
-echo "  ${GITHUB_REPOSITORY} の ID: ${REPOSITORY_ID}"
+echo "  リポジトリの ID: ${REPOSITORY_ID}"
 # GitHub のトークンの sub は、持ち主とリポジトリの ID を含む形（repo:<持ち主>@<ID>/<名前>@<ID>:environment:...）で届くことがあり、
 # 名前だけで比べると合わない。sub ではなく repository_id と environment で判定する（D50）
 ATTRIBUTE_MAPPING="google.subject=assertion.sub,attribute.repository_id=assertion.repository_id,attribute.environment=assertion.environment"

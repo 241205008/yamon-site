@@ -849,17 +849,19 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
 - **決定（2026-11-10、#71。D44 の一部を変更）**
   - Google Cloud のプロバイダ（`github` プールの `yamon-site`）の条件を `assertion.repository_id == '<リポジトリの ID>' && assertion.environment == 'production'` にする。属性は `attribute.repository_id`・`attribute.environment` を取り出す。
   - デプロイ用のサービスアカウント（`github-deployer`）を使える相手を、`principalSet://.../attribute.repository_id/<リポジトリの ID>` にする。条件で `production` 環境に絞ってあるので、使えるのは main の CI の `production` 環境のジョブだけ（D44 と同じ）。
-  - リポジトリの ID は、`setup-gcp.sh` が GitHub の API（公開リポジトリなのでログイン不要）から取る。取れないときは `REPOSITORY_ID=<数字>` を付けて実行する。プロバイダが作り済みなら、条件を上書きする。
+  - リポジトリの ID（`1416353408`）は `setup-gcp.sh` に書く。作り直したリポジトリなど別の ID を使うときは `REPOSITORY_ID=<数字>` を付けて実行する。プロバイダが作り済みなら、条件を上書きする。
 - **経緯**：最初のデプロイ（2026-11-09）で、ログインが `The given credential is rejected by the attribute condition` で失敗した。GitHub から届いたトークンの `sub` が `repo:<持ち主>@<ID>/<名前>@<ID>:environment:production` の形で、前の条件（`assertion.sub == 'repo:241205008/yamon-site:environment:production'`）に合わなかった。本番は Cloud Shell で上の形に手で直し、スクリプトを同じ形に合わせた。
 - **採用理由**
   - リポジトリの ID は、名前を変えても、サークルの Organization へ移しても変わらない。引き継ぎ（D21、docs/HANDOVER.md の 4-3）で、Google Cloud の設定を作り直さずに済む。
   - `sub` の形が GitHub 側の設定（ID を含めるかどうか）で変わっても、影響を受けない。`repository_id` と `environment` は、どちらの形でもトークンに入っている。
   - 別の人が同じ名前のリポジトリを作っても ID は違うので、名前で比べるより取り違えが起きにくい。
 - **比較した案**
+  - **ID を GitHub の API から毎回取る**：スクリプトに数字を書かずに済むが、ログインなしの API は IP ごとに1時間60回までで、共有の IP（大学や Cloud Shell）では失敗することがある（#71 の作業中に、手元で失敗した）。
   - **新しい形の `sub` をそのまま比べる**（`repo:241205008@<ID>/yamon-site@<ID>:environment:production`）：1行の直しで済むが、持ち主の ID が入るため、Organization へ移すと合わなくなる。GitHub 側の設定で形が戻ったときにも合わなくなる。
   - **`assertion.repository`（名前）と `environment` で比べる**：読みやすいが、名前を変えたり移したりすると直しが要る。同じ名前のリポジトリを作り直されたときに区別できない。
   - **GitHub 側で `sub` の形を前のものに戻す**（OIDC の subject の設定）：Google Cloud を変えずに済むが、リポジトリの設定が1つ増え、引き継ぎで見落としやすい。
 - **注意**
   - 前の版のスクリプトが付けたサービスアカウントの権限（`principal://.../subject/repo:...`）は残っていても使われない（条件に合うトークンの `sub` がその形にならない）。消さなくてよい。
-  - リポジトリを消して作り直したときは ID が変わる。`setup-gcp.sh` をもう一度実行する。
+  - リポジトリを消して作り直したときは ID が変わる。`setup-gcp.sh` の ID を直して、もう一度実行する。
+  - 条件は「このリポジトリの `production` 環境のジョブ」で、ワークフローは区別しない。`production` 環境を使うワークフロー（バックアップの `backup.yml` など）は、Google Cloud にログインする手順を書けば、デプロイ用のサービスアカウントになれる。前の `sub` の条件でも同じ範囲だった。`production` 環境は main だけに限ってあり、ワークフローを足すには main へのマージ（レビュー）が要る。
 - **再検討する条件**：デプロイを `production` 以外の環境（ステージングなど）からも行うようになったとき。リポジトリを複数に分けたとき。
