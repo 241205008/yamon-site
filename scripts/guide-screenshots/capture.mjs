@@ -1,4 +1,4 @@
-// 使い方ガイド（#79、D52）のスクリーンショットを撮り直す。
+// 使い方ガイド（#79、D53）のスクリーンショットを撮り直す。
 // 開発サーバー（npm run dev）とデモデータ（npm run db:seed -w @yamon/api）で撮る。手順は同じフォルダの README.md
 //
 //   node scripts/guide-screenshots/capture.mjs            すべて撮る
@@ -28,6 +28,8 @@ const ACCOUNTS = {
   viewer: 'obog@example.com',
 };
 const PASSWORD = 'password123';
+/** 撮るあいだ「位置を保護する」印を付けるデモの生き物（seed.ts。幹部が記録している） */
+const PROTECTED_DEMO_CREATURE = 'ホタル';
 
 /** phone：スマホ幅（iPhone 程度）。pc：パソコン幅 */
 const DEVICES = {
@@ -134,6 +136,14 @@ const SHOTS = [
       await page.locator('button[aria-pressed]').first().click();
       // 選んだ場所の生き物の一覧が出るまで待つ
       await page.waitForTimeout(500);
+    },
+  },
+  {
+    file: 'protected-record.webp', role: 'member', device: 'phone',
+    async run(page) {
+      // 幹部が付けたホタルの記録（部員には場所が非公開）。ホームの最近の記録に出る
+      await page.goto('/');
+      return page.getByText('保護対象のため場所は非公開').locator('xpath=ancestor::article[1]');
     },
   },
   {
@@ -295,6 +305,19 @@ async function main() {
     return res.json();
   }
 
+  // 保護対象の生き物の見え方を写すため、撮っている間だけデモの「ホタル」に「位置を保護する」印を付ける（終わったら戻す）
+  const { creatures } = await api('officer', 'GET', '/api/creatures');
+  const hotaru = creatures.find((c) => c.name === PROTECTED_DEMO_CREATURE);
+  const setProtected = (value) =>
+    hotaru &&
+    api('officer', 'PUT', `/api/creatures/${hotaru.id}`, {
+      name: hotaru.name,
+      category: hotaru.category,
+      memo: hotaru.memo ?? '',
+      locationProtected: value,
+    });
+  await setProtected(true);
+
   try {
     for (const shot of shots) {
       const ctx = await contextFor(shot.role, shot.device);
@@ -311,6 +334,7 @@ async function main() {
       }
     }
   } finally {
+    await setProtected(hotaru?.locationProtected ?? false);
     await browser.close();
   }
 }

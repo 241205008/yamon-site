@@ -19,7 +19,7 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/setup" element={<SetupPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
-        {/* 使い方ガイドはログインしていなくても読める（#79、D52） */}
+        {/* 使い方ガイドはログインしていなくても読める（#79、D53） */}
         <Route path="/guide" element={<GuidePage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />

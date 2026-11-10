@@ -1,5 +1,6 @@
 import { Info } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router';
+import { useEffect } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router';
 import { BackBar, Card, PageBackground } from '../components/ui';
 import {
   GETTING_STARTED,
@@ -13,7 +14,7 @@ import {
 import { useCurrentUser } from '../lib/auth';
 
 /**
- * 使い方ガイド（#79、D52）。ログインしていなくても読める（招待された人が登録の前に読めるように）。
+ * 使い方ガイド（#79、D53）。ログインしていなくても読める（招待された人が登録の前に読めるように）。
  * 最初はログインしている人の役割のガイドを出し、上のタブでほかの役割のガイドに切り替えられる（?for=member|officer|admin）
  */
 export function GuidePage() {
@@ -22,6 +23,12 @@ export function GuidePage() {
   const requested = params.get('for');
   const mine = guideIdFor(user?.role);
   const guide = findGuide(isGuideId(requested) ? requested : mine);
+  const { hash } = useLocation();
+
+  // 「/guide#map」のようにセクションを指して開いたとき、描いた後にそこへ移る（最初の読み込みではブラウザが先に探して見つけられない）
+  useEffect(() => {
+    if (hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView();
+  }, [hash, guide.id]);
 
   return (
     <PageBackground>

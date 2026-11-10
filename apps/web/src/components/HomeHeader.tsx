@@ -7,7 +7,7 @@ const navBtn = 'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 te
 const textLink = 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors';
 
 /**
- * ホームのヘッダー（#79、D52）。色付きのボタンは画面の切り替え、文字だけのリンク（ログアウト・使い方）は右端にまとめる。
+ * ホームのヘッダー（#79、D53）。色付きのボタンは画面の切り替え、文字だけのリンク（ログアウト・使い方）は右端にまとめる。
  * - xl 以上：ロゴ・ボタン・文字のリンクを1行に並べる
  * - sm〜xl：1行目にロゴと文字のリンク、2行目にボタン
  * - sm 未満（スマホ）：ロゴ、ボタン（2列。奇数個なら最後は2列分）、文字のリンク（右寄せ）の順
