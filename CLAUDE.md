@@ -8,6 +8,7 @@
 - Project「やもんサイト」（users/241205008/projects/3）の Status を操作のたびに更新する：Backlog → Ready → In Progress → In Review → Done
 - Issue 本文の「開発情報」に Branch と PR を書く。作業が終わったら、満たした項目だけ `- [x]` にする
 - PR を出したら `/code-review` でレビューし、指摘に対応してから、マージしてよいかユーザーに聞く
+- **本番での確認が要る Issue は、PR に `Closes` ではなく `Refs #番号` と書く。** `Closes` はマージした時点で Issue を閉じ、Status を Done にしてしまう（#16・#76・#78 で、本番の確認の前に閉じた）。本番で確かめ、完了条件をチェックし、ユーザーの承認を得てから閉じる。本番の確認が要らない Issue は `Closes` でよい
 - **マージ、Issue の Close、Status を Done にする操作は、ユーザーの承認を得てから行う**
 - 技術や仕様の判断は docs/DECISIONS.md に、採用理由と他の選択肢を書く。判断番号（D〜）を足す前に最新の main を取り込み、番号が重ならないようにする。重なったら自分の側を振り直す
 - `git add .` を使わない。Secret の実値をリポジトリ・Issue・PR に書かない
