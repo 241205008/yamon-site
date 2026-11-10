@@ -37,6 +37,7 @@
 | `yamon-github-map-data-token` | Secret Manager | 管理者画面の「地図データを更新」用。**開発者の GitHub の fine-grained token**（Actions: Read and write だけ）。**有効期限がある**（**2027-10-19 まで**。期限は GitHub の「Settings → Developer settings → Fine-grained tokens」で見られる） | 開発者が作り直し、`setup-gcp.sh` で上書きして CI を再実行（docs/DEPLOY_API.md の手順3） |
 | `yamon-smtp-pass`（任意） | Secret Manager | メールも送る場合だけ。サークルの Gmail のアプリパスワード（D46） | Gmail のパスワードを変えると無効になる。作り直して上書き |
 | `GCP_PROJECT_ID`・`GCP_WORKLOAD_IDENTITY_PROVIDER`・`GCP_SERVICE_ACCOUNT`・`SMTP_USER`・`BACKUP_BUCKET`・`MAP_DATA_BUCKET` | GitHub の Variable | 秘密ではない設定 | — |
+| `PROTECTED_USER_IDS` | GitHub の Variable | 保守を担当する開発者のユーザー ID（D51）。この人は、管理者画面から降格・無効化・退会処理・再設定リンクの発行ができない（画面に「保守担当」と出る）。CI が Cloud Run の環境変数として渡す | 開発者が替わるときは下の 3-6 |
 
 ## 3. 代表が替わるときのチェックリスト
 
@@ -73,6 +74,16 @@
 
 - [ ] サイトの管理者画面で、新しい代表を「管理者」にし、前の代表を「OB・OG」にする（管理者は2人以上を保つ、D25。2026-11-10 時点では管理者は1人なので、まず2人目を立てる）
 - [ ] 新しい管理者が、招待リンク・パスワード再設定リンクの出し方を知っている（下の 5）
+
+### 3-6. 保守を担当する開発者が替わるとき（D51）
+
+代表の交代とは別に、保守を担当する人が替わるときだけ行います。GitHub のリポジトリの管理者が行います（サイトの管理者画面からは変えられません）。
+
+- [ ] 新しい開発者を、サイトに招待して「管理者」にする
+- [ ] 新しい開発者が、本番のサイトにログインしたまま `https://yamon-site.yamonken.workers.dev/api/auth/me` を開き、`"id"` の値を確かめる
+- [ ] `gh variable set PROTECTED_USER_IDS` で、新しい開発者の ID に書き換える（前の開発者の ID は消す）。Actions 画面で CI を main に対して手動実行する
+- [ ] 管理者画面で、新しい開発者に「保守担当」の印が付き、前の開発者から消えたことを確かめる。その後、前の開発者の役割を変える（OB・OG など）か退会処理をする（印が付いている間はできない）
+- 保守をする人がいなくなるときは、`gh variable delete PROTECTED_USER_IDS` で消して CI を再実行する
 
 ## 4. サービスごとの引き継ぎの手順（まとめて移すとき）
 
@@ -140,7 +151,7 @@
 
 ### 8-2. 管理者が全員パスワードを忘れた（D46）
 
-再設定リンクは管理者しか出せないので、DB に直接、再設定のトークンを入れます。開発者か、Neon にログインできる人が行います。この手順は本番ではまだ試していません。SQL は実装（トークンの SHA-256 を16進で保存、リンクは `/reset-password?token=`）と照らして確かめました。初めて行うときは、先にテスト用のアカウントで試してください
+再設定リンクは管理者しか出せないので（保守を担当する開発者には、本人以外からは出せない、D51）、DB に直接、再設定のトークンを入れます。開発者か、Neon にログインできる人が行います。この手順は本番ではまだ試していません。SQL は実装（トークンの SHA-256 を16進で保存、リンクは `/reset-password?token=`）と照らして確かめました。初めて行うときは、先にテスト用のアカウントで試してください
 
 1. 長い乱数を作る（Cloud Shell や Git Bash で `openssl rand -hex 32`）。これがリンクのトークンになる。誰にも送らない
 2. Neon のダッシュボードの「SQL Editor」で、管理者の ID を調べる

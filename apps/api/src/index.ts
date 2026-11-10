@@ -3,6 +3,7 @@ import { createApp } from './app';
 import { requirePermission } from './auth/middleware';
 import { connectPglite, connectPostgres, type DbHandle } from './db/client';
 import { mailerFromEnv } from './mail';
+import { parseProtectedUserIds } from './protectedUsers';
 import { createGitHubWorkflow } from './mapData/github';
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -53,6 +54,12 @@ const proxySecret = process.env.PROXY_SECRET?.trim() || undefined;
 if (isProduction && (!proxySecret || proxySecret.length < MIN_PROXY_SECRET_LENGTH)) {
   throw new Error(`PROXY_SECRET（${MIN_PROXY_SECRET_LENGTH}文字以上）が設定されていません`);
 }
+// 守るユーザー（保守を担当する開発者）の ID（D51）。カンマ区切りで複数書ける。
+// 書き間違いで守りが外れたことに気づかないのを防ぐため、UUID でない値があれば起動しない
+const protectedUserIds = parseProtectedUserIds(process.env.PROTECTED_USER_IDS);
+if (protectedUserIds.length > 0) {
+  console.log(`守るユーザー（PROTECTED_USER_IDS）：${protectedUserIds.length}人`);
+}
 const app = createApp({
   db: handle.db,
   log: true,
@@ -62,6 +69,7 @@ const app = createApp({
   setupToken,
   mapData: { workflow: mapDataWorkflow, authorize: requirePermission('mapData.update') },
   proxySecret,
+  protectedUserIds,
 });
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
