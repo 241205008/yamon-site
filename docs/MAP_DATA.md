@@ -78,7 +78,7 @@
 地図データは約380MB あり、`wrangler r2 object put`（上限 315MB）では送れません。Cloudflare の画面からのアップロードは、上限が公式の文書に書かれておらず、確実ではありません。次のどちらかで置きます。
 
 - **おすすめ：更新のワークフローを手動で実行する**（下の「4. 管理者画面から更新する」の「自動更新の設定」を先に済ませる）。Actions →「Map data」→「Run workflow」。最新のビルドから切り出し、aws cli のマルチパートで `survey-area-<ビルド日>-<実行ID>.pmtiles` を置いて、参照先 `survey-area.json` を書く。手元の大きなファイルを送らずに済み、#34 の確認も兼ねる
-- **手元のファイルを置く**：rclone などの S3 互換のツール（R2 の API トークンが要る。大きなファイルは自動でマルチパートになる）で、手元の `apps/web/map-data/survey-area.pmtiles` を置く。例：`rclone copy apps/web/map-data/survey-area.pmtiles r2:yamon-map`
+- **手元のファイルを置く**：rclone などの S3 互換のツール（R2 の API トークンが要る。大きなファイルは自動でマルチパートになる）で、手元の `apps/web/map-data/survey-area.pmtiles` を置く。例：`rclone copy apps/web/map-data/survey-area.pmtiles r2:yamon-map`。先に `rclone config` で `r2` という名前のリモートを作っておく（Provider は Cloudflare、Access Key ID と Secret Access Key は R2 の API トークンのもの、Endpoint は `https://<アカウントID>.r2.cloudflarestorage.com`。手順は Cloudflare の文書「rclone」https://developers.cloudflare.com/r2/examples/rclone/ ）
 
 手元のファイルを置くときは、次に気をつけます。
 
