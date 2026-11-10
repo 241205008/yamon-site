@@ -166,7 +166,7 @@ export const creatures = pgTable('creatures', {
   name: text('name').notNull(),
   category: categoryEnum('category').notNull(),
   memo: text('memo').notNull().default(''),
-  /** 位置を保護する（部員・閲覧のみには約1km単位に丸めた座標を返す、D24） */
+  /** 位置を保護する（部員・OB・OG には、記録した本人を除き、記録の場所名・座標を返さない、D24・D52） */
   locationProtected: boolean('location_protected').notNull().default(false),
   createdBy: uuid('created_by').references(() => users.id),
   createdAt: createdAt(),

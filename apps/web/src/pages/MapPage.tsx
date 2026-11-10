@@ -145,7 +145,6 @@ export function MapPage() {
                     {g.records.slice(0, 3).map((r) => (
                       <p key={r.id}>
                         {r.creatureName}・{r.date} {r.time}
-                        {r.approximate && '（おおよその位置）'}
                       </p>
                     ))}
                     {g.records.length > 3 && <p>ほか{g.records.length - 3}件</p>}
@@ -223,16 +222,7 @@ export function MapPage() {
                     <dd className="text-gray-800">{r.recorderName}</dd>
                     <dt className="text-gray-500">座標</dt>
                     <dd className="text-gray-800">
-                      {r.approximate ? (
-                        <>
-                          {r.lat!.toFixed(3)}, {r.lng!.toFixed(3)}
-                          <span className="ml-1 text-xs text-red-700">（おおよその位置・約1km単位）</span>
-                        </>
-                      ) : (
-                        <>
-                          {r.lat!.toFixed(4)}, {r.lng!.toFixed(4)}
-                        </>
-                      )}
+                      {r.lat!.toFixed(4)}, {r.lng!.toFixed(4)}
                     </dd>
                   </dl>
                   {r.memo && (
