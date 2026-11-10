@@ -3,6 +3,7 @@ import { RequireAdmin, RequireAuth } from './components/RouteGuards';
 import { AdminPage } from './pages/AdminPage';
 import { EventDetailPage } from './pages/EventDetailPage';
 import { EventListPage } from './pages/EventListPage';
+import { GuidePage } from './pages/GuidePage';
 import { LocationsPage } from './pages/LocationsPage';
 import { LoginPage } from './pages/LoginPage';
 import { MainPage } from './pages/MainPage';
@@ -18,6 +19,8 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/setup" element={<SetupPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        {/* 使い方ガイドはログインしていなくても読める（#79、D53） */}
+        <Route path="/guide" element={<GuidePage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<RequireAuth />}>
