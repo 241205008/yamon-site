@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GUIDES, allGuideImages, guideIdFor } from '../guide/guides';
+import { GETTING_STARTED, GUIDES, allGuideImages, findSection, guideIdFor } from '../guide/guides';
 import imageSizes from '../guide/imageSizes.json';
 import { GuidePage } from './GuidePage';
 
@@ -135,6 +135,29 @@ describe('ガイドの中身', () => {
       // 読み込む前に場所を取るための大きさ（capture.mjs が書く）
       expect(imageSizes, f).toHaveProperty(f);
     }
+  });
+
+  it('はじめての方への3ステップ・関連する項目・よくある質問のリンク先が、すべてある', () => {
+    for (const g of GUIDES) {
+      expect(g.quickStart, g.id).toHaveLength(3);
+      const refs = [
+        ...g.quickStart.map((q) => q.ref),
+        ...g.sections.flatMap((s) => s.related ?? []),
+        ...g.faq.flatMap((f) => (f.related ? [f.related] : [])),
+      ];
+      for (const r of refs) expect(findSection(r, g.id), `${g.id} → ${r.guide ?? ''}#${r.id}`).toBeDefined();
+    }
+    for (const s of GETTING_STARTED) for (const r of s.related ?? []) expect(findSection(r, 'member'), r.id).toBeDefined();
+  });
+
+  it('手順・前提・よくある質問が画面に出る', () => {
+    render('/guide?for=admin');
+    const invite = container.querySelector('section#admin-invite')!;
+    expect(invite.querySelectorAll('ol > li')).toHaveLength(4);
+    expect(invite.textContent).toContain('前提：');
+    expect(container.querySelectorAll('section#faq details').length).toBeGreaterThan(0);
+    // ほかのガイドへの関連リンクは ?for= 付き
+    expect(container.querySelector('section#admin-basics a[href="/guide?for=officer#protect-creature"]')).not.toBeNull();
   });
 
   it('セクションの id は、ガイドの中で重ならない（ページ内リンクが正しく飛ぶ）', () => {
