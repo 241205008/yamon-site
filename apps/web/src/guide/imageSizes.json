@@ -1,0 +1,90 @@
+{
+  "admin-history.webp": {
+    "width": 1136,
+    "height": 440
+  },
+  "admin-invite.webp": {
+    "width": 564,
+    "height": 1112
+  },
+  "admin-issued-link.webp": {
+    "width": 464,
+    "height": 553
+  },
+  "admin-locations.webp": {
+    "width": 1136,
+    "height": 530
+  },
+  "admin-map-data.webp": {
+    "width": 1136,
+    "height": 262
+  },
+  "admin-users.webp": {
+    "width": 564,
+    "height": 894
+  },
+  "creature-protect.webp": {
+    "width": 374,
+    "height": 599
+  },
+  "creatures.webp": {
+    "width": 374,
+    "height": 900
+  },
+  "event-detail.webp": {
+    "width": 390,
+    "height": 844
+  },
+  "event-form.webp": {
+    "width": 374,
+    "height": 326
+  },
+  "event-list.webp": {
+    "width": 390,
+    "height": 844
+  },
+  "home.webp": {
+    "width": 390,
+    "height": 844
+  },
+  "locations.webp": {
+    "width": 390,
+    "height": 844
+  },
+  "login.webp": {
+    "width": 390,
+    "height": 844
+  },
+  "map.webp": {
+    "width": 390,
+    "height": 844
+  },
+  "officer-map.webp": {
+    "width": 390,
+    "height": 844
+  },
+  "protected-record.webp": {
+    "width": 326,
+    "height": 146
+  },
+  "recent-records.webp": {
+    "width": 374,
+    "height": 900
+  },
+  "record-form.webp": {
+    "width": 374,
+    "height": 1116
+  },
+  "register.webp": {
+    "width": 390,
+    "height": 844
+  },
+  "reset-password.webp": {
+    "width": 390,
+    "height": 844
+  },
+  "viewer-home.webp": {
+    "width": 390,
+    "height": 844
+  }
+}

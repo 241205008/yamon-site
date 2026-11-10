@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GUIDES, allGuideImages, guideIdFor } from '../guide/guides';
+import imageSizes from '../guide/imageSizes.json';
 import { GuidePage } from './GuidePage';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -100,18 +101,27 @@ describe('ガイドの中身', () => {
     }
   });
 
-  it('幹部向け・管理者向けで説明する操作は、その役割の権限と食い違わない（MVP 2章）', () => {
-    // 幹部向け：位置を保護する印。部員にはできない
-    expect(can('officer', 'creatures.protect')).toBe(true);
-    expect(can('member', 'creatures.protect')).toBe(false);
-    // 管理者向け：招待・メンバー管理・主な場所・地図データ・ほかの人の観察会。幹部にはできない
-    for (const p of ['users.manage', 'mainLocations.manage', 'mapData.update', 'events.editAny'] as const) {
-      expect(can('admin', p)).toBe(true);
-      expect(can('officer', p)).toBe(false);
+  it('各セクションの操作に要る権限を、そのガイドの役割が持つ。幹部・管理者向けは、一つ下の役割が持たない操作だけ（MVP 2章）', () => {
+    const below: Record<string, Role | null> = { member: null, officer: 'member', admin: 'officer' };
+    let checked = 0;
+    for (const g of GUIDES) {
+      const primary = g.roles[0];
+      for (const s of g.sections) {
+        if (!s.permission) continue;
+        checked++;
+        expect(can(primary, s.permission), `${g.id}/${s.id}`).toBe(true);
+        const lower = below[g.id];
+        if (lower) expect(can(lower, s.permission), `${g.id}/${s.id} は ${lower} もできる`).toBe(false);
+      }
     }
-    // OB・OG は見るだけ
-    for (const p of ['records.create', 'records.editOwn', 'events.create', 'creatures.manage'] as const) {
-      expect(can('viewer', p)).toBe(false);
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it('部員以上の操作のセクションは、OB・OG にはできない（「部員以上」と書いてある）', () => {
+    const member = GUIDES.find((g) => g.id === 'member')!;
+    for (const s of member.sections.filter((x) => x.permission)) {
+      expect(can('viewer', s.permission!), s.id).toBe(false);
+      expect(s.title, s.id).toContain('部員以上');
     }
   });
 
@@ -120,7 +130,11 @@ describe('ガイドの中身', () => {
     expect(files.length).toBeGreaterThan(0);
     // public/ の中身は import できないので、ファイル名だけを集める
     const present = Object.keys(import.meta.glob('../../public/guide-images/*.webp')).map((p) => p.split('/').pop());
-    for (const f of files) expect(present, f).toContain(f);
+    for (const f of files) {
+      expect(present, f).toContain(f);
+      // 読み込む前に場所を取るための大きさ（capture.mjs が書く）
+      expect(imageSizes, f).toHaveProperty(f);
+    }
   });
 
   it('セクションの id は、ガイドの中で重ならない（ページ内リンクが正しく飛ぶ）', () => {

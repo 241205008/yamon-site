@@ -11,6 +11,7 @@ import {
   type GuideBlock,
   type GuideSection,
 } from '../guide/guides';
+import imageSizes from '../guide/imageSizes.json';
 import { useCurrentUser } from '../lib/auth';
 
 /**
@@ -109,6 +110,7 @@ function Toc({ groups }: { groups: { title: string; sections: GuideSection[] }[]
 function SectionCard({ section }: { section: GuideSection }) {
   const { image } = section;
   const phone = image?.device === 'phone';
+  const size = image ? (imageSizes as Record<string, { width: number; height: number }>)[image.file] : undefined;
   return (
     <section
       id={section.id}
@@ -121,12 +123,15 @@ function SectionCard({ section }: { section: GuideSection }) {
         <div className={phone ? 'gap-6 sm:flex sm:items-start' : ''}>
           {image && (
             <figure className={phone ? 'mx-auto mb-4 w-full max-w-[260px] shrink-0 sm:mx-0 sm:mb-0' : 'mb-4'}>
-              {/* スマホ幅の画像は2倍の解像度で撮っているので幅いっぱいに、パソコン幅の画像は撮った大きさより広げない */}
+              {/* スマホ幅の画像は枠の幅いっぱいに（縮めて表示する）、パソコン幅の画像は撮った大きさより広げない */}
+              {/* 幅と高さを書いて、読み込む前から場所を取る（読み込みで下の内容がずれない。#見出しへ移った後もずれない） */}
               <img
                 src={`/guide-images/${image.file}`}
                 alt={image.alt}
+                width={size?.width}
+                height={size?.height}
                 loading="lazy"
-                className={`rounded-lg border border-gray-200 shadow-sm ${phone ? 'w-full' : 'mx-auto block h-auto max-w-full'}`}
+                className={`rounded-lg border border-gray-200 shadow-sm ${phone ? 'h-auto w-full' : 'mx-auto block h-auto max-w-full'}`}
               />
             </figure>
           )}

@@ -1,4 +1,4 @@
-import type { Role } from '@yamon/shared';
+import type { Permission, Role } from '@yamon/shared';
 
 /**
  * 使い方ガイドの中身（#79、D53）。画面のスクリーンショットと、その画面でできることを並べる。
@@ -8,7 +8,8 @@ import type { Role } from '@yamon/shared';
  * - 画像は apps/web/public/guide-images/ に置く。撮り直しは scripts/guide-screenshots/README.md
  */
 
-export type GuideId = 'member' | 'officer' | 'admin';
+export const GUIDE_IDS = ['member', 'officer', 'admin'] as const;
+export type GuideId = (typeof GUIDE_IDS)[number];
 
 /** 段落、または箇条書き */
 export type GuideBlock = string | { list: string[] } | { note: string };
@@ -25,6 +26,11 @@ export type GuideSection = {
   /** ページ内リンク（#id）に使う */
   id: string;
   title: string;
+  /**
+   * このセクションで説明する操作に要る権限。テストで、ガイドの役割がその権限を持つか
+   * （幹部・管理者向けは、一つ下の役割が持たないか）を確かめる
+   */
+  permission?: Permission;
   image?: GuideImage;
   body: GuideBlock[];
 };
@@ -47,7 +53,7 @@ export function guideIdFor(role: Role | null | undefined): GuideId {
 }
 
 export function isGuideId(value: string | null | undefined): value is GuideId {
-  return value === 'member' || value === 'officer' || value === 'admin';
+  return (GUIDE_IDS as readonly (string | null | undefined)[]).includes(value);
 }
 
 /** 3つのガイドに共通の「はじめに」：ログイン前の画面（ログイン・招待からの登録・パスワード再設定） */
@@ -120,6 +126,7 @@ const MEMBER_SECTIONS: GuideSection[] = [
   },
   {
     id: 'add-record',
+    permission: 'records.create',
     title: '観察記録を追加する（部員以上）',
     image: { file: 'record-form.webp', alt: '観察記録を追加するフォーム', device: 'phone' },
     body: [
@@ -137,6 +144,7 @@ const MEMBER_SECTIONS: GuideSection[] = [
   },
   {
     id: 'recent-records',
+    permission: 'records.editOwn',
     title: '自分の記録を直す・消す（部員以上）',
     image: { file: 'recent-records.webp', alt: '最近の記録の一覧。自分の記録に編集と削除のボタンがある', device: 'phone' },
     body: [
@@ -151,6 +159,7 @@ const MEMBER_SECTIONS: GuideSection[] = [
   },
   {
     id: 'create-event',
+    permission: 'events.create',
     title: '観察会を作る（部員以上）',
     image: { file: 'event-form.webp', alt: '新しい観察会を作成するフォーム', device: 'phone' },
     body: [
@@ -265,6 +274,7 @@ const OFFICER_SECTIONS: GuideSection[] = [
   },
   {
     id: 'protect-creature',
+    permission: 'creatures.protect',
     title: '生き物に「位置を保護」の印を付ける',
     image: { file: 'creature-protect.webp', alt: '生き物を編集する画面。「位置を保護する」のチェックがある', device: 'phone' },
     body: [
@@ -280,6 +290,7 @@ const OFFICER_SECTIONS: GuideSection[] = [
   },
   {
     id: 'exact-location',
+    permission: 'locations.viewExact',
     title: '保護対象の生き物の位置を見る',
     image: { file: 'officer-map.webp', alt: '幹部でログインしたときのマップ。保護対象の生き物の記録もピンで表示される', device: 'phone' },
     body: [
@@ -307,6 +318,7 @@ const ADMIN_SECTIONS: GuideSection[] = [
   },
   {
     id: 'admin-invite',
+    permission: 'users.manage',
     title: 'メンバーを招待する',
     image: { file: 'admin-invite.webp', alt: '管理者画面の「新規ユーザー招待」。メールアドレスと役割を入れて招待リンクを作る', device: 'pc' },
     body: [
@@ -322,6 +334,7 @@ const ADMIN_SECTIONS: GuideSection[] = [
   },
   {
     id: 'admin-link',
+    permission: 'users.manage',
     title: '招待リンク・再設定リンクを渡す',
     image: { file: 'admin-issued-link.webp', alt: '招待リンクができたときの画面。リンクと案内の文、コピーのボタン', device: 'pc' },
     body: [
@@ -330,6 +343,7 @@ const ADMIN_SECTIONS: GuideSection[] = [
   },
   {
     id: 'admin-users',
+    permission: 'users.manage',
     title: 'メンバーを管理する',
     image: { file: 'admin-users.webp', alt: '管理者画面の「登録済みユーザー」。役割の選択、再設定リンク、無効化、退会処理のボタン', device: 'pc' },
     body: [
@@ -353,12 +367,14 @@ const ADMIN_SECTIONS: GuideSection[] = [
   },
   {
     id: 'admin-history',
+    permission: 'users.manage',
     title: '操作履歴',
     image: { file: 'admin-history.webp', alt: '管理者画面の操作履歴。誰がいつ、誰の役割を変えたかが並ぶ', device: 'pc' },
     body: ['役割の変更・無効化・退会処理を、誰がいつ行ったかが並びます。'],
   },
   {
     id: 'admin-locations',
+    permission: 'mainLocations.manage',
     title: '主な場所',
     image: { file: 'admin-locations.webp', alt: '管理者画面の主な場所の一覧。場所の追加、編集、使わないにするボタン', device: 'pc' },
     body: [
@@ -373,6 +389,7 @@ const ADMIN_SECTIONS: GuideSection[] = [
   },
   {
     id: 'admin-map-data',
+    permission: 'mapData.update',
     title: '地図データを更新する',
     image: { file: 'admin-map-data.webp', alt: '管理者画面の地図データ。今のデータの日付と「地図データを更新」のボタン', device: 'pc' },
     body: [

@@ -6,13 +6,15 @@
 //
 // 本番の実データや個人情報を写さないため、localhost 以外の URL では動かない。
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
 const OUT_DIR = fileURLToPath(new URL('../../apps/web/public/guide-images/', import.meta.url));
 const QUALITY = 75;
+/** 画像の幅と高さ。画面が img の場所を先に取れるよう（読み込みでずれないよう）GuidePage が使う */
+const SIZES_FILE = fileURLToPath(new URL('../../apps/web/src/guide/imageSizes.json', import.meta.url));
 
 const host = new URL(BASE_URL).hostname;
 if (!['localhost', '127.0.0.1', '[::1]'].includes(host)) {
@@ -31,9 +33,9 @@ const PASSWORD = 'password123';
 /** 撮るあいだ「位置を保護する」印を付けるデモの生き物（seed.ts。幹部が記録している） */
 const PROTECTED_DEMO_CREATURE = 'ホタル';
 
-/** phone：スマホ幅（iPhone 程度）。pc：パソコン幅 */
+/** phone：スマホ幅（iPhone 程度）。pc：パソコン幅。どちらも CSS の1ピクセルを画像の1ピクセルで撮る */
 const DEVICES = {
-  phone: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  phone: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true },
   pc: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 },
 };
 
@@ -50,7 +52,9 @@ const SHOTS = [
   {
     file: 'register.webp', role: null, device: 'phone',
     async run(page, { api }) {
-      const { url } = await api('admin', 'POST', '/api/admin/invitations', { email: 'new-member@example.com', role: 'member' });
+      // そのアドレスで登録済みなら（招待のリンクから登録して試したなど）、別のアドレスで招待する
+      const invite = (email) => api('admin', 'POST', '/api/admin/invitations', { email, role: 'member' });
+      const { url } = await invite('new-member@example.com').catch(() => invite(`new-member-${Date.now()}@example.com`));
       await page.goto(pathOf(url));
       await page.getByLabel('ユーザー名').waitFor();
     },
@@ -135,7 +139,8 @@ const SHOTS = [
       await page.goto('/locations');
       await page.locator('button[aria-pressed]').first().click();
       // 選んだ場所の生き物の一覧が出るまで待つ
-      await page.waitForTimeout(500);
+      await page.getByText('場所を選択すると、そこで見られる生き物の一覧が表示されます').waitFor({ state: 'detached' });
+      await page.waitForLoadState('networkidle');
     },
   },
   {
@@ -272,6 +277,8 @@ async function capture(page, file, target, maxHeight) {
   });
   writeFileSync(OUT_DIR + file, Buffer.from(data, 'base64'));
   await cdp.detach();
+  const size = clip ?? page.viewportSize();
+  return { width: Math.round(size.width), height: Math.round(size.height) };
 }
 
 async function main() {
@@ -316,9 +323,10 @@ async function main() {
       memo: hotaru.memo ?? '',
       locationProtected: value,
     });
-  await setProtected(true);
+  const sizes = existsSync(SIZES_FILE) ? JSON.parse(readFileSync(SIZES_FILE, 'utf8')) : {};
 
   try {
+    await setProtected(true);
     for (const shot of shots) {
       const ctx = await contextFor(shot.role, shot.device);
       const page = await ctx.newPage();
@@ -327,7 +335,7 @@ async function main() {
         if (target) await target.first().waitFor();
         // フォントや画像の読み込み、アニメーションを待つ
         await page.waitForTimeout(300);
-        await capture(page, shot.file, target, shot.maxHeight);
+        sizes[shot.file] = await capture(page, shot.file, target, shot.maxHeight);
         console.log(`撮りました：${shot.file}`);
       } finally {
         await page.close();
@@ -336,6 +344,8 @@ async function main() {
   } finally {
     await setProtected(hotaru?.locationProtected ?? false);
     await browser.close();
+    const sorted = Object.fromEntries(Object.entries(sizes).sort(([a], [b]) => a.localeCompare(b)));
+    writeFileSync(SIZES_FILE, `${JSON.stringify(sorted, null, 2)}\n`);
   }
 }
 
