@@ -12,7 +12,7 @@
 6. Issue本文の「開発情報」にBranch名を書き、Statusを `In Progress` にする
 7. 実装・動作確認をする
 8. 差分を確認してCommitし、Pushする
-9. Pull Requestを作る。全て解決するIssueは `Closes #<番号>`、一部対応・参考は `Refs #<番号>` と書く
+9. Pull Requestを作る。全て解決するIssueは `Closes #<番号>`、一部対応・参考は `Refs #<番号>` と書く。本番での確認が要るIssueは、マージで閉じないよう `Refs #<番号>` にし、確認後に閉じる
 10. Issue本文の「開発情報」にPRを書き、Statusを `In Review` にする
 11. コードレビューを受け、指摘に対応する
 12. CIが成功したらSquash Mergeする
