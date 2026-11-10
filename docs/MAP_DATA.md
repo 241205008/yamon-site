@@ -48,16 +48,22 @@
 
 ### 初回の設定
 
-1. R2 のバケットを作る（名前は例。無料枠：保存10GB、読み出し月1,000万回）
+**済み（2026-11-10、#73）**：サークルのアカウントで R2 を有効にし、バケット `yamon-map`（場所 APAC・Standard、公開の設定は無効）を作った。`wrangler.jsonc` の本番と `previews` に `r2_buckets` を書いた。作り直すときは、次の手順で行う。
+
+0. アカウントで初めて R2 を使うときは、Cloudflare の画面の「R2 Object Storage」で R2 を申し込む（支払い方法の登録が要る。無料枠の中なら請求はない）。申し込む前は、wrangler が `Please enable R2 through the Cloudflare Dashboard. [code: 10042]` で止まる
+1. R2 のバケットを作る（無料枠：保存10GB、読み出し月1,000万回）。場所はアジア太平洋、保存クラスは Standard（無料枠は Standard だけ）
 
    ```bash
-   npx wrangler r2 bucket create yamon-map
+   npx wrangler r2 bucket create yamon-map --location apac
    ```
 
-2. `apps/web/wrangler.jsonc` に、R2 のバインディングを足す PR を出す（バケット名は手順1のもの）
+2. `apps/web/wrangler.jsonc` に、R2 のバインディングを足す PR を出す（バケット名は手順1のもの）。本番（いちばん外）と `previews` の両方に書く
 
    ```jsonc
-   "r2_buckets": [{ "binding": "MAP_DATA", "bucket_name": "yamon-map" }]
+   "r2_buckets": [{ "binding": "MAP_DATA", "bucket_name": "yamon-map" }],
+   "previews": {
+     "r2_buckets": [{ "binding": "MAP_DATA", "bucket_name": "yamon-map" }]
+   }
    ```
 
    - **バケットを作る前に書かない**。バケットがないとデプロイが失敗する
@@ -69,7 +75,12 @@
 
 ### ファイルを置く・差し替える
 
-`wrangler r2 object put` は 300MB までしか送れないため、Cloudflare の画面（R2 → バケット → Upload）か、S3 互換のツール（rclone など）でアップロードします。
+地図データは約380MB あり、`wrangler r2 object put`（上限 315MB）では送れません。Cloudflare の画面からのアップロードは、上限が公式の文書に書かれておらず、確実ではありません。次のどちらかで置きます。
+
+- **おすすめ：更新のワークフローを手動で実行する**（下の「4. 管理者画面から更新する」の「自動更新の設定」を先に済ませる）。Actions →「Map data」→「Run workflow」。最新のビルドから切り出し、aws cli のマルチパートで `survey-area-<ビルド日>-<実行ID>.pmtiles` を置いて、参照先 `survey-area.json` を書く。手元の大きなファイルを送らずに済み、#34 の確認も兼ねる
+- **手元のファイルを置く**：rclone などの S3 互換のツール（R2 の API トークンが要る。大きなファイルは自動でマルチパートになる）で、手元の `apps/web/map-data/survey-area.pmtiles` を置く。例：`rclone copy apps/web/map-data/survey-area.pmtiles r2:yamon-map`
+
+手元のファイルを置くときは、次に気をつけます。
 
 - オブジェクト名：`survey-area.pmtiles`（バケットの直下）
 - 差し替えるときも同じ名前で上書きする。ETag が変わるので、開いている画面も次の読み込みで新しいデータに切り替わる
