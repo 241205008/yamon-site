@@ -73,11 +73,15 @@ async function seenBy(who: Who, recordId: string) {
 
 const HIDDEN = { locationHidden: true, locationType: null, mainLocationId: null, locationName: '', lat: null, lng: null };
 
-/** 応答の全文に、正確な座標・丸めた座標（小数3桁まで）・場所名・主な場所の ID が含まれない */
+/**
+ * 応答の全文に、正確な座標・丸めた座標・場所名・主な場所の ID が含まれない。
+ * 丸めた座標は、小数2桁の四捨五入（35.14）と切り捨て（35.13。D39 の区画の中心 35.135 もこれで見つかる）の両方を見る
+ */
 function expectNoLocation(raw: string, place: { lat: number; lng: number; name: string; id?: string }) {
   for (const v of [place.lat, place.lng]) {
     expect(raw).not.toContain(String(v));
     expect(raw).not.toContain(v.toFixed(2));
+    expect(raw).not.toContain((Math.floor(v * 100) / 100).toFixed(2));
   }
   expect(raw).not.toContain(place.name);
   if (place.id) expect(raw).not.toContain(place.id);
