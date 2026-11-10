@@ -96,7 +96,7 @@ function RolePicker({ current, mine }: { current: GuideId; mine: GuideId | null 
             >
               <Icon className="h-6 w-6" />
               <span className="text-sm font-bold">{g.label}</span>
-              <span className="hidden text-xs text-gray-500 sm:block">{g.summary}</span>
+              <span className="text-[11px] leading-tight text-gray-500 sm:text-xs">{g.summary}</span>
               {g.id === mine && <span className="text-xs text-blue-600">（あなた）</span>}
             </Link>
           );
@@ -230,7 +230,8 @@ function SectionCard({ section, current }: { section: GuideSection; current: Gui
 
 function Steps({ steps }: { steps: string[] }) {
   return (
-    <ol className="space-y-3">
+    // role="list"：list-style をなくした ol を、Safari の読み上げでも番号付きの一覧として扱わせる
+    <ol role="list" className="space-y-3">
       {steps.map((s, i) => (
         <li key={s} className="flex gap-3">
           <span
@@ -301,7 +302,7 @@ function Faq({ guide }: { guide: Guide }) {
       <div className="divide-y divide-gray-100">
         {guide.faq.map((f) => (
           <details key={f.q} className="group py-3">
-            <summary className="flex cursor-pointer list-none items-center gap-2 font-bold text-gray-900">
+            <summary className="flex cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden gap-2 font-bold text-gray-900">
               <span className="text-blue-600">Q.</span>
               <span className="flex-1">{f.q}</span>
               <ChevronRight className="h-4 w-4 shrink-0 text-gray-400 transition-transform group-open:rotate-90" />
