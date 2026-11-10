@@ -89,7 +89,7 @@
 リポジトリの名前が変わるため、次の3か所を直さないと、自動デプロイ・バックアップが止まります。開発者と一緒に行います。
 
 - [ ] 移す前に、2章の Secret・Variable の名前の一覧を控える（値は控えない）。「Settings → Transfer」で移す。Issue・PR・履歴は残る。Secret・Variable・環境（production）が残るかは【本番後に確認】：移した後に `gh secret list`・`gh variable list`・`gh secret list --env production` で確かめ、なければ作り直して登録する
-- [ ] Google Cloud の Workload Identity 連携の条件（`apps/api/deploy/setup-gcp.sh` の `GITHUB_SUBJECT`、`repo:<持ち主>/<名前>:environment:production`）を新しい名前に直し、プロバイダの条件とサービスアカウントの権限を作り直す【本番後に確認】：手順を実際に試す
+- [ ] Google Cloud の Workload Identity 連携は、リポジトリの ID（数字）と環境（`production`）で判定しているので（D50）、移しても直さなくてよい（ID は移しても変わらない）。`apps/api/deploy/setup-gcp.sh` も直さなくてよい。移した後の最初の main の CI で `Deploy API` が通ることを確かめ、通らなければ Cloud Shell でスクリプトをもう一度実行する
 - [ ] 地図データの更新用の token（`yamon-github-map-data-token`）を、新しいリポジトリを対象にして作り直す。API の環境変数 `GITHUB_REPOSITORY`（なければ `241205008/yamon-site`）を、`ci.yml` の `--set-env-vars` に新しい名前で足す
 - [ ] DB のバックアップの失敗通知は、`backup.yml` の `cron` の行を最後に変えた人に届く。新しい担当者が `cron` の行を変える commit を入れる（docs/BACKUP.md の「失敗したとき」）
 
@@ -170,6 +170,6 @@ update users set role = 'admin' where id = '<ユーザーの ID>' and status = '
 
 ## 9. 本番ができてから埋める所（#16）
 
-- 【本番後に確認】の印の所（開発者の連絡先の共有先、Google Cloud のプロジェクト ID、R2 のお支払い方法の要否、地図の token の期限、リポジトリを移すときの Workload Identity の直し方、8-2 の手順）
+- 【本番後に確認】の印の所（開発者の連絡先の共有先、Google Cloud のプロジェクト ID、R2 のお支払い方法の要否、地図の token の期限、8-2 の手順）
 - 2 の表の名前が、実際の Secret Manager・GitHub・Cloudflare の設定と合っているか
 - 3 のチェックリストを、実際の画面の名前と照らす（各サービスの画面の文言は変わることがある）

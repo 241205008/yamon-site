@@ -8,8 +8,11 @@ set -euo pipefail
 PROJECT_ID="${1:?使い方: bash apps/api/deploy/setup-gcp.sh <プロジェクトID>}"
 # Neon（AWS のシンガポール）の近く。理由は D44
 REGION=asia-southeast1
-# GitHub Actions の production 環境（main からしか使えない）のジョブだけが、デプロイ用のサービスアカウントになれる
-GITHUB_SUBJECT="repo:241205008/yamon-site:environment:production"
+# このリポジトリの GitHub Actions の production 環境（main からしか使えない）のジョブだけが、デプロイ用のサービスアカウントになれる。
+# 判定にはリポジトリの名前ではなく ID（数字）を使う（名前の変更や Organization への移動で変わらない。D50）。
+# ID は https://api.github.com/repos/<持ち主>/<名前> の "id"。リポジトリを作り直したときだけ変わるので、REPOSITORY_ID=<数字> を付けて実行する
+REPOSITORY_ID="${REPOSITORY_ID:-1416353408}"
+GITHUB_ENVIRONMENT=production
 
 gcloud config set project "$PROJECT_ID" >/dev/null
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
@@ -66,16 +69,33 @@ echo "== 4. GitHub Actions からのログイン（Workload Identity 連携。�
 if ! gcloud iam workload-identity-pools describe github --location=global >/dev/null 2>&1; then
   gcloud iam workload-identity-pools create github --location=global --display-name="GitHub Actions"
 fi
-if ! gcloud iam workload-identity-pools providers describe yamon-site --location=global \
+case "$REPOSITORY_ID" in
+  '' | *[!0-9]*)
+    echo "REPOSITORY_ID は数字で指定してください: '${REPOSITORY_ID}'" >&2
+    exit 1
+    ;;
+esac
+echo "  リポジトリの ID: ${REPOSITORY_ID}"
+# GitHub のトークンの sub は、持ち主とリポジトリの ID を含む形（repo:<持ち主>@<ID>/<名前>@<ID>:environment:...）で届くことがあり、
+# 名前だけで比べると合わない。sub ではなく repository_id と environment で判定する（D50）
+ATTRIBUTE_MAPPING="google.subject=assertion.sub,attribute.repository_id=assertion.repository_id,attribute.environment=assertion.environment"
+ATTRIBUTE_CONDITION="assertion.repository_id == '${REPOSITORY_ID}' && assertion.environment == '${GITHUB_ENVIRONMENT}'"
+if gcloud iam workload-identity-pools providers describe yamon-site --location=global \
   --workload-identity-pool=github >/dev/null 2>&1; then
+  # 作り済みなら、条件を今の形に上書きする（前の版のスクリプトで作った条件も、もう一度実行すれば直る）
+  gcloud iam workload-identity-pools providers update-oidc yamon-site --location=global \
+    --workload-identity-pool=github \
+    --attribute-mapping="$ATTRIBUTE_MAPPING" --attribute-condition="$ATTRIBUTE_CONDITION" >/dev/null
+else
   gcloud iam workload-identity-pools providers create-oidc yamon-site --location=global \
     --workload-identity-pool=github --display-name="yamon-site" \
     --issuer-uri="https://token.actions.githubusercontent.com" \
-    --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
-    --attribute-condition="assertion.sub == '${GITHUB_SUBJECT}'"
+    --attribute-mapping="$ATTRIBUTE_MAPPING" --attribute-condition="$ATTRIBUTE_CONDITION"
 fi
+# 上の条件を通ったトークン（このリポジトリの production 環境のジョブ）だけに、デプロイ用のサービスアカウントを使わせる。
+# 前の版のスクリプトが付けた権限（principal://.../subject/repo:...）は、条件に合うトークンがもう来ないので残っていても使われない
 retry gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER_SA" --role=roles/iam.workloadIdentityUser \
-  --member="principal://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github/subject/${GITHUB_SUBJECT}" \
+  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github/attribute.repository_id/${REPOSITORY_ID}" \
   >/dev/null
 
 echo "== 5. Secret Manager"

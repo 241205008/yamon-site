@@ -120,11 +120,11 @@ gh secret set DATABASE_URL --env production
 
 1. Actions 画面で CI を main に対して手動実行する（Run workflow）。`Deploy API (Cloud Run)` が Cloud Run のサービスを作る。Summary に Cloud Run の URL が出る
    - この1回目は、Worker の Secret がまだないので、最後の「Check API through Worker」が失敗する。2へ進む
-2. Cloudflare のダッシュボードで「Workers & Pages」→ `yamon-site` →「Settings」→「Variables and Secrets」→「Add」で、種類を **Secret** にして2つ登録する
-   - `API_ORIGIN`：1の Cloud Run の URL（`https://yamon-api-....asia-southeast1.run.app`）
+2. Cloudflare のダッシュボードで「Workers & Pages」→ `yamon-site` →「Settings」を開き、「Runtime variables and secrets」の「+ Add variable」を押す。「Select environment」は **Production にだけ**チェックを入れ（Previews は外す。プレビューを本番の API につながないため、D45）、「Secret」にチェックを入れたまま、次の2つを入れて「Add variable and deploy」を押す（「+ Add」で2行目を足せる）
+   - `API_ORIGIN`：1の Cloud Run の URL（`https://yamon-api-....asia-southeast1.run.app`。最後に `/` を付けない）
    - `PROXY_SECRET`：手順4で表示された `yamon-proxy-secret` の値
-   - 「Previews」の設定（Base configuration）には登録しない（プレビューを本番の API につながないため、D45）
-3. Actions 画面で、1の実行を「Re-run all jobs」で再実行し、すべて成功することを確かめる
+   - 下の「Bindings」の「Add binding」は使わない（R2 などをつなぐ別の機能）
+3. Actions 画面で、1の実行の失敗したジョブを再実行し（「Re-run failed jobs」、または `gh run rerun <実行ID> --failed`）、すべて成功することを確かめる
 4. https://yamon-site.yamonken.workers.dev/login を開くと、ユーザーが0人なので `/setup` に移る。手順4で表示された `yamon-setup-token` と、最初の管理者の名前・メールアドレス・パスワードを入れて登録する（D38）
 5. 管理者画面の「招待する」で自分以外のアドレスの招待リンクを作り、表示された文を LINE などで送る。受け取った人がリンクから登録できることを確かめる（手順1を行った場合は、同じリンクのメールも届く）
 
@@ -132,6 +132,9 @@ gh secret set DATABASE_URL --env production
 
 - **Worker 経由で動いているか**：`https://yamon-site.yamonken.workers.dev/api/health` が `{"status":"ok"}` を返す。Cloud Run の URL を直接開くと 403（`直接のアクセスは受け付けていません`）になるのが正しい
 - **API のログ**：Google Cloud の「Cloud Run」→ `yamon-api` →「ログ」
+- **`Deploy API` の「Authenticate to Google Cloud」で `The given credential is rejected by the attribute condition`**：Workload Identity 連携の条件が、GitHub から届くトークンに合っていない。前の版の `setup-gcp.sh`（`assertion.sub` で比べていた版）で作ったときに起きる（D50）。最新の main を Cloud Shell に取り込み（`git -C yamon-site pull`）、手順4のスクリプトをもう一度実行する（Secret の「上書きしますか」はすべて Enter）。条件がリポジトリの ID と環境（`production`）で判定する形に上書きされる。その後、失敗したジョブを再実行する
+- **地図が出ず、航空写真だけが出る**：地図データ（R2）がまだ置かれていない。`https://yamon-site.yamonken.workers.dev/map/survey-area.json` が 503（保存先の R2 がつながっていない）か 404（ファイルがまだない）を返す。[MAP_DATA.md](MAP_DATA.md) の「3. 本番（Cloudflare R2）に置く」を行う
+- **LINE で開くと「位置情報の利用が許可されていません」**：LINE の中のブラウザに位置情報の許可がない。リンクを Chrome や Safari で開く（LINE の画面の右下のメニュー →「ブラウザで開く」など）
 - **503（この環境ではサーバーにつながりません）**：Worker の Secret（`API_ORIGIN`・`PROXY_SECRET`）が未登録。PR のプレビューでは、これが正しい動き
 - **403 が Worker 経由でも出る**：Worker の `PROXY_SECRET` と Secret Manager の `yamon-proxy-secret` が違う。どちらかを合わせ、Secret Manager を変えたときは CI を再実行して Cloud Run に読み込ませる
 - **招待・再設定のリンクが分からなくなった**：管理者画面で、招待は「リンクを作り直す」、パスワードは部員の「再設定リンク」を押す（前のリンクは使えなくなる）
