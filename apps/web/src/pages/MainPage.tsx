@@ -1,7 +1,8 @@
-import { Calendar, Database as DbIcon, List, LogOut, Map as MapIcon, MapPin, Pencil, Shield } from 'lucide-react';
+import { Calendar, Pencil } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { CreatureManager } from '../components/CreatureManager';
+import { HomeHeader } from '../components/HomeHeader';
 import { EventForm } from '../components/EventForm';
 import { RecordCard } from '../components/RecordCard';
 import { RecordForm } from '../components/RecordForm';
@@ -20,8 +21,6 @@ import {
 } from '../lib/queries';
 
 const RECENT_LIMIT = 10;
-
-const navBtn = 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-white transition-colors';
 
 export function MainPage() {
   const user = useCurrentUser()!;
@@ -64,58 +63,14 @@ export function MainPage() {
 
   return (
     <PageBackground>
-      <header className="border-b border-gray-200 bg-white shadow-sm">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-600">
-              <DbIcon className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl leading-tight font-bold text-gray-900">やもんサイト</h1>
-              <p className="text-sm text-gray-600">生き物観察記録システム</p>
-            </div>
-          </div>
-          <nav className="flex flex-wrap items-center gap-2">
-            {can(user.role, 'users.manage') && (
-              <Link to="/admin" className={`${navBtn} bg-purple-600 hover:bg-purple-700`}>
-                <Shield className="h-4 w-4" />
-                管理者画面
-              </Link>
-            )}
-            <Link to="/event-list" className={`${navBtn} bg-orange-600 hover:bg-orange-700`}>
-              <Calendar className="h-4 w-4" />
-              観察会一覧
-            </Link>
-            <button
-              type="button"
-              onClick={() => setShowCreatures((v) => !v)}
-              aria-pressed={showCreatures}
-              className={`${navBtn} bg-purple-600 hover:bg-purple-700 ${showCreatures ? 'ring-2 ring-purple-300' : ''}`}
-            >
-              <List className="h-4 w-4" />
-              生き物管理
-            </button>
-            <Link to="/locations" className={`${navBtn} bg-blue-600 hover:bg-blue-700`}>
-              <MapPin className="h-4 w-4" />
-              場所別の生き物
-            </Link>
-            <Link to="/map" className={`${navBtn} bg-green-600 hover:bg-green-700`}>
-              <MapIcon className="h-4 w-4" />
-              マップを見る
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                void logout().then(() => navigate('/login'));
-              }}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-            >
-              <LogOut className="h-4 w-4" />
-              ログアウト
-            </button>
-          </nav>
-        </div>
-      </header>
+      <HomeHeader
+        user={user}
+        showCreatures={showCreatures}
+        onToggleCreatures={() => setShowCreatures((v) => !v)}
+        onLogout={() => {
+          void logout().then(() => navigate('/login'));
+        }}
+      />
 
       <main className="mx-auto max-w-2xl space-y-6 px-4 py-8">
 

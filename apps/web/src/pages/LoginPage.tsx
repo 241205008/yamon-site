@@ -78,7 +78,11 @@ export function LoginPage() {
         />
       )}
 
-      <p className="mt-4 text-center text-xs text-gray-500">
+      <p className="mt-4 flex justify-center gap-4 text-xs text-gray-500">
+        {/* 招待された人が、登録の前に使い方を読めるようにする（#79、D52） */}
+        <Link to="/guide" className="text-blue-600 hover:text-blue-700 hover:underline">
+          使い方
+        </Link>
         <Link to="/privacy" className="hover:text-gray-700 hover:underline">
           個人情報の扱い
         </Link>
