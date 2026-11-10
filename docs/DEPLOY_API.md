@@ -115,20 +115,6 @@ gh variable set SMTP_USER
 gh secret set DATABASE_URL --env production
 ```
 
-保守を担当する開発者のアカウントを、ほかの管理者の操作（降格・無効化・退会処理・再設定リンクの発行）から守る（D51）。開発者が本番で管理者として登録した後に行う。後からでも設定できる（登録して CI を再実行する）。
-
-1. 本番のサイトに開発者のアカウントでログインしたまま、同じブラウザで `https://yamon-site.yamonken.workers.dev/api/auth/me` を開く。表示された `"id"` の値（`xxxxxxxx-xxxx-...` の形）が、開発者のユーザー ID
-2. ID を Variable に登録する（聞かれたら ID を貼る。複数人を守るときはカンマ区切り）
-
-   ```bash
-   gh variable set PROTECTED_USER_IDS
-   ```
-
-3. Actions 画面で CI を main に対して手動実行する（Run workflow）。`Deploy API (Cloud Run)` が環境変数を渡す。Cloud Run のログに「守るユーザー（PROTECTED_USER_IDS）：1人」と出る
-4. 管理者画面で、開発者に「保守担当」の印が付いていることを確かめる
-
-Cloud Run の画面で環境変数を手で足しても、次のデプロイで消える（CI が毎回すべて上書きする）。必ず Variable で設定する。ID でない値を入れると API が起動しない（`Deploy API` が失敗する）ので、そのときは Variable を直して再実行する。
-
 最後に、リポジトリの「Settings」→「Environments」→「production」で「Deployment branches and tags」を「Selected branches and tags」にし、`main` だけを追加する（Neon の接続文字列と Google Cloud へのログインを、main の CI だけに限る）。
 
 ### 7. 最初のデプロイ
@@ -142,6 +128,22 @@ Cloud Run の画面で環境変数を手で足しても、次のデプロイで�
 3. Actions 画面で、1の実行の失敗したジョブを再実行し（「Re-run failed jobs」、または `gh run rerun <実行ID> --failed`）、すべて成功することを確かめる
 4. https://yamon-site.yamonken.workers.dev/login を開くと、ユーザーが0人なので `/setup` に移る。手順4で表示された `yamon-setup-token` と、最初の管理者の名前・メールアドレス・パスワードを入れて登録する（D38）
 5. 管理者画面の「招待する」で自分以外のアドレスの招待リンクを作り、表示された文を LINE などで送る。受け取った人がリンクから登録できることを確かめる（手順1を行った場合は、同じリンクのメールも届く）
+
+### 8. 開発者のアカウントを守る（D51）
+
+保守を担当する開発者のアカウントを、ほかの管理者の操作（降格・無効化・退会処理・再設定リンクの発行）から守る（D51）。手順7の後、開発者が本番で管理者として登録して（初回セットアップ）から行う。
+
+1. 本番のサイトに開発者のアカウントでログインしたまま、同じブラウザで `https://yamon-site.yamonken.workers.dev/api/auth/me` を開く。表示された `"id"` の値（`xxxxxxxx-xxxx-...` の形）が、開発者のユーザー ID
+2. ID を Variable に登録する（聞かれたら ID を貼る。複数人を守るときはカンマ区切り）
+
+   ```bash
+   gh variable set PROTECTED_USER_IDS
+   ```
+
+3. Actions 画面で CI を main に対して手動実行する（Run workflow）。`Deploy API (Cloud Run)` が環境変数を渡す。Cloud Run のログに「守るユーザー（PROTECTED_USER_IDS）：1人」と出る
+4. 管理者画面で、開発者に「保守担当」の印が付いていることを確かめる
+
+Cloud Run の画面で環境変数を手で足しても、次のデプロイで消える（CI が毎回すべて上書きする）。必ず Variable で設定する。ID でない値を入れると API が起動しない（`Deploy API` が失敗する）ので、そのときは Variable を直して再実行する。
 
 ## 確かめ方・困ったとき
 

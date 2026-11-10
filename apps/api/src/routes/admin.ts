@@ -48,11 +48,15 @@ const conflict = (message: string) => new HTTPException(409, { message });
  * ユーザーの状態を変える操作を、管理者のロックを取ったトランザクションで行う。
  * 操作する人と対象の行をロックの中で読み直してから fn に渡すので、別の管理者の操作と重なっても、古い状態で判断しない
  * （例：自分が降格された直後に、降格前の権限で操作が通ることはない）
+ *
+ * protection は、守られているユーザー（D51）への操作を断るかどうか。新しい操作を足すときに決め忘れないよう、必ず渡す。
+ * null は断らない、allowSelf は本人による操作だけ通す
  */
 async function withUserLocked<T>(
   db: Db,
   actor: SessionUser,
   userId: string,
+  protection: { ids: ReadonlySet<string>; allowSelf?: boolean } | null,
   fn: (tx: Tx, target: typeof users.$inferSelect) => Promise<T>,
 ) {
   return db.transaction(async (tx) => {
@@ -67,6 +71,7 @@ async function withUserLocked<T>(
     }
     const [target] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
     if (!target) throw notFound();
+    if (protection && !(protection.allowSelf && target.id === actor.id)) assertNotProtected(protection.ids, target);
     return fn(tx, target);
   });
 }
@@ -139,11 +144,10 @@ export const adminRoutes = new Hono<AuthedEnv>()
     const actor = c.get('user');
     const { id } = c.req.valid('param');
     const { role } = c.req.valid('json');
-    const user = await withUserLocked(c.get('db'), actor, id, async (tx, target) => {
+    // 守られている人の役割は変えない。本人がうっかり自分を降格するのも断る（降格すると自分では戻せない、D51）
+    const user = await withUserLocked(c.get('db'), actor, id, { ids: c.get('protectedUserIds') }, async (tx, target) => {
       if (target.status === 'withdrawn') throw conflict('退会したユーザーの役割は変えられません');
       if (target.role === role) return target;
-      // 本人がうっかり自分を降格するのも断る（降格すると自分では戻せない）
-      assertNotProtected(c.get('protectedUserIds'), target);
       if (role !== 'admin') await assertNotLastAdmin(tx, target);
       const [updated] = await tx.update(users).set({ role }).where(eq(users.id, id)).returning();
       await audit(tx, actor, id, 'role_changed', { from: target.role, to: role });
@@ -156,8 +160,7 @@ export const adminRoutes = new Hono<AuthedEnv>()
     const actor = c.get('user');
     const { id } = c.req.valid('param');
     assertNotSelf(actor, id);
-    const user = await withUserLocked(c.get('db'), actor, id, async (tx, target) => {
-      assertNotProtected(c.get('protectedUserIds'), target);
+    const user = await withUserLocked(c.get('db'), actor, id, { ids: c.get('protectedUserIds') }, async (tx, target) => {
       if (target.status !== 'active') throw conflict('このユーザーは無効化できる状態ではありません');
       await assertNotLastAdmin(tx, target);
       const [updated] = await tx.update(users).set({ status: 'disabled' }).where(eq(users.id, id)).returning();
@@ -172,7 +175,8 @@ export const adminRoutes = new Hono<AuthedEnv>()
   .post('/users/:id/enable', idParam, async (c) => {
     const actor = c.get('user');
     const { id } = c.req.valid('param');
-    const user = await withUserLocked(c.get('db'), actor, id, async (tx, target) => {
+    // 有効化は守られている人にもできる（設定する前に無効化されていた場合に戻せるように、D51）
+    const user = await withUserLocked(c.get('db'), actor, id, null, async (tx, target) => {
       if (target.status !== 'disabled') throw conflict('このユーザーは有効化できる状態ではありません');
       const [updated] = await tx.update(users).set({ status: 'active' }).where(eq(users.id, id)).returning();
       await audit(tx, actor, id, 'enabled');
@@ -186,8 +190,7 @@ export const adminRoutes = new Hono<AuthedEnv>()
     const actor = c.get('user');
     const { id } = c.req.valid('param');
     assertNotSelf(actor, id);
-    const user = await withUserLocked(c.get('db'), actor, id, async (tx, target) => {
-      assertNotProtected(c.get('protectedUserIds'), target);
+    const user = await withUserLocked(c.get('db'), actor, id, { ids: c.get('protectedUserIds') }, async (tx, target) => {
       if (target.status === 'withdrawn') throw conflict('このユーザーはすでに退会しています');
       await assertNotLastAdmin(tx, target);
       const [updated] = await tx
@@ -214,9 +217,9 @@ export const adminRoutes = new Hono<AuthedEnv>()
   .post('/users/:id/password-reset', idParam, async (c) => {
     const actor = c.get('user');
     const { id } = c.req.valid('param');
-    const { email, token, expiresAt } = await withUserLocked(c.get('db'), actor, id, async (tx, target) => {
-      // 本人以外が発行したリンクは、発行した人がなりすましに使える（D46）。本人が自分に発行するのは断らない
-      if (target.id !== actor.id) assertNotProtected(c.get('protectedUserIds'), target);
+    // 本人以外が発行したリンクは、発行した人がなりすましに使える（D46）ので断る。本人が自分に発行するのは断らない（D51）
+    const protection = { ids: c.get('protectedUserIds'), allowSelf: true };
+    const { email, token, expiresAt } = await withUserLocked(c.get('db'), actor, id, protection, async (tx, target) => {
       if (target.status !== 'active' || !target.email) {
         throw conflict('有効なユーザーにだけ、再設定のリンクを発行できます');
       }

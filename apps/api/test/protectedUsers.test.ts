@@ -55,15 +55,30 @@ describe('守る設定があるとき', () => {
     expect(logs).toHaveLength(0);
   });
 
-  it('管理者以外の役割（幹部など）への変更も、管理者への変更以外はすべて断る', async () => {
+  it('役割の変更は、どの役割へも断る（同じ役割の指定も含む）', async () => {
     const { cookie } = await otherAdmin(protectedCtx);
-    for (const role of ['officer', 'member', 'viewer']) {
+    for (const role of ['officer', 'member', 'viewer', 'admin']) {
       const res = await callApi(protectedCtx, cookie, 'PATCH', `/api/admin/users/${developer.id}/role`, { role });
       expect(res.status, role).toBe(403);
     }
-    // 同じ役割への変更は、今までどおり何もせず 200
-    const same = await callApi(protectedCtx, cookie, 'PATCH', `/api/admin/users/${developer.id}/role`, { role: 'admin' });
-    expect(same.status).toBe(200);
+  });
+
+  it('管理者でない人を守っているときは、管理者にすることも断る', async () => {
+    const officer = await createUser(base.db, { role: 'officer' });
+    const app = createApp({ db: base.db, appUrl: TEST_APP_URL, protectedUserIds: [officer.id] });
+    const ctx = { ...base, app };
+    const { cookie } = await otherAdmin(ctx);
+    const res = await callApi(ctx, cookie, 'PATCH', `/api/admin/users/${officer.id}/role`, { role: 'admin' });
+    expect(res.status).toBe(403);
+  });
+
+  it('守られている人の有効化はできる（設定の前に無効化されていた場合）', async () => {
+    const disabled = await createUser(base.db, { role: 'admin' });
+    await base.db.update(schema.users).set({ status: 'disabled' }).where(eq(schema.users.id, disabled.id));
+    const app = createApp({ db: base.db, appUrl: TEST_APP_URL, protectedUserIds: [disabled.id] });
+    const ctx = { ...base, app };
+    const { cookie } = await otherAdmin(ctx);
+    expect((await callApi(ctx, cookie, 'POST', `/api/admin/users/${disabled.id}/enable`)).status).toBe(200);
   });
 
   it('本人が自分を降格する操作も断る。本人が自分に再設定リンクを発行するのはできる', async () => {
