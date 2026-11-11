@@ -109,6 +109,7 @@ export function RecordForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const searching = search.trim() !== '';
   const filtered = useMemo(() => {
     const q = search.trim();
     return q ? creatures.filter((c) => c.name.includes(q)) : creatures;
@@ -205,19 +206,24 @@ export function RecordForm({
           onChange={(e) => setCreatureId(e.target.value)}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
         >
-          <option value="">選択してください</option>
+          {/* 検索中は一致する生き物だけを出す（#89）。選択は消さず、一覧の下の「選択中」で分かるようにする */}
+          {!searching && <option value="">選択してください</option>}
           {filtered.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name} ({c.category})
             </option>
           ))}
-          {/* 検索で絞り込まれても、選択中の生き物は消さない */}
-          {selected && !filtered.includes(selected) && (
-            <option value={selected.id}>
-              {selected.name} ({selected.category})
+          {searching && filtered.length === 0 && (
+            <option value="" disabled>
+              見つかりません
             </option>
           )}
         </select>
+        {selected && (
+          <p className="mt-1 text-sm text-gray-600">
+            選択中：{selected.name}（{selected.category}）
+          </p>
+        )}
         {selected?.memo && (
           <p className="mt-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-gray-700">
             💬 {selected.memo}
