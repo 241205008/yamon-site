@@ -22,17 +22,21 @@ const creatures = [creature('c1', 'アメリカザリガニ'), creature('c2', '�
 let container: HTMLDivElement;
 let root: Root;
 
+function render(list = creatures, canAddCreature = false) {
+  act(() => {
+    root.render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RecordForm creatures={list} mainLocations={[]} canAddCreature={canAddCreature} onSubmit={async () => {}} />
+      </QueryClientProvider>,
+    );
+  });
+}
+
 beforeEach(() => {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => {
-    root.render(
-      <QueryClientProvider client={new QueryClient()}>
-        <RecordForm creatures={creatures} mainLocations={[]} canAddCreature={false} onSubmit={async () => {}} />
-      </QueryClientProvider>,
-    );
-  });
+  render();
 });
 
 afterEach(() => {
@@ -40,87 +44,103 @@ afterEach(() => {
   container.remove();
 });
 
-const select = () => container.querySelector<HTMLSelectElement>('#creature-select')!;
-/** 画面に見える選択肢（見えない hidden の選択肢は除く） */
-const optionTexts = () => [...select().options].filter((o) => !o.hidden).map((o) => o.textContent);
-/** 選んだ見た目になっている、見える選択肢 */
-const visibleSelected = () => [...select().options].filter((o) => !o.hidden && o.selected).map((o) => o.textContent);
+const input = () => container.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+const listbox = () => container.querySelector<HTMLElement>('[role="listbox"]');
+/** 候補の一覧に出ている生き物の名前（部門を除く） */
+const candidates = () =>
+  [...container.querySelectorAll<HTMLElement>('[role="option"]')].map((o) => o.textContent!.replace(/\s*\(.*\)$/, ''));
+const selectedText = () => container.textContent!.match(/選択中：(\S+?)（/)?.[1] ?? null;
 
 /** React が value の変更を拾えるよう、ネイティブの setter で値を入れてから input を発火する */
 function typeSearch(value: string) {
-  const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
   act(() => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input().focus();
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input(), value);
+    input().dispatchEvent(new Event('input', { bubbles: true }));
   });
 }
 
-function choose(id: string) {
+function clickCandidate(name: string) {
+  const option = [...container.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent!.startsWith(name));
+  if (!option) throw new Error(`候補にありません: ${name}`);
   act(() => {
-    select().value = id;
-    select().dispatchEvent(new Event('change', { bubbles: true }));
+    option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    option.click();
   });
 }
 
-describe('RecordForm の生き物の検索（#89）', () => {
-  it('検索していないときは「選択してください」とすべての生き物を出す', () => {
-    expect(optionTexts()).toEqual(['選択してください', 'アメリカザリガニ (アクア)', 'メダカ (アクア)', 'カブトムシ (アクア)']);
+function key(k: string) {
+  act(() => {
+    input().dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  });
+}
+
+describe('RecordForm の生き物の検索（#95）', () => {
+  it('最初は候補を出さず、検索欄を押すと登録されている生き物がすべて出る', () => {
+    expect(listbox()).toBeNull();
+    act(() => input().focus());
+    expect(candidates()).toEqual(['アメリカザリガニ', 'メダカ', 'カブトムシ']);
+    expect(container.textContent).toContain('登録されている生き物（3件）');
   });
 
-  it('検索中は、一致する生き物だけを出す（「選択してください」は出さない）', () => {
+  it('入力するたびに、一致する生き物だけをその場で出し、件数も出す', () => {
+    typeSearch('アメ');
+    expect(candidates()).toEqual(['アメリカザリガニ']);
+    expect(container.textContent).toContain('1件見つかりました');
+  });
+
+  it('ひらがなで入れても、カタカナの名前が候補に出る（#91）', () => {
+    typeSearch('めだか');
+    expect(candidates()).toEqual(['メダカ']);
+  });
+
+  it('候補を押すと選ばれ、一覧が閉じて検索欄は空に戻る', () => {
+    typeSearch('かぶと');
+    clickCandidate('カブトムシ');
+    expect(selectedText()).toBe('カブトムシ');
+    expect(listbox()).toBeNull();
+    expect(input().value).toBe('');
+  });
+
+  it('選んだ後に別の名前で絞っても、候補を押せば選び直せる（#93）', () => {
+    typeSearch('メダカ');
+    clickCandidate('メダカ');
     typeSearch('アメリカザリガニ');
-    expect(optionTexts()).toEqual(['アメリカザリガニ (アクア)']);
+    expect(candidates()).toEqual(['アメリカザリガニ']);
+    clickCandidate('アメリカザリガニ');
+    expect(selectedText()).toBe('アメリカザリガニ');
   });
 
-  it('直前に選んだ生き物が一致しなくても、一覧には残さず、選択は「選択中」で分かる', () => {
-    choose('c2');
-    typeSearch('アメリカザリガニ');
-    expect(optionTexts()).toEqual(['アメリカザリガニ (アクア)']);
-    expect(container.textContent).toContain('選択中：メダカ（アクア）');
-    expect(container.textContent).toContain('検索した一覧にはありません');
-    expect(select().getAttribute('aria-describedby')).toBe('creature-selected');
+  it('↓↑で候補を移り、Enter で選べる（記録は送らない）', () => {
+    act(() => input().focus());
+    key('ArrowDown');
+    key('Enter');
+    expect(selectedText()).toBe('メダカ');
+    expect(listbox()).toBeNull();
   });
 
-  it('ひらがなで入れても、カタカナの名前が見つかる（#91）', () => {
-    typeSearch('あめりかざりがに');
-    expect(optionTexts()).toEqual(['アメリカザリガニ (アクア)']);
+  it('Esc で一覧を閉じる', () => {
+    typeSearch('メ');
+    key('Escape');
+    expect(listbox()).toBeNull();
   });
 
-  it('選んだ後に検索で絞っても、候補を押せば選び直せる（#93）', () => {
-    choose('c2');
-    typeSearch('アメリカザリガニ');
-    // 候補が選んだ見た目にならず（押すと change が起きる）、値は前の選択のまま
-    expect(visibleSelected()).toEqual([]);
-    expect(select().value).toBe('c2');
-    choose('c1');
-    expect(container.textContent).toContain('選択中：アメリカザリガニ（アクア）');
-    expect(container.textContent).not.toContain('検索した一覧にはありません');
-  });
-
-  it('何も選ばずに検索しても、候補は選んだ見た目にならない（#93）', () => {
-    typeSearch('アメリカザリガニ');
-    expect(visibleSelected()).toEqual([]);
-    expect(select().value).toBe('');
-    choose('c1');
-    expect(container.textContent).toContain('選択中：アメリカザリガニ（アクア）');
-  });
-
-  it('選んだ生き物が一覧からなくなっても（別の人が消した）、「選択してください」は選んだ見た目にならない（#93）', () => {
-    choose('c2');
-    act(() => {
-      root.render(
-        <QueryClientProvider client={new QueryClient()}>
-          <RecordForm creatures={creatures.filter((c) => c.id !== 'c2')} mainLocations={[]} canAddCreature={false} onSubmit={async () => {}} />
-        </QueryClientProvider>,
-      );
-    });
-    expect(visibleSelected()).toEqual([]);
-    expect(optionTexts()).toEqual(['選択してください', 'アメリカザリガニ (アクア)', 'カブトムシ (アクア)']);
-  });
-
-  it('一致する生き物がないときは「見つかりません」だけを出す', () => {
+  it('一致する生き物がないときは「登録されていません」と、登録できる人には登録の案内を出す', () => {
+    render(creatures, true);
     typeSearch('クジラ');
-    expect(optionTexts()).toEqual(['見つかりません']);
-    expect(select().options[0].disabled).toBe(true);
+    expect(candidates()).toEqual([]);
+    expect(container.textContent).toContain('「クジラ」は登録されていません');
+    expect(container.textContent).toContain('「新しい生き物を登録」から登録できます');
+  });
+
+  it('読み上げ用の役割（combobox・listbox・option）と、選ばれた候補の印を持つ', () => {
+    typeSearch('メダカ');
+    clickCandidate('メダカ');
+    // 選んだ後も検索欄にはフォーカスが残るので、もう一度押して開く
+    act(() => input().click());
+    expect(input().getAttribute('aria-expanded')).toBe('true');
+    expect(input().getAttribute('aria-controls')).toBe(listbox()!.id);
+    const medaka = [...container.querySelectorAll('[role="option"]')].find((o) => o.textContent!.startsWith('メダカ'))!;
+    expect(medaka.getAttribute('aria-selected')).toBe('true');
   });
 });
