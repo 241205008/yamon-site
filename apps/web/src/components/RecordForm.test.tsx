@@ -74,6 +74,8 @@ describe('RecordForm の生き物の検索（#89）', () => {
     typeSearch('アメリカザリガニ');
     expect(optionTexts()).toEqual(['アメリカザリガニ (アクア)']);
     expect(container.textContent).toContain('選択中：メダカ（アクア）');
+    expect(container.textContent).toContain('検索した一覧にはありません');
+    expect(select().getAttribute('aria-describedby')).toBe('creature-selected');
   });
 
   it('一致する生き物がないときは「見つかりません」だけを出す', () => {
