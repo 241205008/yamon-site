@@ -17,8 +17,8 @@ const creature: CreatureView = {
   recordCount: 2,
 };
 
-/** API の偽物。PUT の中身を覚える */
-const sent: { url: string; body: unknown }[] = [];
+/** API の偽物。PUT・PATCH の方法と中身を覚える */
+const sent: { url: string; method: string; body: unknown }[] = [];
 
 let container: HTMLDivElement;
 let root: Root;
@@ -28,7 +28,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
     if (init?.method === 'PUT' || init?.method === 'PATCH') {
       const body = JSON.parse(String(init.body));
-      sent.push({ url, body });
+      sent.push({ url, method: init.method, body });
       return Response.json({ creature: { ...creature, ...body } });
     }
     if (url.startsWith('/api/creatures')) return Response.json({ creatures: [creature] });
@@ -78,19 +78,65 @@ describe('生き物の編集（#97）', () => {
     expect(buttonByText(/^メモを編集/)).toBeDefined();
   });
 
-  it('「名前・カテゴリを編集」では、名前・カテゴリ・位置の保護を直し、メモは今のまま送る', async () => {
+  it('「名前・カテゴリを編集」では、名前・カテゴリ・位置の保護のうち、変えた項目だけを PATCH で送る（メモは送らない、#99）', async () => {
     await render();
     act(() => container.querySelector<HTMLButtonElement>('button[aria-label="アブラハヤを編集"]')!.click());
     act(() => buttonByText(/^名前・カテゴリを編集/)!.click());
     expect(dialog()?.getAttribute('aria-label')).toBe('名前・カテゴリを編集');
-    expect(document.querySelector('#cr-name')).not.toBeNull();
     expect(document.querySelector('#cr-memo')).toBeNull();
+    const input = document.querySelector<HTMLInputElement>('#cr-name')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'タカハヤ');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
     act(() => buttonByText('保存')!.click());
     await flush();
-    expect(sent[0].body).toEqual({ name: 'アブラハヤ', category: 'アクア', memo: longMemo, locationProtected: true });
+    expect(sent).toEqual([{ url: '/api/creatures/c1', method: 'PATCH', body: { name: 'タカハヤ' } }]);
   });
 
-  it('「メモを編集」では、メモの全体を入力欄に出し、メモだけを書き換えて送る（位置の保護の印は送らない）', async () => {
+  it('カテゴリと位置の保護の印も、変えたときだけ送る。印を変えられない人の画面には印がなく、送らない（#99）', async () => {
+    await render();
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="アブラハヤを編集"]')!.click());
+    act(() => buttonByText(/^名前・カテゴリを編集/)!.click());
+    const select = document.querySelector<HTMLSelectElement>('#cr-category')!;
+    act(() => {
+      select.value = 'バーダー';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    act(() => document.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+    act(() => buttonByText('保存')!.click());
+    await flush();
+    expect(sent).toEqual([
+      { url: '/api/creatures/c1', method: 'PATCH', body: { category: 'バーダー', locationProtected: false } },
+    ]);
+  });
+
+  it('印を変えられない人（部員）がカテゴリを変えると、カテゴリだけを送る', async () => {
+    await render(false);
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="アブラハヤを編集"]')!.click());
+    act(() => buttonByText(/^名前・カテゴリを編集/)!.click());
+    expect(document.querySelector('input[type="checkbox"]')).toBeNull();
+    const select = document.querySelector<HTMLSelectElement>('#cr-category')!;
+    act(() => {
+      select.value = 'ママル';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    act(() => buttonByText('保存')!.click());
+    await flush();
+    expect(sent).toEqual([{ url: '/api/creatures/c1', method: 'PATCH', body: { category: 'ママル' } }]);
+  });
+
+  it('何も変えずに保存すると、送らずに閉じる（#99）', async () => {
+    await render();
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="アブラハヤを編集"]')!.click());
+    act(() => buttonByText(/^名前・カテゴリを編集/)!.click());
+    act(() => buttonByText('保存')!.click());
+    await flush();
+    expect(sent).toEqual([]);
+    expect(dialog()).toBeNull();
+  });
+
+  it('「メモを編集」では、メモの全体を入力欄に出し、メモだけを PATCH で送る（名前・カテゴリ・印は送らない、#99）', async () => {
     await render();
     act(() => container.querySelector<HTMLButtonElement>('button[aria-label="アブラハヤを編集"]')!.click());
     act(() => buttonByText(/^メモを編集/)!.click());
@@ -107,6 +153,6 @@ describe('生き物の編集（#97）', () => {
     });
     act(() => buttonByText('保存')!.click());
     await flush();
-    expect(sent[0].body).toEqual({ name: 'アブラハヤ', category: 'アクア', memo: '書き直したメモ' });
+    expect(sent).toEqual([{ url: '/api/creatures/c1', method: 'PATCH', body: { memo: '書き直したメモ' } }]);
   });
 });

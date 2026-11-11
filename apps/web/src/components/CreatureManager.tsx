@@ -1,6 +1,6 @@
 import { FileText, List, Pencil, Search, Tag, Trash2 } from 'lucide-react';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CATEGORIES, searchMatcher, type Category, type CreatureView } from '@yamon/shared';
+import { CATEGORIES, searchMatcher, type Category, type CreaturePatch, type CreatureView } from '@yamon/shared';
 import { errorMessage, useCreatures, useDeleteCreature, useUpdateCreature } from '../lib/queries';
 import { CategoryBadge, ErrorText, inputClass, Modal, QueryState, ShowMoreButton, usePaged } from './ui';
 
@@ -192,10 +192,14 @@ function BasicEditModal({
   const save = async () => {
     setError(null);
     try {
-      const memo = creature.memo;
-      // 印は権限がある人だけが送る（それ以外の人が送らなければ、API は今の印のままにする）
-      const input = canProtect ? { name, category, memo, locationProtected } : { name, category, memo };
-      await updateCreature.mutateAsync({ id: creature.id, input });
+      // 変えた項目だけを送る（#99）。メモや、変えていない項目は送らないので、
+      // ほかの人が同時に変えた値を、この画面を開いたときの古い値で上書きしない。
+      // 印は権限がある人だけが送る（API も、権限のない人の印の変更は 403 にする）
+      const input: CreaturePatch = {};
+      if (name.trim() !== creature.name) input.name = name;
+      if (category !== creature.category) input.category = category;
+      if (canProtect && locationProtected !== creature.locationProtected) input.locationProtected = locationProtected;
+      if (Object.keys(input).length > 0) await updateCreature.mutateAsync({ id: creature.id, input });
       onClose();
     } catch (e) {
       // 入力内容は消さない
@@ -251,7 +255,7 @@ function BasicEditModal({
 
 /**
  * メモの編集（#97）。入力欄の高さを中身に合わせて広げ、メモの全体を1画面で見ながら書けるようにする。
- * 名前・カテゴリは今のまま送る。印は送らないので、API は今の印のままにする
+ * メモだけを送るので、名前・カテゴリ・印は今のまま（#99）
  */
 function MemoEditModal({ creature, onClose }: { creature: CreatureView; onClose: () => void }) {
   const updateCreature = useUpdateCreature();
@@ -276,10 +280,8 @@ function MemoEditModal({ creature, onClose }: { creature: CreatureView; onClose:
   const save = async () => {
     setError(null);
     try {
-      await updateCreature.mutateAsync({
-        id: creature.id,
-        input: { name: creature.name, category: creature.category, memo },
-      });
+      // メモだけを送る（#99）。名前・カテゴリは送らないので、ほかの人が同時に変えても上書きしない
+      if (memo.trim() !== creature.memo) await updateCreature.mutateAsync({ id: creature.id, input: { memo } });
       onClose();
     } catch (e) {
       setError(errorMessage(e, '保存に失敗しました'));

@@ -29,10 +29,13 @@ const coordinateFields = {
 const coordinatesPaired = (v: { lat: number | null; lng: number | null }) => (v.lat === null) === (v.lng === null);
 const COORDINATES_PAIR_MESSAGE = { message: '緯度と経度は両方そろえて指定してください', path: ['lat'] };
 
+/** 生き物のメモの最大の文字数（登録・PUT・PATCH で共通） */
+const CREATURE_MEMO_MAX = 500;
+
 export const creatureInputSchema = z.object({
   name: z.string().trim().min(1, '生き物の名前を入力してください').max(50),
   category: categorySchema,
-  memo: optionalText(500),
+  memo: optionalText(CREATURE_MEMO_MAX),
   /**
    * 位置を保護する（D24）。変えられるのは creatures.protect の権限がある人（管理者・幹部）だけ。
    * 省くと、登録では false、編集では今のまま
@@ -40,6 +43,22 @@ export const creatureInputSchema = z.object({
   locationProtected: z.boolean().optional(),
 });
 export type CreatureInput = z.input<typeof creatureInputSchema>;
+
+/**
+ * 生き物の一部の更新（PATCH、#99）。送った項目だけを変え、送らなかった項目は今のまま。
+ * 2つの編集画面（名前・カテゴリ／メモ）が、ほかの人が同時に変えた別の項目を古い値で上書きしないようにする（D56）
+ */
+export const creaturePatchSchema = z
+  .object({
+    name: creatureInputSchema.shape.name.optional(),
+    category: categorySchema.optional(),
+    // creatureInputSchema.partial() にしない。Zod 4 では optional の中の default が効き、
+    // メモを送らなかったのに '' で上書きしてしまう
+    memo: z.string().trim().max(CREATURE_MEMO_MAX).optional(),
+    locationProtected: z.boolean().optional(),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), { message: '変える項目を1つ以上指定してください' });
+export type CreaturePatch = z.input<typeof creaturePatchSchema>;
 
 export const recordInputSchema = z
   .object({

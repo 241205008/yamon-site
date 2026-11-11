@@ -123,6 +123,19 @@ describe('「位置を保護する」印', () => {
     });
     expect(same.status).toBe(200);
   });
+
+  it('PATCH でも、印を付け外しできるのは管理者・幹部だけ。部員が印を送らずに変えても印はそのまま（#99）', async () => {
+    const plain = (await creature('member')).body;
+    expect((await call('PATCH', `/creatures/${plain.id}`, 'member', { locationProtected: true })).status).toBe(403);
+    const byOfficer = await call<CreatureView>('PATCH', `/creatures/${plain.id}`, 'officer', { locationProtected: true });
+    expect(byOfficer.body).toMatchObject({ locationProtected: true, name: plain.name });
+
+    const memo = await call<CreatureView>('PATCH', `/creatures/${plain.id}`, 'member', { memo: '巣の場所は書かない' });
+    expect(memo.status).toBe(200);
+    expect(memo.body.locationProtected).toBe(true);
+    // 同じ値を送るのは変更ではないので通す
+    expect((await call('PATCH', `/creatures/${plain.id}`, 'member', { locationProtected: true })).status).toBe(200);
+  });
 });
 
 describe('保護対象の記録の位置（D52）', () => {

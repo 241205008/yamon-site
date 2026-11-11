@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eventInputSchema, recordInputSchema, recorderLabel } from './observations';
+import { creaturePatchSchema, eventInputSchema, recordInputSchema, recorderLabel } from './observations';
 
 const id = '0b6f8a52-3c1d-4e2f-9a7b-1c2d3e4f5a6b';
 const record = {
@@ -23,6 +23,24 @@ describe('記録の入力', () => {
 
   it('片方だけの座標は通らない', () => {
     expect(recordInputSchema.safeParse({ ...record, lat: 35.13 }).success).toBe(false);
+  });
+});
+
+describe('生き物の一部の更新（#99）', () => {
+  it('送らなかった項目は補わない（メモを送らなければ、メモは結果に入らない）', () => {
+    expect(creaturePatchSchema.parse({ name: ' カワセミ ' })).toEqual({ name: 'カワセミ' });
+    expect(creaturePatchSchema.parse({ memo: '' })).toEqual({ memo: '' });
+  });
+
+  it('変える項目が1つもなければ通らない', () => {
+    expect(creaturePatchSchema.safeParse({}).success).toBe(false);
+    expect(creaturePatchSchema.safeParse({ unknown: 1 }).success).toBe(false);
+  });
+
+  it('送った項目は登録と同じ決まりで確かめる', () => {
+    expect(creaturePatchSchema.safeParse({ name: '  ' }).success).toBe(false);
+    expect(creaturePatchSchema.safeParse({ category: 'その他の何か' }).success).toBe(false);
+    expect(creaturePatchSchema.safeParse({ memo: 'あ'.repeat(501) }).success).toBe(false);
   });
 });
 
