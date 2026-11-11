@@ -23,7 +23,7 @@ export function LocationsPage() {
 
   return (
     <PageBackground>
-      <BackBar to="/" label="記録画面に戻る" />
+      <BackBar to="/" label="ホーム画面に戻る" />
       <main className="mx-auto max-w-6xl px-4 py-8">
         <h1 className="mb-6 text-3xl font-bold text-gray-900">場所別の生き物一覧</h1>
         <QueryState query={firstUnready(locationsQuery, statsQuery)} label="場所別の記録">

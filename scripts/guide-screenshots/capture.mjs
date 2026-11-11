@@ -126,13 +126,11 @@ const SHOTS = [
     },
   },
   {
-    file: 'creatures.webp', role: 'member', device: 'phone', maxHeight: 900,
+    // 専用ページ（#97）なので、上部の「ホーム画面に戻る」ごと画面全体を撮る
+    file: 'creatures.webp', role: 'member', device: 'phone',
     async run(page) {
-      await page.goto('/');
-      await page.getByRole('button', { name: '生き物管理' }).click();
-      const heading = page.getByRole('heading', { name: '生き物管理' });
+      await page.goto('/creatures');
       await page.getByText(/記録 \d+件/).first().waitFor();
-      return card(heading);
     },
   },
   {
@@ -171,9 +169,9 @@ const SHOTS = [
   {
     file: 'creature-protect.webp', role: 'officer', device: 'phone',
     async run(page) {
-      await page.goto('/');
-      await page.getByRole('button', { name: '生き物管理' }).click();
+      await page.goto('/creatures');
       await page.getByRole('button', { name: /を編集$/ }).first().click();
+      await page.getByRole('button', { name: /名前・カテゴリを編集/ }).click();
       return page.getByRole('dialog');
     },
   },

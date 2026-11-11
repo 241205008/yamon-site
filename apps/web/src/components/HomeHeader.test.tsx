@@ -26,7 +26,7 @@ function render(role: Role, onLogout = () => {}) {
   act(() => {
     root.render(
       <MemoryRouter>
-        <HomeHeader user={user} showCreatures={false} onToggleCreatures={() => {}} onLogout={onLogout} />
+        <HomeHeader user={user} onLogout={onLogout} />
       </MemoryRouter>,
     );
   });
@@ -60,6 +60,18 @@ describe('ホームのヘッダー', () => {
     expect(linkTo('/admin')).not.toBeNull();
     render('officer');
     expect(linkTo('/admin')).toBeNull();
+  });
+
+  it('「生き物管理」は、ほかのボタンと同じく専用ページ（/creatures）へのリンク（#97）', () => {
+    render('viewer');
+    expect(linkTo('/creatures')?.textContent).toBe('生き物管理');
+  });
+
+  it('ロゴとサイト名は、ホーム画面（/）へのリンク（#97）', () => {
+    render('member');
+    const home = linkTo('/')!;
+    expect(home.textContent).toContain('やもんサイト');
+    expect(home.querySelector('svg')).not.toBeNull();
   });
 
   it('ログアウトを押すと onLogout が呼ばれる', () => {
