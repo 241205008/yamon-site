@@ -3,8 +3,11 @@ import { Calendar, CircleHelp, Database as DbIcon, List, LogOut, Map as MapIcon,
 import { Link } from 'react-router';
 
 const navBtn = 'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap text-white transition-colors';
-/** 遷移ボタンの色（管理者画面以外は「マップを見る」と同じ緑にそろえる、#86） */
-const navGreen = 'bg-green-600 hover:bg-green-700';
+/**
+ * 遷移ボタンの色（管理者画面以外は緑にそろえる、#86）。白い小さい文字が読めるよう、green-600（約3.3:1）ではなく
+ * green-700（約5.0:1、WCAG AA の 4.5:1 以上）にする
+ */
+const navGreen = 'bg-green-700 hover:bg-green-800';
 /** ヘッダーの右端の、文字だけのリンク（アカウント・ログアウト・使い方） */
 const textLink = 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors';
 
