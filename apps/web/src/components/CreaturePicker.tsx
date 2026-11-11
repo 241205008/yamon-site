@@ -46,6 +46,8 @@ export function CreaturePicker({ creatures, value, onChange, search, onSearchCha
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // 日本語の変換中（かなの確定の Enter や、変換候補を選ぶ ↓↑）は、候補の操作にしない
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (!open) return setOpen(true);
@@ -64,7 +66,8 @@ export function CreaturePicker({ creatures, value, onChange, search, onSearchCha
     }
   };
 
-  const showList = open && creatures.length > 0;
+  // 生き物が1件もなくても、入力があれば「登録されていません」と登録の案内を出す
+  const showList = open && (creatures.length > 0 || match !== null);
 
   return (
     <div>
@@ -91,14 +94,18 @@ export function CreaturePicker({ creatures, value, onChange, search, onSearchCha
           }}
           onFocus={() => setOpen(true)}
           onClick={() => setOpen(true)}
-          // 候補を押したときは onMouseDown で blur を止めるので、ここで閉じても候補の選択には間に合う
+          // 一覧の中を押したときは onMouseDown で blur を止めるので、ここで閉じても候補の選択には間に合う
           onBlur={() => setOpen(false)}
           onKeyDown={onKeyDown}
           placeholder={selected ? '別の生き物を検索...' : '生き物を検索...'}
           className={`${inputClass} pl-10`}
         />
         {showList && (
-          <div className="absolute top-full right-0 left-0 z-20 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+          <div
+            // 一覧のどこを押しても（スクロールバー・件数の行を含む）、検索欄の blur で一覧が閉じないようにする
+            onMouseDown={(e) => e.preventDefault()}
+            className="absolute top-full right-0 left-0 z-20 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+          >
             <p className="border-b border-gray-100 px-3 py-1.5 text-xs text-gray-500" aria-live="polite">
               {match ? `${candidates.length}件見つかりました` : `登録されている生き物（${creatures.length}件）`}
             </p>
@@ -110,8 +117,6 @@ export function CreaturePicker({ creatures, value, onChange, search, onSearchCha
                   data-index={i}
                   role="option"
                   aria-selected={c.id === value}
-                  // 押したときに検索欄の blur で一覧が閉じないようにする
-                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => choose(c)}
                   onMouseMove={() => i !== activeIndex && setActive(i)}
                   className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-gray-900 ${i === activeIndex ? 'bg-green-50' : ''}`}

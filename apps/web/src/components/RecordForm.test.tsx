@@ -1,8 +1,8 @@
-import type { CreatureView } from '@yamon/shared';
+import type { CreatureView, RecordInput } from '@yamon/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RecordForm } from './RecordForm';
 
 // React の act() を使うテストであることを知らせる
@@ -21,12 +21,13 @@ const creatures = [creature('c1', 'アメリカザリガニ'), creature('c2', '�
 
 let container: HTMLDivElement;
 let root: Root;
+let onSubmit: ReturnType<typeof vi.fn<(input: RecordInput) => Promise<void>>>;
 
 function render(list = creatures, canAddCreature = false) {
   act(() => {
     root.render(
       <QueryClientProvider client={new QueryClient()}>
-        <RecordForm creatures={list} mainLocations={[]} canAddCreature={canAddCreature} onSubmit={async () => {}} />
+        <RecordForm creatures={list} mainLocations={[]} canAddCreature={canAddCreature} onSubmit={onSubmit} />
       </QueryClientProvider>,
     );
   });
@@ -36,6 +37,7 @@ beforeEach(() => {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
+  onSubmit = vi.fn<(input: RecordInput) => Promise<void>>(async () => {});
   render();
 });
 
@@ -69,9 +71,9 @@ function clickCandidate(name: string) {
   });
 }
 
-function key(k: string) {
+function key(k: string, init: KeyboardEventInit = {}) {
   act(() => {
-    input().dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+    input().dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...init }));
   });
 }
 
@@ -117,6 +119,30 @@ describe('RecordForm の生き物の検索（#95）', () => {
     key('Enter');
     expect(selectedText()).toBe('メダカ');
     expect(listbox()).toBeNull();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('日本語の変換中の Enter（かなの確定）では、候補を選ばない', () => {
+    typeSearch('めだ');
+    key('Enter', { isComposing: true });
+    expect(selectedText()).toBeNull();
+    expect(listbox()).not.toBeNull();
+  });
+
+  it('一覧のスクロールバーや件数の行を押しても、一覧は閉じない（blur を止める）', () => {
+    typeSearch('メ');
+    const panel = listbox()!.parentElement!;
+    const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    act(() => {
+      panel.dispatchEvent(down);
+    });
+    expect(down.defaultPrevented).toBe(true);
+  });
+
+  it('生き物が1件も登録されていなくても、入力すれば「登録されていません」と案内する', () => {
+    render([], true);
+    typeSearch('メダカ');
+    expect(container.textContent).toContain('「メダカ」は登録されていません');
   });
 
   it('Esc で一覧を閉じる', () => {
