@@ -7,6 +7,7 @@ import { sameSecret } from './auth/session';
 import type { Db } from './db/client';
 import type { Mailer } from './mail';
 import { errorBody, handleError } from './errors';
+import { accountRoutes } from './routes/account';
 import { adminRoutes } from './routes/admin';
 import { authRoutes } from './routes/auth';
 import { invitationRoutes } from './routes/invitations';
@@ -126,6 +127,7 @@ export function createApp({
   app.get('/health', (c) => c.json({ status: 'ok' }));
 
   app.route('/auth', authRoutes);
+  app.route('/account', accountRoutes);
   app.route('/setup', setupRoutes);
   app.route('/password-reset', passwordResetRoutes);
   app.route('/creatures', creatureRoutes);

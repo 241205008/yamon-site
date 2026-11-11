@@ -28,6 +28,23 @@ export const newPasswordSchema = z
   .min(MIN_PASSWORD_LENGTH, `パスワードは${MIN_PASSWORD_LENGTH}文字以上にしてください`)
   .max(MAX_PASSWORD_LENGTH, `パスワードは${MAX_PASSWORD_LENGTH}文字以下にしてください`);
 
+/**
+ * ログイン用のメールアドレスを本人が変える（PATCH /api/account/email、#84・D54）。
+ * なりすましを防ぐため、今のパスワードを入れてもらう（長さの下限はログインと同じく見ない）
+ */
+export const emailChangeInputSchema = z.object({
+  email: emailSchema,
+  currentPassword: z.string().min(1, '今のパスワードを入力してください').max(MAX_PASSWORD_LENGTH),
+});
+export type EmailChangeInput = z.input<typeof emailChangeInputSchema>;
+
+/** PATCH /api/account/email の応答 */
+export interface EmailChangeResponse {
+  user: SessionUser;
+  /** メールの設定（SMTP）がある環境で、新しいアドレスに変更の通知を送れたか */
+  mailSent: boolean;
+}
+
 /** ログイン中のユーザー（GET /api/auth/me・POST /api/auth/login の応答） */
 export interface SessionUser {
   id: string;

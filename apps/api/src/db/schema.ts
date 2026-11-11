@@ -134,7 +134,7 @@ export const passwordResetTokens = pgTable(
   (t) => [index('password_reset_tokens_user_id_idx').on(t.userId)],
 );
 
-/** 操作履歴：役割の変更・無効化・有効化・退会処理を、誰がいつ行ったか（D25） */
+/** 操作履歴：役割の変更・無効化・有効化・退会処理・再設定リンクの発行・メールアドレスの変更を、誰がいつ行ったか（D25・D46・D54） */
 export const auditLogs = pgTable(
   'audit_logs',
   {

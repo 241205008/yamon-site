@@ -70,6 +70,14 @@ const SHOTS = [
     },
   },
 
+  {
+    file: 'account.webp', role: 'viewer', device: 'phone',
+    async run(page) {
+      await page.goto('/account');
+      await page.getByRole('heading', { name: 'メールアドレスを変える' }).waitFor();
+    },
+  },
+
   // 部員・OB・OG 向け
   {
     file: 'home.webp', role: 'member', device: 'phone',
