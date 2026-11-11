@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 import type {
   CreatureInput,
+  CreaturePatch,
   CreatureView,
   EventInput,
   EventListResponse,
@@ -143,9 +144,10 @@ export const useDeleteRecord = () =>
 export const useCreateCreature = () =>
   useObsMutation((input: CreatureInput) => apiFetch<CreatureView>('/api/creatures', { method: 'POST', body: input }));
 
+/** 送った項目だけを変える（PATCH、#99）。ほかの人が同時に変えた別の項目を上書きしない */
 export const useUpdateCreature = () =>
-  useObsMutation(({ id, input }: { id: string; input: CreatureInput }) =>
-    apiFetch<CreatureView>(`/api/creatures/${id}`, { method: 'PUT', body: input }),
+  useObsMutation(({ id, input }: { id: string; input: CreaturePatch }) =>
+    apiFetch<CreatureView>(`/api/creatures/${id}`, { method: 'PATCH', body: input }),
   );
 
 export const useDeleteCreature = () =>
