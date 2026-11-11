@@ -1,13 +1,13 @@
 import { can, type SessionUser } from '@yamon/shared';
-import { Calendar, CircleHelp, Database as DbIcon, List, LogOut, Map as MapIcon, MapPin, Shield } from 'lucide-react';
+import { Calendar, CircleHelp, Database as DbIcon, List, LogOut, Map as MapIcon, MapPin, Shield, UserCog } from 'lucide-react';
 import { Link } from 'react-router';
 
 const navBtn = 'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap text-white transition-colors';
-/** ヘッダーの右端の、文字だけのリンク（ログアウト・使い方） */
+/** ヘッダーの右端の、文字だけのリンク（アカウント・ログアウト・使い方） */
 const textLink = 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors';
 
 /**
- * ホームのヘッダー（#79、D53）。色付きのボタンは画面の切り替え、文字だけのリンク（ログアウト・使い方）は右端にまとめる。
+ * ホームのヘッダー（#79、D53）。色付きのボタンは画面の切り替え、文字だけのリンク（アカウント・ログアウト・使い方）は右端にまとめる。
  * - xl 以上：ロゴ・ボタン・文字のリンクを1行に並べる
  * - sm〜xl：1行目にロゴと文字のリンク、2行目にボタン
  * - sm 未満（スマホ）：ロゴ、ボタン（2列。奇数個なら最後は2列分）、文字のリンク（右寄せ）の順
@@ -67,7 +67,12 @@ export function HomeHeader({
             マップを見る
           </Link>
         </nav>
-        <div className="order-3 flex w-full items-center justify-end gap-1 sm:order-2 sm:w-auto xl:order-3 xl:border-l xl:border-gray-200 xl:pl-2">
+        <div className="order-3 flex w-full flex-wrap items-center justify-end gap-1 sm:order-2 sm:w-auto xl:order-3 xl:border-l xl:border-gray-200 xl:pl-2">
+          {/* メールアドレスの変更（#84）。どの役割にも出す */}
+          <Link to="/account" className={`${textLink} text-gray-700 hover:bg-gray-100`}>
+            <UserCog className="h-4 w-4" />
+            アカウント
+          </Link>
           <button
             type="button"
             onClick={onLogout}

@@ -93,7 +93,7 @@ export interface AdminInvitation {
   expiresAt: string;
 }
 
-export const AUDIT_ACTIONS = ['role_changed', 'disabled', 'enabled', 'withdrawn', 'password_reset_issued'] as const;
+export const AUDIT_ACTIONS = ['role_changed', 'disabled', 'enabled', 'withdrawn', 'password_reset_issued', 'email_changed'] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
@@ -102,6 +102,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   enabled: '有効化',
   withdrawn: '退会処理',
   password_reset_issued: '再設定リンクの発行',
+  // 本人が自分で変える（#84・D54）。アドレスの値は履歴に残さない
+  email_changed: 'メールアドレスの変更',
 };
 
 /** 操作履歴（GET /api/admin/audit-logs） */

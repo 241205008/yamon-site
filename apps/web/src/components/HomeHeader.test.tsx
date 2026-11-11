@@ -44,10 +44,15 @@ describe('ホームのヘッダー', () => {
     expect(guide?.className).not.toMatch(/\bbg-blue-600\b/);
   });
 
-  it('「使い方」は、ログアウトの右（右端）に並ぶ', () => {
+  it('「使い方」は、アカウント・ログアウトの右（右端）に並ぶ', () => {
     render('member');
     const group = linkTo('/guide')!.parentElement!;
-    expect([...group.children].map((c) => c.textContent)).toEqual(['ログアウト', '使い方']);
+    expect([...group.children].map((c) => c.textContent)).toEqual(['アカウント', 'ログアウト', '使い方']);
+  });
+
+  it.each(['admin', 'officer', 'member', 'viewer'] as const)('%s にも「アカウント」のリンク（/account）がある（#84）', (role) => {
+    render(role);
+    expect(linkTo('/account')?.textContent).toBe('アカウント');
   });
 
   it('管理者画面のボタンは管理者だけに出る', () => {

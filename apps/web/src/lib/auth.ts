@@ -1,4 +1,6 @@
 import type {
+  EmailChangeInput,
+  EmailChangeResponse,
   InvitationAcceptInput,
   InvitationInfo,
   MeResponse,
@@ -114,4 +116,14 @@ export async function requestPasswordReset(email: string): Promise<string> {
 /** 再設定リンクのトークンで新しいパスワードを決める。成功したら案内（message）が返る。ログインし直してもらう */
 export async function confirmPasswordReset(input: PasswordResetConfirmInput): Promise<string> {
   return (await apiFetch<{ message: string }>('/api/password-reset/confirm', { method: 'POST', body: input })).message;
+}
+
+/**
+ * ログイン用のメールアドレスを変える（本人だけ、#84・D54）。今のパスワードで確かめる。
+ * ほかの端末のログインはそのまま。応答の mailSent は、新しいアドレスに通知を送れたか
+ */
+export async function changeEmail(input: EmailChangeInput): Promise<EmailChangeResponse> {
+  const res = await apiFetch<EmailChangeResponse>('/api/account/email', { method: 'PATCH', body: input });
+  setUser(res.user);
+  return res;
 }

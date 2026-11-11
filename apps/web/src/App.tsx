@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { RequireAdmin, RequireAuth } from './components/RouteGuards';
+import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/AdminPage';
 import { EventDetailPage } from './pages/EventDetailPage';
 import { EventListPage } from './pages/EventListPage';
@@ -25,6 +26,7 @@ export function App() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<RequireAuth />}>
           <Route path="/" element={<MainPage />} />
+          <Route path="/account" element={<AccountPage />} />
           <Route path="/map" element={<MapPage />} />
           <Route path="/locations" element={<LocationsPage />} />
           <Route path="/event-list" element={<EventListPage />} />
