@@ -41,7 +41,10 @@ afterEach(() => {
 });
 
 const select = () => container.querySelector<HTMLSelectElement>('#creature-select')!;
-const optionTexts = () => [...select().options].map((o) => o.textContent);
+/** 画面に見える選択肢（見えない hidden の選択肢は除く） */
+const optionTexts = () => [...select().options].filter((o) => !o.hidden).map((o) => o.textContent);
+/** 選んだ見た目になっている、見える選択肢 */
+const visibleSelected = () => [...select().options].filter((o) => !o.hidden && o.selected).map((o) => o.textContent);
 
 /** React が value の変更を拾えるよう、ネイティブの setter で値を入れてから input を発火する */
 function typeSearch(value: string) {
@@ -81,6 +84,38 @@ describe('RecordForm の生き物の検索（#89）', () => {
   it('ひらがなで入れても、カタカナの名前が見つかる（#91）', () => {
     typeSearch('あめりかざりがに');
     expect(optionTexts()).toEqual(['アメリカザリガニ (アクア)']);
+  });
+
+  it('選んだ後に検索で絞っても、候補を押せば選び直せる（#93）', () => {
+    choose('c2');
+    typeSearch('アメリカザリガニ');
+    // 候補が選んだ見た目にならず（押すと change が起きる）、値は前の選択のまま
+    expect(visibleSelected()).toEqual([]);
+    expect(select().value).toBe('c2');
+    choose('c1');
+    expect(container.textContent).toContain('選択中：アメリカザリガニ（アクア）');
+    expect(container.textContent).not.toContain('検索した一覧にはありません');
+  });
+
+  it('何も選ばずに検索しても、候補は選んだ見た目にならない（#93）', () => {
+    typeSearch('アメリカザリガニ');
+    expect(visibleSelected()).toEqual([]);
+    expect(select().value).toBe('');
+    choose('c1');
+    expect(container.textContent).toContain('選択中：アメリカザリガニ（アクア）');
+  });
+
+  it('選んだ生き物が一覧からなくなっても（別の人が消した）、「選択してください」は選んだ見た目にならない（#93）', () => {
+    choose('c2');
+    act(() => {
+      root.render(
+        <QueryClientProvider client={new QueryClient()}>
+          <RecordForm creatures={creatures.filter((c) => c.id !== 'c2')} mainLocations={[]} canAddCreature={false} onSubmit={async () => {}} />
+        </QueryClientProvider>,
+      );
+    });
+    expect(visibleSelected()).toEqual([]);
+    expect(optionTexts()).toEqual(['選択してください', 'アメリカザリガニ (アクア)', 'カブトムシ (アクア)']);
   });
 
   it('一致する生き物がないときは「見つかりません」だけを出す', () => {

@@ -43,6 +43,8 @@ interface Props {
 }
 
 const radioClass = 'h-4 w-4 accent-blue-600';
+/** 検索で一致する生き物がないときの、選べない行の値（生き物の ID や未選択の '' と重ならない） */
+const NO_MATCH = '__no-match__';
 
 export function RecordForm({
   creatures,
@@ -117,6 +119,8 @@ export function RecordForm({
   const selected = creatures.find((c) => c.id === creatureId);
   // 検索で一覧から見えなくなった選択（そのまま送ると、見えない生き物で記録される）
   const selectedHidden = !!selected && !filtered.includes(selected);
+  // 今の値に合う、見える選択肢があるか（未選択なら「選択してください」の行）。ないと見た目と値がずれる（#93）
+  const valueVisible = creatureId === '' ? !searching : filtered.some((c) => c.id === creatureId);
   const selectedMain = findMainLocation(mainLocationId);
   // 「使わない」場所は選択肢に出さない。編集中の記録の場所だけは残す
   const mainOptions = mainLocations.filter((l) => l.isActive || l.id === initialRecord?.mainLocationId);
@@ -211,13 +215,22 @@ export function RecordForm({
         >
           {/* 検索中は一致する生き物だけを出す（#89）。選択は消さず、一覧の下の「選択中」で分かるようにする */}
           {!searching && <option value="">選択してください</option>}
+          {/*
+            今の値（未選択、検索で一覧から外れた生き物、別の人が消した生き物）に合う見える選択肢がないと、React が先頭の行を
+            選んだ見た目にする。すると、その行を押しても change が起きず選べない（#93）。見えない選択肢で今の値を持たせ、見た目と値をそろえる
+          */}
+          {!valueVisible && (
+            <option value={creatureId} hidden disabled>
+              {selected ? `${selected.name} (${selected.category})` : '選択してください'}
+            </option>
+          )}
           {filtered.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name} ({c.category})
             </option>
           ))}
           {searching && filtered.length === 0 && (
-            <option value="" disabled>
+            <option value={NO_MATCH} disabled>
               見つかりません
             </option>
           )}
