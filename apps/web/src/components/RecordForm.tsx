@@ -43,6 +43,8 @@ interface Props {
 }
 
 const radioClass = 'h-4 w-4 accent-blue-600';
+/** 検索で一致する生き物がないときの、選べない行の値（生き物の ID や未選択の '' と重ならない） */
+const NO_MATCH = '__no-match__';
 
 export function RecordForm({
   creatures,
@@ -211,13 +213,22 @@ export function RecordForm({
         >
           {/* 検索中は一致する生き物だけを出す（#89）。選択は消さず、一覧の下の「選択中」で分かるようにする */}
           {!searching && <option value="">選択してください</option>}
+          {/*
+            検索中に今の値（未選択、または一覧から外れた生き物）に合う選択肢がないと、React が先頭の候補を選んだ見た目にする。
+            すると、その候補を押しても change が起きず選べない（#93）。見えない選択肢で今の値を持たせ、見た目と値をそろえる
+          */}
+          {searching && (!selected || selectedHidden) && (
+            <option value={creatureId} hidden disabled>
+              {selected ? `${selected.name} (${selected.category})` : '選択してください'}
+            </option>
+          )}
           {filtered.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name} ({c.category})
             </option>
           ))}
           {searching && filtered.length === 0 && (
-            <option value="" disabled>
+            <option value={NO_MATCH} disabled>
               見つかりません
             </option>
           )}
