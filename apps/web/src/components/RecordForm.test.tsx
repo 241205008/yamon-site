@@ -105,6 +105,19 @@ describe('RecordForm の生き物の検索（#89）', () => {
     expect(container.textContent).toContain('選択中：アメリカザリガニ（アクア）');
   });
 
+  it('選んだ生き物が一覧からなくなっても（別の人が消した）、「選択してください」は選んだ見た目にならない（#93）', () => {
+    choose('c2');
+    act(() => {
+      root.render(
+        <QueryClientProvider client={new QueryClient()}>
+          <RecordForm creatures={creatures.filter((c) => c.id !== 'c2')} mainLocations={[]} canAddCreature={false} onSubmit={async () => {}} />
+        </QueryClientProvider>,
+      );
+    });
+    expect(visibleSelected()).toEqual([]);
+    expect(optionTexts()).toEqual(['選択してください', 'アメリカザリガニ (アクア)', 'カブトムシ (アクア)']);
+  });
+
   it('一致する生き物がないときは「見つかりません」だけを出す', () => {
     typeSearch('クジラ');
     expect(optionTexts()).toEqual(['見つかりません']);
