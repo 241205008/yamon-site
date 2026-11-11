@@ -109,11 +109,15 @@ export function RecordForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const filtered = useMemo(() => {
-    const q = search.trim();
-    return q ? creatures.filter((c) => c.name.includes(q)) : creatures;
-  }, [creatures, search]);
+  const query = search.trim();
+  const searching = query !== '';
+  const filtered = useMemo(
+    () => (query ? creatures.filter((c) => c.name.includes(query)) : creatures),
+    [creatures, query],
+  );
   const selected = creatures.find((c) => c.id === creatureId);
+  // 検索で一覧から見えなくなった選択（そのまま送ると、見えない生き物で記録される）
+  const selectedHidden = !!selected && !filtered.includes(selected);
   const selectedMain = findMainLocation(mainLocationId);
   // 「使わない」場所は選択肢に出さない。編集中の記録の場所だけは残す
   const mainOptions = mainLocations.filter((l) => l.isActive || l.id === initialRecord?.mainLocationId);
@@ -201,23 +205,34 @@ export function RecordForm({
         <select
           id="creature-select"
           size={5}
+          aria-describedby={selected ? 'creature-selected' : undefined}
           value={creatureId}
           onChange={(e) => setCreatureId(e.target.value)}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
         >
-          <option value="">選択してください</option>
+          {/* 検索中は一致する生き物だけを出す（#89）。選択は消さず、一覧の下の「選択中」で分かるようにする */}
+          {!searching && <option value="">選択してください</option>}
           {filtered.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name} ({c.category})
             </option>
           ))}
-          {/* 検索で絞り込まれても、選択中の生き物は消さない */}
-          {selected && !filtered.includes(selected) && (
-            <option value={selected.id}>
-              {selected.name} ({selected.category})
+          {searching && filtered.length === 0 && (
+            <option value="" disabled>
+              見つかりません
             </option>
           )}
         </select>
+        {selected && (
+          <p
+            id="creature-selected"
+            aria-live="polite"
+            className={`mt-1 text-sm ${selectedHidden ? 'rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900' : 'text-gray-600'}`}
+          >
+            選択中：{selected.name}（{selected.category}）
+            {selectedHidden && '。検索した一覧にはありません。変えるときは、一覧から選んでください'}
+          </p>
+        )}
         {selected?.memo && (
           <p className="mt-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-gray-700">
             💬 {selected.memo}
