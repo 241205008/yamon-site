@@ -13,7 +13,7 @@ export function EventListPage() {
 
   return (
     <PageBackground>
-      <BackBar to="/" label="ホームに戻る" />
+      <BackBar to="/" label="ホーム画面に戻る" />
       <main className="mx-auto max-w-4xl px-4 py-8">
         <h1 className="text-3xl font-bold text-gray-900">観察会一覧</h1>
         <p className="mt-2 text-gray-600">過去に実施された観察会と観察記録を確認できます</p>

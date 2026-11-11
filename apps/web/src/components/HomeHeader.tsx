@@ -1,5 +1,5 @@
 import { can, type SessionUser } from '@yamon/shared';
-import { Calendar, CircleHelp, Database as DbIcon, List, LogOut, Map as MapIcon, MapPin, Shield, UserCog } from 'lucide-react';
+import { Calendar, CircleHelp, List, LogOut, Map as MapIcon, MapPin, Shield, UserCog } from 'lucide-react';
 import { Link } from 'react-router';
 
 const navBtn = 'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap text-white transition-colors';
@@ -17,29 +17,19 @@ const textLink = 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm whitesp
  * - sm〜xl：1行目にロゴと文字のリンク、2行目にボタン
  * - sm 未満（スマホ）：ロゴ、ボタン（2列。奇数個なら最後は2列分）、文字のリンク（右寄せ）の順
  */
-export function HomeHeader({
-  user,
-  showCreatures,
-  onToggleCreatures,
-  onLogout,
-}: {
-  user: SessionUser;
-  showCreatures: boolean;
-  onToggleCreatures: () => void;
-  onLogout: () => void;
-}) {
+export function HomeHeader({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
   return (
     <header className="border-b border-gray-200 bg-white shadow-sm">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3 sm:px-6 sm:py-4">
-        <div className="order-1 mr-auto flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-600">
-            <DbIcon className="h-6 w-6 text-white" />
-          </div>
+        {/* ロゴとサイト名を押すとホーム画面に移る（#97） */}
+        <Link to="/" className="order-1 mr-auto flex items-center gap-3 rounded-lg">
+          {/* ロゴ（ヤモリの絵、#97）。サイト名が隣にあるので、画像には読み上げ用の名前を付けない */}
+          <img src="/logo.png" alt="" width={40} height={40} className="h-10 w-10 rounded-lg" />
           <div>
             <h1 className="text-2xl leading-tight font-bold text-gray-900">やもんサイト</h1>
             <p className="text-sm text-gray-600">生き物観察記録システム</p>
           </div>
-        </div>
+        </Link>
         <nav
           aria-label="画面の切り替え"
           className="order-2 grid w-full grid-cols-2 gap-2 sm:order-3 [&>:last-child:nth-child(odd)]:col-span-2 sm:flex sm:flex-wrap xl:order-2 xl:w-auto"
@@ -54,15 +44,11 @@ export function HomeHeader({
             <Calendar className="h-4 w-4" />
             観察会一覧
           </Link>
-          <button
-            type="button"
-            onClick={onToggleCreatures}
-            aria-pressed={showCreatures}
-            className={`${navBtn} ${navGreen} ${showCreatures ? 'ring-2 ring-green-300' : ''}`}
-          >
+          {/* ほかのボタンと同じく、専用ページに移る（#97） */}
+          <Link to="/creatures" className={`${navBtn} ${navGreen}`}>
             <List className="h-4 w-4" />
             生き物管理
-          </button>
+          </Link>
           <Link to="/locations" className={`${navBtn} ${navGreen}`}>
             <MapPin className="h-4 w-4" />
             場所別の生き物

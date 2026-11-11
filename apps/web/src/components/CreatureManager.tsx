@@ -1,5 +1,5 @@
-import { List, Pencil, Search, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { FileText, List, Pencil, Search, Tag, Trash2 } from 'lucide-react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, searchMatcher, type Category, type CreatureView } from '@yamon/shared';
 import { errorMessage, useCreatures, useDeleteCreature, useUpdateCreature } from '../lib/queries';
 import { CategoryBadge, ErrorText, inputClass, Modal, QueryState, ShowMoreButton, usePaged } from './ui';
@@ -13,7 +13,8 @@ export function CreatureManager({ canManage, canProtect }: { canManage: boolean;
   const creatures = useMemo(() => creaturesQuery.data ?? [], [creaturesQuery.data]);
   const deleteCreature = useDeleteCreature();
   const [search, setSearch] = useState('');
-  const [editing, setEditing] = useState<CreatureView | null>(null);
+  // 鉛筆ボタンで選ぶ → 「名前・カテゴリ」か「メモ」の編集に進む（#97）
+  const [editing, setEditing] = useState<{ creature: CreatureView; mode: EditMode } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -70,13 +71,14 @@ export function CreatureManager({ canManage, canProtect }: { canManage: boolean;
                   )}
                   <span className="text-xs text-gray-500">記録 {c.recordCount}件</span>
                 </div>
-                {c.memo && <p className="mt-1 text-sm text-gray-600">{c.memo}</p>}
+                {/* メモの改行をそのまま出す（#97） */}
+                {c.memo && <p className="mt-1 text-sm whitespace-pre-wrap text-gray-600">{c.memo}</p>}
               </div>
               {canManage && (
               <>
               <button
                 type="button"
-                onClick={() => setEditing(c)}
+                onClick={() => setEditing({ creature: c, mode: 'choose' })}
                 className="rounded p-1.5 text-blue-600 hover:bg-blue-50"
                 aria-label={`${c.name}を編集`}
               >
@@ -100,14 +102,79 @@ export function CreatureManager({ canManage, canProtect }: { canManage: boolean;
       {page.hasMore && <ShowMoreButton rest={page.rest} onClick={page.showMore} />}
       </QueryState>
 
-      {editing && (
-        <CreatureEditModal creature={editing} canProtect={canProtect} onClose={() => setEditing(null)} />
+      {editing?.mode === 'choose' && (
+        <EditChoiceModal
+          creature={editing.creature}
+          onChoose={(mode) => setEditing({ creature: editing.creature, mode })}
+          onClose={() => setEditing(null)}
+        />
       )}
+      {editing?.mode === 'basic' && (
+        <BasicEditModal creature={editing.creature} canProtect={canProtect} onClose={() => setEditing(null)} />
+      )}
+      {editing?.mode === 'memo' && <MemoEditModal creature={editing.creature} onClose={() => setEditing(null)} />}
     </section>
   );
 }
 
-function CreatureEditModal({
+type EditMode = 'choose' | 'basic' | 'memo';
+
+const choiceBtn =
+  'flex w-full items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-left text-gray-900 transition-colors hover:border-green-300 hover:bg-green-50';
+
+/** 鉛筆ボタンで開く、編集する内容の選択（#97） */
+function EditChoiceModal({
+  creature,
+  onChoose,
+  onClose,
+}: {
+  creature: CreatureView;
+  onChoose: (mode: 'basic' | 'memo') => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal open onClose={onClose} title={`「${creature.name}」の何を編集しますか？`}>
+      <div className="space-y-2">
+        <button type="button" onClick={() => onChoose('basic')} className={choiceBtn}>
+          <Tag className="h-5 w-5 shrink-0 text-green-600" />
+          <span>
+            <span className="block font-medium">名前・カテゴリを編集</span>
+            <span className="block text-sm text-gray-500">名前、カテゴリ（部門）、位置を保護するかどうか</span>
+          </span>
+        </button>
+        <button type="button" onClick={() => onChoose('memo')} className={choiceBtn}>
+          <FileText className="h-5 w-5 shrink-0 text-green-600" />
+          <span>
+            <span className="block font-medium">メモを編集</span>
+            <span className="block text-sm text-gray-500">メモの全体を見ながら書き直す</span>
+          </span>
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/** 保存と取り消しのボタン（2つの編集画面で共通） */
+function SaveButtons({ saving, onSave, onClose }: { saving: boolean; onSave: () => void; onClose: () => void }) {
+  return (
+    <div className="flex justify-end gap-2">
+      <button type="button" onClick={onClose} className="rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200">
+        キャンセル
+      </button>
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={saving}
+        className="rounded-lg bg-purple-600 px-4 py-2 text-white hover:bg-purple-700 disabled:opacity-60"
+      >
+        {saving ? '保存中…' : '保存'}
+      </button>
+    </div>
+  );
+}
+
+/** 名前・カテゴリ（と、管理者・幹部なら「位置を保護する」印）の編集。メモは今のまま送る */
+function BasicEditModal({
   creature,
   canProtect,
   onClose,
@@ -120,12 +187,12 @@ function CreatureEditModal({
   const [locationProtected, setLocationProtected] = useState(creature.locationProtected);
   const [name, setName] = useState(creature.name);
   const [category, setCategory] = useState<Category>(creature.category);
-  const [memo, setMemo] = useState(creature.memo);
   const [error, setError] = useState<string | null>(null);
 
   const save = async () => {
     setError(null);
     try {
+      const memo = creature.memo;
       // 印は権限がある人だけが送る（それ以外の人が送らなければ、API は今の印のままにする）
       const input = canProtect ? { name, category, memo, locationProtected } : { name, category, memo };
       await updateCreature.mutateAsync({ id: creature.id, input });
@@ -137,7 +204,7 @@ function CreatureEditModal({
   };
 
   return (
-    <Modal open onClose={onClose} title="生き物を編集">
+    <Modal open onClose={onClose} title="名前・カテゴリを編集">
       <div className="space-y-4">
         <div>
           <label className="mb-1 block text-sm text-gray-700" htmlFor="cr-name">名前</label>
@@ -145,6 +212,19 @@ function CreatureEditModal({
           {name.trim() !== creature.name && (
             <p className="mt-1 text-xs text-gray-500">名前を変えると、この生き物の既存の記録すべてに反映されます。</p>
           )}
+        </div>
+        <div>
+          <label className="mb-1 block text-sm text-gray-700" htmlFor="cr-category">カテゴリ</label>
+          <select
+            id="cr-category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value as Category)}
+            className={inputClass}
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
         </div>
         {canProtect && (
           <label className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
@@ -162,36 +242,68 @@ function CreatureEditModal({
             </span>
           </label>
         )}
-        <div>
-          <label className="mb-1 block text-sm text-gray-700" htmlFor="cr-category">カテゴリ</label>
-          <select
-            id="cr-category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value as Category)}
-            className={inputClass}
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-gray-700" htmlFor="cr-memo">メモ</label>
-          <textarea id="cr-memo" value={memo} onChange={(e) => setMemo(e.target.value)} rows={3} className={inputClass} />
-        </div>
         <ErrorText message={error} />
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200">
-            キャンセル
-          </button>
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={updateCreature.isPending}
-            className="rounded-lg bg-purple-600 px-4 py-2 text-white hover:bg-purple-700 disabled:opacity-60"
-          >
-            {updateCreature.isPending ? '保存中…' : '保存'}
-          </button>
+        <SaveButtons saving={updateCreature.isPending} onSave={() => void save()} onClose={onClose} />
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * メモの編集（#97）。入力欄の高さを中身に合わせて広げ、メモの全体を1画面で見ながら書けるようにする。
+ * 名前・カテゴリは今のまま送る。印は送らないので、API は今の印のままにする
+ */
+function MemoEditModal({ creature, onClose }: { creature: CreatureView; onClose: () => void }) {
+  const updateCreature = useUpdateCreature();
+  const [memo, setMemo] = useState(creature.memo);
+  const [error, setError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 入力欄の高さを中身に合わせる（入力欄の中をスクロールしなくても全体が見える）。
+  // 幅が変わる（スマホの向きを変える）と折り返しが変わるので、そのときも合わせ直す
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [memo]);
+
+  const save = async () => {
+    setError(null);
+    try {
+      await updateCreature.mutateAsync({
+        id: creature.id,
+        input: { name: creature.name, category: creature.category, memo },
+      });
+      onClose();
+    } catch (e) {
+      setError(errorMessage(e, '保存に失敗しました'));
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title={`「${creature.name}」のメモを編集`} wide>
+      <div className="space-y-4">
+        <label className="sr-only" htmlFor="cr-memo">メモ</label>
+        <textarea
+          id="cr-memo"
+          ref={textareaRef}
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          rows={6}
+          className={`${inputClass} resize-none overflow-hidden leading-relaxed`}
+          placeholder="この生き物についてのメモ"
+        />
+        <p className="text-right text-xs text-gray-500">{memo.length}文字</p>
+        <ErrorText message={error} />
+        {/* メモが長くても保存のボタンが見えるよう、画面の下に固定する */}
+        <div className="sticky -bottom-6 -mx-6 -mb-6 border-t border-gray-100 bg-white px-6 py-4">
+          <SaveButtons saving={updateCreature.isPending} onSave={() => void save()} onClose={onClose} />
         </div>
       </div>
     </Modal>

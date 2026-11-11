@@ -44,7 +44,7 @@ export function GuidePage() {
 
   return (
     <PageBackground>
-      <BackBar to={user ? '/' : '/login'} label={user ? 'ホームに戻る' : 'ログインに戻る'} title="使い方" />
+      <BackBar to={user ? '/' : '/login'} label={user ? 'ホーム画面に戻る' : 'ログインに戻る'} title="使い方" />
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
         <RolePicker current={guide.id} mine={user ? mine : null} />
 

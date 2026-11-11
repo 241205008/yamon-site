@@ -48,7 +48,7 @@ export function AccountPage() {
 
   return (
     <PageBackground>
-      <BackBar to="/" label="記録画面に戻る" />
+      <BackBar to="/" label="ホーム画面に戻る" />
       <main className="mx-auto max-w-xl px-4 py-8">
         <h1 className="mb-6 text-3xl font-bold text-gray-900">アカウント</h1>
 

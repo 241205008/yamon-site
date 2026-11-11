@@ -83,7 +83,7 @@ export function AdminPage() {
 
   return (
     <PageBackground tone="purple">
-      <BackBar to="/" label="ホームに戻る" title="管理者画面" />
+      <BackBar to="/" label="ホーム画面に戻る" title="管理者画面" />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         {loadError && (
           <div className="flex flex-wrap items-center gap-3">
