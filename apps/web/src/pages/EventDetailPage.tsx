@@ -57,7 +57,7 @@ export function EventDetailPage() {
   if (eventQuery.error instanceof ApiError && eventQuery.error.status === 404) {
     return (
       <PageBackground>
-        <BackBar to="/" label="ホームに戻る" />
+        <BackBar to="/" label="ホーム画面に戻る" />
         <main className="mx-auto max-w-4xl px-4 py-16 text-center text-gray-600">
           観察会が見つかりませんでした。削除されたか、URLが間違っている可能性があります。
         </main>
@@ -109,7 +109,7 @@ export function EventDetailPage() {
 
   return (
     <PageBackground>
-      <BackBar to="/" label="ホームに戻る" />
+      <BackBar to="/" label="ホーム画面に戻る" />
       <main className="mx-auto max-w-4xl space-y-6 px-4 py-8">
         {event && editingEvent ? (
           <QueryState query={mainLocations} label="主な場所">

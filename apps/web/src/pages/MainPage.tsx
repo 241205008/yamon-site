@@ -1,7 +1,6 @@
 import { Calendar, Pencil } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { CreatureManager } from '../components/CreatureManager';
 import { HomeHeader } from '../components/HomeHeader';
 import { EventForm } from '../components/EventForm';
 import { RecordCard } from '../components/RecordCard';
@@ -40,7 +39,6 @@ export function MainPage() {
   const createEvent = useCreateEvent();
 
   const [showEventForm, setShowEventForm] = useState(false);
-  const [showCreatures, setShowCreatures] = useState(false);
   const [editing, setEditing] = useState<RecordView | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
@@ -65,8 +63,6 @@ export function MainPage() {
     <PageBackground>
       <HomeHeader
         user={user}
-        showCreatures={showCreatures}
-        onToggleCreatures={() => setShowCreatures((v) => !v)}
         onLogout={() => {
           void logout().then(() => navigate('/login'));
         }}
@@ -93,8 +89,6 @@ export function MainPage() {
             }}
           />
         )}
-
-        {showCreatures && <CreatureManager canManage={can(user.role, 'creatures.manage')} canProtect={can(user.role, 'creatures.protect')} />}
 
         {canCreateRecord && (
         <div ref={formRef} className="scroll-mt-4 space-y-4">

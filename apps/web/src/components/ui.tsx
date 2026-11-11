@@ -26,14 +26,14 @@ export function PageBackground({
   );
 }
 
-/** 「ホームに戻る」などの上部バー */
+/** 「ホーム画面に戻る」などの上部バー。ホームへ戻るリンクの文言は「ホーム画面に戻る」にそろえる（#97） */
 export function BackBar({ to, label, title }: { to: string; label: string; title?: string }) {
   return (
     <header className="sticky top-0 z-[1100] border-b border-gray-200 bg-white shadow-sm">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link
           to={to}
-          className="flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-gray-700"
+          className="flex items-center gap-2 text-sm text-gray-900 transition-colors hover:text-gray-600"
         >
           <ArrowLeft className="h-4 w-4" />
           {label}

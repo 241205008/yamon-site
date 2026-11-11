@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { RequireAdmin, RequireAuth } from './components/RouteGuards';
 import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/AdminPage';
+import { CreaturesPage } from './pages/CreaturesPage';
 import { EventDetailPage } from './pages/EventDetailPage';
 import { EventListPage } from './pages/EventListPage';
 import { GuidePage } from './pages/GuidePage';
@@ -28,6 +29,7 @@ export function App() {
           <Route path="/" element={<MainPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/map" element={<MapPage />} />
+          <Route path="/creatures" element={<CreaturesPage />} />
           <Route path="/locations" element={<LocationsPage />} />
           <Route path="/event-list" element={<EventListPage />} />
           <Route path="/event-detail/:eventId" element={<EventDetailPage />} />
