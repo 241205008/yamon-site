@@ -45,7 +45,7 @@ export function HomeHeader({
               管理者画面
             </Link>
           )}
-          <Link to="/event-list" className={`${navBtn} bg-orange-600 hover:bg-orange-700`}>
+          <Link to="/event-list" className={`${navBtn} bg-green-600 hover:bg-green-700`}>
             <Calendar className="h-4 w-4" />
             観察会一覧
           </Link>
@@ -53,12 +53,12 @@ export function HomeHeader({
             type="button"
             onClick={onToggleCreatures}
             aria-pressed={showCreatures}
-            className={`${navBtn} bg-purple-600 hover:bg-purple-700 ${showCreatures ? 'ring-2 ring-purple-300' : ''}`}
+            className={`${navBtn} bg-green-600 hover:bg-green-700 ${showCreatures ? 'ring-2 ring-green-300' : ''}`}
           >
             <List className="h-4 w-4" />
             生き物管理
           </button>
-          <Link to="/locations" className={`${navBtn} bg-blue-600 hover:bg-blue-700`}>
+          <Link to="/locations" className={`${navBtn} bg-green-600 hover:bg-green-700`}>
             <MapPin className="h-4 w-4" />
             場所別の生き物
           </Link>
