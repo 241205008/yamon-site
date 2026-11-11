@@ -1,7 +1,6 @@
 import { can, type SessionUser } from '@yamon/shared';
 import { Calendar, CircleHelp, List, LogOut, Map as MapIcon, MapPin, Shield, UserCog } from 'lucide-react';
 import { Link } from 'react-router';
-import { BeetleIcon } from './BeetleIcon';
 
 const navBtn = 'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap text-white transition-colors';
 /**
@@ -24,9 +23,8 @@ export function HomeHeader({ user, onLogout }: { user: SessionUser; onLogout: ()
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3 sm:px-6 sm:py-4">
         {/* ロゴとサイト名を押すとホーム画面に移る（#97） */}
         <Link to="/" className="order-1 mr-auto flex items-center gap-3 rounded-lg">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-600">
-            <BeetleIcon className="h-7 w-7 text-white" />
-          </div>
+          {/* ロゴ（ヤモリの絵、#97）。サイト名が隣にあるので、画像には読み上げ用の名前を付けない */}
+          <img src="/logo.png" alt="" width={40} height={40} className="h-10 w-10 rounded-lg" />
           <div>
             <h1 className="text-2xl leading-tight font-bold text-gray-900">やもんサイト</h1>
             <p className="text-sm text-gray-600">生き物観察記録システム</p>

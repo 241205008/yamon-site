@@ -71,7 +71,7 @@ describe('ホームのヘッダー', () => {
     render('member');
     const home = linkTo('/')!;
     expect(home.textContent).toContain('やもんサイト');
-    expect(home.querySelector('svg')).not.toBeNull();
+    expect(home.querySelector('img')?.getAttribute('src')).toBe('/logo.png');
   });
 
   it('ログアウトを押すと onLogout が呼ばれる', () => {
