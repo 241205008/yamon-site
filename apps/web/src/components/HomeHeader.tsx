@@ -3,6 +3,8 @@ import { Calendar, CircleHelp, Database as DbIcon, List, LogOut, Map as MapIcon,
 import { Link } from 'react-router';
 
 const navBtn = 'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap text-white transition-colors';
+/** 遷移ボタンの色（管理者画面以外は「マップを見る」と同じ緑にそろえる、#86） */
+const navGreen = 'bg-green-600 hover:bg-green-700';
 /** ヘッダーの右端の、文字だけのリンク（アカウント・ログアウト・使い方） */
 const textLink = 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors';
 
@@ -45,7 +47,7 @@ export function HomeHeader({
               管理者画面
             </Link>
           )}
-          <Link to="/event-list" className={`${navBtn} bg-green-600 hover:bg-green-700`}>
+          <Link to="/event-list" className={`${navBtn} ${navGreen}`}>
             <Calendar className="h-4 w-4" />
             観察会一覧
           </Link>
@@ -53,16 +55,16 @@ export function HomeHeader({
             type="button"
             onClick={onToggleCreatures}
             aria-pressed={showCreatures}
-            className={`${navBtn} bg-green-600 hover:bg-green-700 ${showCreatures ? 'ring-2 ring-green-300' : ''}`}
+            className={`${navBtn} ${navGreen} ${showCreatures ? 'ring-2 ring-green-300' : ''}`}
           >
             <List className="h-4 w-4" />
             生き物管理
           </button>
-          <Link to="/locations" className={`${navBtn} bg-green-600 hover:bg-green-700`}>
+          <Link to="/locations" className={`${navBtn} ${navGreen}`}>
             <MapPin className="h-4 w-4" />
             場所別の生き物
           </Link>
-          <Link to="/map" className={`${navBtn} bg-green-600 hover:bg-green-700`}>
+          <Link to="/map" className={`${navBtn} ${navGreen}`}>
             <MapIcon className="h-4 w-4" />
             マップを見る
           </Link>
