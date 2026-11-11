@@ -1,4 +1,4 @@
-import { can, creatureInputSchema, type CreatureView, type SessionUser } from '@yamon/shared';
+import { can, creatureInputSchema, creaturePatchSchema, type CreaturePatch, type CreatureView, type SessionUser } from '@yamon/shared';
 import { and, asc, count, eq, ne } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -44,6 +44,24 @@ function assertCanProtect(user: SessionUser, from: boolean, to: boolean | undefi
   }
 }
 
+/**
+ * 生き物を更新する（PUT・PATCH で共通）。送られた項目だけを変える。
+ * 印を変えるには creatures.protect が要り、名前を変えるときは重複を確かめる
+ */
+async function updateCreature(db: Db, user: SessionUser, id: string, input: CreaturePatch) {
+  const [current] = await db
+    .select({ locationProtected: creatures.locationProtected })
+    .from(creatures)
+    .where(eq(creatures.id, id))
+    .limit(1);
+  if (!current) throw notFound('生き物');
+  assertCanProtect(user, current.locationProtected, input.locationProtected);
+  if (input.name !== undefined) await assertNameAvailable(db, input.name, id);
+  const updated = await db.update(creatures).set(input).where(eq(creatures.id, id)).returning({ id: creatures.id });
+  if (updated.length === 0) throw notFound('生き物');
+  return readCreature(db, id);
+}
+
 async function readCreature(db: Db, id: string) {
   const [creature] = await listCreatures(db, id);
   if (!creature) throw notFound('生き物');
@@ -67,20 +85,15 @@ export const creatureRoutes = new Hono<AuthedEnv>()
   })
   /** 記録は creatureId で参照しているので、名前を直すと過去の記録の表示にも反映される */
   .put('/:id{[0-9a-f-]{36}}', requirePermission('creatures.manage'), validate('json', creatureInputSchema), async (c) => {
-    const db = c.get('db');
-    const id = c.req.param('id');
-    const input = c.req.valid('json');
-    const [current] = await db
-      .select({ locationProtected: creatures.locationProtected })
-      .from(creatures)
-      .where(eq(creatures.id, id))
-      .limit(1);
-    if (!current) throw notFound('生き物');
-    assertCanProtect(c.get('user'), current.locationProtected, input.locationProtected);
-    await assertNameAvailable(db, input.name, id);
-    const updated = await db.update(creatures).set(input).where(eq(creatures.id, id)).returning({ id: creatures.id });
-    if (updated.length === 0) throw notFound('生き物');
-    return c.json(await readCreature(db, id));
+    return c.json(await updateCreature(c.get('db'), c.get('user'), c.req.param('id'), c.req.valid('json')));
+  })
+  /**
+   * 送った項目だけを変える（#99、D56）。生き物管理の2つの編集画面（名前・カテゴリ／メモ）が使う。
+   * 送らなかった項目は今のままなので、ほかの人が同時に別の項目を変えても、古い値で上書きしない。
+   * 権限と名前の重複の確認は PUT と同じ
+   */
+  .patch('/:id{[0-9a-f-]{36}}', requirePermission('creatures.manage'), validate('json', creaturePatchSchema), async (c) => {
+    return c.json(await updateCreature(c.get('db'), c.get('user'), c.req.param('id'), c.req.valid('json')));
   })
   /** 記録がある生き物は削除できない（D9。DB の外部キーでも止まる） */
   .delete('/:id{[0-9a-f-]{36}}', requirePermission('creatures.manage'), async (c) => {

@@ -118,6 +118,50 @@ describe('生き物', () => {
   });
 });
 
+describe('生き物の一部の更新（PATCH、#99）', () => {
+  it('送った項目だけが変わり、ほかの人が同時に変えた別の項目を上書きしない', async () => {
+    const c = await newCreature('member');
+    // A と B が同じ時に編集画面を開く。B が先に名前・カテゴリを、A が後からメモだけを保存する
+    const byB = await call<CreatureView>('PATCH', `/creatures/${c.id}`, 'officer', {
+      name: `${c.name}改`,
+      category: 'アクア',
+    });
+    expect(byB.status).toBe(200);
+    const byA = await call<CreatureView>('PATCH', `/creatures/${c.id}`, 'member', { memo: '夜に灯りへ来る' });
+    expect(byA.status).toBe(200);
+    expect(byA.body).toMatchObject({ name: `${c.name}改`, category: 'アクア', memo: '夜に灯りへ来る' });
+
+    // メモを書いている間に名前が変わっても、名前だけの更新はメモを消さない
+    const renamed = await call<CreatureView>('PATCH', `/creatures/${c.id}`, 'member', { name: `${c.name}再` });
+    expect(renamed.body).toMatchObject({ name: `${c.name}再`, category: 'アクア', memo: '夜に灯りへ来る' });
+  });
+
+  it('メモを空にできる', async () => {
+    const c = await newCreature('member');
+    await call('PATCH', `/creatures/${c.id}`, 'member', { memo: 'あとで消す' });
+    const res = await call<CreatureView>('PATCH', `/creatures/${c.id}`, 'member', { memo: '' });
+    expect(res.body.memo).toBe('');
+  });
+
+  it('変える項目がなければ 400、ほかの生き物と同じ名前は 409', async () => {
+    const c = await newCreature('member');
+    const taken = await newCreature('member');
+    expect((await call('PATCH', `/creatures/${c.id}`, 'member', {})).status).toBe(400);
+    const dup = await call<ApiErrorBody>('PATCH', `/creatures/${c.id}`, 'member', { name: taken.name });
+    expect(dup.status).toBe(409);
+    // 自分と同じ名前は重複にしない
+    expect((await call('PATCH', `/creatures/${c.id}`, 'member', { name: c.name })).status).toBe(200);
+  });
+
+  it('OB・OG と未ログインは変えられず、ない生き物は 404', async () => {
+    const c = await newCreature('member');
+    expect((await call('PATCH', `/creatures/${c.id}`, 'viewer', { memo: 'x' })).status).toBe(403);
+    expect((await call('PATCH', `/creatures/${c.id}`, undefined, { memo: 'x' })).status).toBe(401);
+    const missing = '00000000-0000-4000-8000-000000000000';
+    expect((await call('PATCH', `/creatures/${missing}`, 'member', { memo: 'x' })).status).toBe(404);
+  });
+});
+
 describe('観察記録', () => {
   it('部員が記録すると、主な場所の座標・名前と記録者名が入る', async () => {
     const c = await newCreature();
