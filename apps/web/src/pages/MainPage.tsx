@@ -78,7 +78,7 @@ export function MainPage() {
           <button
             type="button"
             onClick={() => setShowEventForm(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-600 py-4 text-lg font-bold text-white shadow-md transition-colors hover:bg-orange-700"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-700 py-4 text-lg font-bold text-white shadow-md transition-colors hover:bg-green-800"
           >
             <Calendar className="h-6 w-6" />
             新しい観察会を作成
