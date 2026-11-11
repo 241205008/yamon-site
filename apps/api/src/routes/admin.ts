@@ -69,7 +69,9 @@ async function withUserLocked<T>(
     if (!current || current.status !== 'active' || !can(current.role, 'users.manage')) {
       throw new HTTPException(403, { message: 'この操作をする権限がありません' });
     }
-    const [target] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
+    // 対象の行もロックする。本人によるメールアドレスの変更（D54）と重なっても、古いアドレスで判断しない
+    // （例：退会処理が古いアドレスの招待だけを消し、新しいアドレスの招待が残る）
+    const [target] = await tx.select().from(users).where(eq(users.id, userId)).limit(1).for('update');
     if (!target) throw notFound();
     if (protection && !(protection.allowSelf && target.id === actor.id)) assertNotProtected(protection.ids, target);
     return fn(tx, target);

@@ -1,4 +1,4 @@
-import { emailChangeInputSchema, type EmailChangeResponse } from '@yamon/shared';
+import { emailChangeInputSchema, type EmailChangeResponse, type SessionUser } from '@yamon/shared';
 import { and, count, eq, gt, isNull, lte, ne, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -8,6 +8,7 @@ import { sha256 } from '../auth/session';
 import { schema } from '../db/client';
 import { errorBody } from '../errors';
 import { trySend } from '../mail';
+import { isUniqueViolation } from '../observations/view';
 import { validate } from '../validator';
 import { LOGIN_FAILURE_WINDOW_MS, MAX_LOGIN_FAILURES } from './auth';
 
@@ -20,14 +21,6 @@ const { users, invitations, auditLogs, loginFailures } = schema;
 const passwordCheckKey = (userId: string) => sha256(`email-change:${userId}`);
 
 const DUPLICATE = 'このメールアドレスはほかのユーザーが使っています。別のアドレスを入力してください';
-
-/** 一意の制約（users_email_unique）に引っかかったか。同時に同じアドレスへ変えられたときに起こる */
-function isUniqueViolation(err: unknown): boolean {
-  for (let e = err; e && typeof e === 'object'; e = (e as { cause?: unknown }).cause) {
-    if ((e as { code?: unknown }).code === '23505') return true;
-  }
-  return false;
-}
 
 function emailChangedMail(to: string) {
   return {
@@ -82,9 +75,9 @@ export const accountRoutes = new Hono<AuthedEnv>()
       throw new HTTPException(400, { message: '今と同じメールアドレスです' });
     }
 
-    let updated: { id: string; name: string; email: string | null; role: (typeof users.$inferSelect)['role'] };
+    let user: SessionUser;
     try {
-      updated = await db.transaction(async (tx) => {
+      user = await db.transaction(async (tx) => {
         // 自分の行をロックして読み直す（退会・無効化の操作と重なっても、古い状態で変えない）
         const [target] = await tx.select().from(users).where(eq(users.id, me.id)).limit(1).for('update');
         if (!target || target.status !== 'active' || !target.email) {
@@ -103,7 +96,7 @@ export const accountRoutes = new Hono<AuthedEnv>()
           .update(users)
           .set({ email })
           .where(eq(users.id, me.id))
-          .returning({ id: users.id, name: users.name, email: users.email, role: users.role });
+          .returning({ id: users.id, name: users.name, role: users.role });
         // 古いアドレスの招待は消す。古いアドレスが空くので、残っている招待で別の人が登録できないようにし、
         // 退会処理（今のアドレスの招待を消す、D26）で古いアドレスが残らないようにする
         await tx.delete(invitations).where(sql`lower(${invitations.email}) = lower(${target.email})`);
@@ -114,18 +107,15 @@ export const accountRoutes = new Hono<AuthedEnv>()
           .where(and(sql`lower(${invitations.email}) = ${email}`, isNull(invitations.usedAt), isNull(invitations.revokedAt)));
         // 誰が・いつ・誰のアドレスを変えたかだけ残し、アドレスの値は残さない（個人情報を増やさない、D54）
         await tx.insert(auditLogs).values({ actorId: me.id, targetUserId: me.id, action: 'email_changed' });
-        return row;
+        return { ...row, email };
       });
     } catch (err) {
+      // 同時に同じアドレスへ変えられたとき、DB の一意の制約（users_email_unique）で片方が失敗する
       if (isUniqueViolation(err)) throw new HTTPException(409, { message: DUPLICATE });
       throw err;
     }
 
     // メールの設定があれば、新しいアドレスに通知する（確認のクリックは求めない。送れなくても変更は取り消さない、D54）
     const mailSent = await trySend(c.get('mailer'), emailChangedMail(email));
-    const body: EmailChangeResponse = {
-      user: { id: updated.id, name: updated.name, email: updated.email!, role: updated.role },
-      mailSent,
-    };
-    return c.json(body);
+    return c.json({ user, mailSent } satisfies EmailChangeResponse);
   });

@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { schema } from '../src/db/client';
+import { isUniqueViolation } from '../src/observations/view';
 import { MAX_LOGIN_FAILURES } from '../src/routes/auth';
 import { callApi, createUser, jsonHeaders, login, setupTestApp, TEST_APP_URL, type TestContext } from './helpers';
 
@@ -88,6 +89,17 @@ describe('ログイン用のメールアドレスの変更（本人、#84）', (
     expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
     const owners = await ctx.db.select().from(schema.users).where(eq(schema.users.email, 'race@example.com'));
     expect(owners).toHaveLength(1);
+  });
+
+  it('同時の変更で重複の確認をすり抜けたときの、一意の制約の違反を見分けられる（409 にする）', async () => {
+    // PGlite は接続が1つで、上のテストでは重複の確認で止まるため、制約の違反そのものをここで確かめる
+    await createUser(ctx.db, { email: 'unique-a@example.com' });
+    const b = await createUser(ctx.db);
+    const err = await ctx.db
+      .transaction((tx) => tx.update(schema.users).set({ email: 'Unique-A@example.com' }).where(eq(schema.users.id, b.id)))
+      .catch((e: unknown) => e);
+    expect(isUniqueViolation(err)).toBe(true);
+    expect(isUniqueViolation(new Error('other'))).toBe(false);
   });
 
   it('形式が正しくないアドレスは 400', async () => {
