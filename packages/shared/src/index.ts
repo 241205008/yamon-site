@@ -7,3 +7,4 @@ export * from './auth';
 export * from './admin';
 export * from './observations';
 export * from './mapData';
+export * from './search';

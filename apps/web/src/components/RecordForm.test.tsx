@@ -78,6 +78,11 @@ describe('RecordForm の生き物の検索（#89）', () => {
     expect(select().getAttribute('aria-describedby')).toBe('creature-selected');
   });
 
+  it('ひらがなで入れても、カタカナの名前が見つかる（#91）', () => {
+    typeSearch('あめりかざりがに');
+    expect(optionTexts()).toEqual(['アメリカザリガニ (アクア)']);
+  });
+
   it('一致する生き物がないときは「見つかりません」だけを出す', () => {
     typeSearch('クジラ');
     expect(optionTexts()).toEqual(['見つかりません']);
