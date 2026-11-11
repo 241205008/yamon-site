@@ -16,8 +16,20 @@ export function normalizeForSearch(text: string): string {
   );
 }
 
+/**
+ * 検索語から、「text に検索語が含まれるか」を返す関数を作る。検索語の正規化は1回だけ行う。
+ * 検索語が空（空白だけ。全角の空白も含む）なら null（絞り込まない）
+ *
+ *   const match = searchMatcher(search);
+ *   const filtered = match ? creatures.filter((c) => match(c.name)) : creatures;
+ */
+export function searchMatcher(query: string): ((text: string) => boolean) | null {
+  const q = normalizeForSearch(query).trim();
+  if (q === '') return null;
+  return (text) => normalizeForSearch(text).includes(q);
+}
+
 /** text に検索語 query が含まれるか（書き方の違いをそろえて比べる）。query が空なら true */
 export function matchesSearch(text: string, query: string): boolean {
-  const q = normalizeForSearch(query.trim());
-  return q === '' || normalizeForSearch(text).includes(q);
+  return searchMatcher(query)?.(text) ?? true;
 }

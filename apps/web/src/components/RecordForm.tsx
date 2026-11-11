@@ -2,7 +2,7 @@ import { Clock, Plus, Search } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
 import {
   CATEGORIES,
-  matchesSearch,
+  searchMatcher,
   nowTimeJst,
   todayJst,
   type Category,
@@ -110,13 +110,10 @@ export function RecordForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const query = search.trim();
-  const searching = query !== '';
-  const filtered = useMemo(
-    // ひらがなでもカタカナの名前に当たるよう、書き方の違いをそろえて比べる（#91）
-    () => (query ? creatures.filter((c) => matchesSearch(c.name, query)) : creatures),
-    [creatures, query],
-  );
+  // ひらがなでもカタカナの名前に当たるよう、書き方の違いをそろえて比べる（#91）
+  const match = useMemo(() => searchMatcher(search), [search]);
+  const searching = match !== null;
+  const filtered = useMemo(() => (match ? creatures.filter((c) => match(c.name)) : creatures), [creatures, match]);
   const selected = creatures.find((c) => c.id === creatureId);
   // 検索で一覧から見えなくなった選択（そのまま送ると、見えない生き物で記録される）
   const selectedHidden = !!selected && !filtered.includes(selected);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchesSearch, normalizeForSearch } from './search';
+import { matchesSearch, normalizeForSearch, searchMatcher } from './search';
 
 describe('normalizeForSearch（#91）', () => {
   it('ひらがなをカタカナにそろえる', () => {
@@ -38,5 +38,17 @@ describe('matchesSearch（#91）', () => {
   it('検索語が空なら、すべて一致として扱う', () => {
     expect(matchesSearch('アキアカネ', '')).toBe(true);
     expect(matchesSearch('アキアカネ', '  ')).toBe(true);
+  });
+});
+
+describe('searchMatcher（#91）', () => {
+  it('検索語が空・空白だけ（全角の空白も）なら null', () => {
+    expect(searchMatcher('')).toBeNull();
+    expect(searchMatcher(' 　 ')).toBeNull();
+  });
+
+  it('作った関数で、何件でも同じ検索語で比べられる', () => {
+    const match = searchMatcher('あか')!;
+    expect(['アキアカネ', 'オニヤンマ', 'アカガエル'].filter(match)).toEqual(['アキアカネ', 'アカガエル']);
   });
 });
