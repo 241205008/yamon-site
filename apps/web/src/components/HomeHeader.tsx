@@ -4,10 +4,10 @@ import { Link } from 'react-router';
 
 const navBtn = 'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap text-white transition-colors';
 /**
- * 遷移ボタンの色（管理者画面以外は緑にそろえる、#86）。白い小さい文字が読めるよう、green-600（約3.3:1）ではなく
- * green-700（約5.0:1、WCAG AA の 4.5:1 以上）にする
+ * 遷移ボタンの色（管理者画面以外は緑にそろえる、#86）。ユーザーの判断で薄い緑（green-600）にした。
+ * 白い文字とのコントラストは約3.3:1 で、小さい文字の目安（WCAG AA の 4.5:1）には届かない
  */
-const navGreen = 'bg-green-700 hover:bg-green-800';
+const navGreen = 'bg-green-600 hover:bg-green-700';
 /** ヘッダーの右端の、文字だけのリンク（アカウント・ログアウト・使い方） */
 const textLink = 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors';
 

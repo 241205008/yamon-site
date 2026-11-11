@@ -43,7 +43,7 @@ export function CoordinatePicker({
         type="button"
         onClick={useGps}
         disabled={locating}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-700 py-2.5 text-white transition-colors hover:bg-green-800 disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 py-2.5 text-white transition-colors hover:bg-green-700 disabled:opacity-60"
       >
         <Navigation className="h-4 w-4" />
         {locating ? '取得中…' : '現在位置を取得'}
