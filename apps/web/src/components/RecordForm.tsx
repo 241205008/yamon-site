@@ -1,8 +1,7 @@
-import { Clock, Plus, Search } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
+import { Clock, Plus } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 import {
   CATEGORIES,
-  searchMatcher,
   nowTimeJst,
   todayJst,
   type Category,
@@ -14,6 +13,7 @@ import {
 } from '@yamon/shared';
 import { errorMessage, useCreateCreature } from '../lib/queries';
 import { CoordinatePicker } from './CoordinatePicker';
+import { CreaturePicker } from './CreaturePicker';
 import { ErrorText, inputClass } from './ui';
 
 interface Props {
@@ -43,8 +43,6 @@ interface Props {
 }
 
 const radioClass = 'h-4 w-4 accent-blue-600';
-/** 検索で一致する生き物がないときの、選べない行の値（生き物の ID や未選択の '' と重ならない） */
-const NO_MATCH = '__no-match__';
 
 export function RecordForm({
   creatures,
@@ -112,15 +110,7 @@ export function RecordForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // ひらがなでもカタカナの名前に当たるよう、書き方の違いをそろえて比べる（#91）
-  const match = useMemo(() => searchMatcher(search), [search]);
-  const searching = match !== null;
-  const filtered = useMemo(() => (match ? creatures.filter((c) => match(c.name)) : creatures), [creatures, match]);
   const selected = creatures.find((c) => c.id === creatureId);
-  // 検索で一覧から見えなくなった選択（そのまま送ると、見えない生き物で記録される）
-  const selectedHidden = !!selected && !filtered.includes(selected);
-  // 今の値に合う、見える選択肢があるか（未選択なら「選択してください」の行）。ないと見た目と値がずれる（#93）
-  const valueVisible = creatureId === '' ? !searching : filtered.some((c) => c.id === creatureId);
   const selectedMain = findMainLocation(mainLocationId);
   // 「使わない」場所は選択肢に出さない。編集中の記録の場所だけは残す
   const mainOptions = mainLocations.filter((l) => l.isActive || l.id === initialRecord?.mainLocationId);
@@ -192,59 +182,14 @@ export function RecordForm({
 
       {/* 生き物 */}
       <div>
-        <label className="mb-2 block text-sm text-gray-700" htmlFor="creature-select">
-          生き物の種類
-        </label>
-        <div className="relative mb-2">
-          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="生き物を検索..."
-            className={`${inputClass} pl-10`}
-          />
-        </div>
-        <select
-          id="creature-select"
-          size={5}
-          aria-describedby={selected ? 'creature-selected' : undefined}
+        <CreaturePicker
+          creatures={creatures}
           value={creatureId}
-          onChange={(e) => setCreatureId(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-        >
-          {/* 検索中は一致する生き物だけを出す（#89）。選択は消さず、一覧の下の「選択中」で分かるようにする */}
-          {!searching && <option value="">選択してください</option>}
-          {/*
-            今の値（未選択、検索で一覧から外れた生き物、別の人が消した生き物）に合う見える選択肢がないと、React が先頭の行を
-            選んだ見た目にする。すると、その行を押しても change が起きず選べない（#93）。見えない選択肢で今の値を持たせ、見た目と値をそろえる
-          */}
-          {!valueVisible && (
-            <option value={creatureId} hidden disabled>
-              {selected ? `${selected.name} (${selected.category})` : '選択してください'}
-            </option>
-          )}
-          {filtered.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} ({c.category})
-            </option>
-          ))}
-          {searching && filtered.length === 0 && (
-            <option value={NO_MATCH} disabled>
-              見つかりません
-            </option>
-          )}
-        </select>
-        {selected && (
-          <p
-            id="creature-selected"
-            aria-live="polite"
-            className={`mt-1 text-sm ${selectedHidden ? 'rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900' : 'text-gray-600'}`}
-          >
-            選択中：{selected.name}（{selected.category}）
-            {selectedHidden && '。検索した一覧にはありません。変えるときは、一覧から選んでください'}
-          </p>
-        )}
+          onChange={setCreatureId}
+          search={search}
+          onSearchChange={setSearch}
+          canAddCreature={canAddCreature}
+        />
         {selected?.memo && (
           <p className="mt-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-gray-700">
             💬 {selected.memo}
