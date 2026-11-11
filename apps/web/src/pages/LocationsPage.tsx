@@ -104,7 +104,7 @@ export function LocationsPage() {
                             </div>
                             <span className="text-sm text-gray-600">観察回数: {c.count}回</span>
                           </div>
-                          {c.memo && <p className="mt-2 text-sm text-gray-600">{c.memo}</p>}
+                          {c.memo && <p className="mt-2 text-sm whitespace-pre-wrap text-gray-600">{c.memo}</p>}
                         </div>
                       ))}
                     </div>

@@ -71,7 +71,8 @@ export function CreatureManager({ canManage, canProtect }: { canManage: boolean;
                   )}
                   <span className="text-xs text-gray-500">記録 {c.recordCount}件</span>
                 </div>
-                {c.memo && <p className="mt-1 text-sm text-gray-600">{c.memo}</p>}
+                {/* メモの改行をそのまま出す（#97） */}
+                {c.memo && <p className="mt-1 text-sm whitespace-pre-wrap text-gray-600">{c.memo}</p>}
               </div>
               {canManage && (
               <>
@@ -258,12 +259,18 @@ function MemoEditModal({ creature, onClose }: { creature: CreatureView; onClose:
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 入力欄の高さを中身に合わせる（入力欄の中をスクロールしなくても全体が見える）
+  // 入力欄の高さを中身に合わせる（入力欄の中をスクロールしなくても全体が見える）。
+  // 幅が変わる（スマホの向きを変える）と折り返しが変わるので、そのときも合わせ直す
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
+    const fit = () => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
   }, [memo]);
 
   const save = async () => {
@@ -294,7 +301,10 @@ function MemoEditModal({ creature, onClose }: { creature: CreatureView; onClose:
         />
         <p className="text-right text-xs text-gray-500">{memo.length}文字</p>
         <ErrorText message={error} />
-        <SaveButtons saving={updateCreature.isPending} onSave={() => void save()} onClose={onClose} />
+        {/* メモが長くても保存のボタンが見えるよう、画面の下に固定する */}
+        <div className="sticky -bottom-6 -mx-6 -mb-6 border-t border-gray-100 bg-white px-6 py-4">
+          <SaveButtons saving={updateCreature.isPending} onSave={() => void save()} onClose={onClose} />
+        </div>
       </div>
     </Modal>
   );

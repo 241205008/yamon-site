@@ -191,7 +191,7 @@ export function RecordForm({
           canAddCreature={canAddCreature}
         />
         {selected?.memo && (
-          <p className="mt-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-gray-700">
+          <p className="mt-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm whitespace-pre-wrap text-gray-700">
             💬 {selected.memo}
           </p>
         )}
