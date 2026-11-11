@@ -2,6 +2,7 @@ import { Clock, Plus, Search } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
 import {
   CATEGORIES,
+  matchesSearch,
   nowTimeJst,
   todayJst,
   type Category,
@@ -112,7 +113,8 @@ export function RecordForm({
   const query = search.trim();
   const searching = query !== '';
   const filtered = useMemo(
-    () => (query ? creatures.filter((c) => c.name.includes(query)) : creatures),
+    // ひらがなでもカタカナの名前に当たるよう、書き方の違いをそろえて比べる（#91）
+    () => (query ? creatures.filter((c) => matchesSearch(c.name, query)) : creatures),
     [creatures, query],
   );
   const selected = creatures.find((c) => c.id === creatureId);

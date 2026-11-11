@@ -1,6 +1,6 @@
 import { List, Pencil, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { CATEGORIES, type Category, type CreatureView } from '@yamon/shared';
+import { CATEGORIES, matchesSearch, type Category, type CreatureView } from '@yamon/shared';
 import { errorMessage, useCreatures, useDeleteCreature, useUpdateCreature } from '../lib/queries';
 import { CategoryBadge, ErrorText, inputClass, Modal, QueryState, ShowMoreButton, usePaged } from './ui';
 
@@ -18,7 +18,7 @@ export function CreatureManager({ canManage, canProtect }: { canManage: boolean;
 
   const filtered = useMemo(() => {
     const q = search.trim();
-    return q ? creatures.filter((c) => c.name.includes(q) || c.memo.includes(q)) : creatures;
+    return q ? creatures.filter((c) => matchesSearch(c.name, q) || matchesSearch(c.memo, q)) : creatures;
   }, [creatures, search]);
   const page = usePaged(filtered, 30);
 

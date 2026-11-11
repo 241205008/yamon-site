@@ -4,7 +4,7 @@ import { Marker, Tooltip, useMapEvents } from 'react-leaflet';
 import { pinIcon } from '../components/mapPins';
 import { SurveyMap } from '../components/SurveyMap';
 import { BackBar, CategoryBadge, ErrorText, Modal, PageBackground, inputClass } from '../components/ui';
-import { MAP_CENTER, TIMES_OF_DAY, getTimeOfDay, type RecordView, type TimeOfDay } from '@yamon/shared';
+import { MAP_CENTER, TIMES_OF_DAY, getTimeOfDay, matchesSearch, type RecordView, type TimeOfDay } from '@yamon/shared';
 import { errorMessage, useCreatures, useMapRecords } from '../lib/queries';
 
 interface Group {
@@ -39,7 +39,7 @@ export function MapPage() {
   const visibleCreatures = useMemo(() => {
     const all = creaturesQuery.data ?? [];
     const q = creatureSearch.trim();
-    return q ? all.filter((c) => c.name.includes(q)) : all;
+    return q ? all.filter((c) => matchesSearch(c.name, q)) : all;
   }, [creaturesQuery.data, creatureSearch]);
 
   // 場所未指定・座標なしの記録は API が返さない。各フィルターは AND 条件で、API で絞り込む（新しい順）
