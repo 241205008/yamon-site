@@ -12,16 +12,16 @@ export const CATEGORY_PIN_COLORS: Record<Category, string> = {
   アクア: '#005AFF',
   インセクター: '#03AF7A',
   バーダー: '#4DC4FF',
-  ママル: '#FF4B00',
+  ママル: '#F6AA00',
 };
 
-/** 記録の位置を選ぶ地図のピンの色（部門と関係ないので、どの部門の色とも違う濃い色、#109） */
-export const PICK_PIN_COLOR = '#1F2937';
+/** 同じ地点に、複数の部門の記録があるときの色（赤。2026-11-12 ユーザー指定） */
+export const MIXED_PIN_COLOR = '#FF4B00';
 
-/** 同じ地点に、複数の部門の記録があるときの色（どの部門の色とも紛れない灰色） */
-export const MIXED_PIN_COLOR = '#6B7280';
+/** 記録や主な場所の位置を選ぶ地図のピンの色（複数の部門と同じ赤。2026-11-12 ユーザー指定） */
+export const PICK_PIN_COLOR = '#FF4B00';
 
-/** 地点の記録の部門から、ピンの色を決める。部門が1つならその色、混ざっていれば灰色 */
+/** 地点の記録の部門から、ピンの色を決める。部門が1つならその色、混ざっていれば赤 */
 export function pinColorFor(categories: readonly Category[]): string {
   const unique = new Set(categories);
   if (unique.size === 1) return CATEGORY_PIN_COLORS[[...unique][0]];

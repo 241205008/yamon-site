@@ -42,15 +42,16 @@ describe('マップのピンの色（#109）', () => {
       アクア: '#005AFF',
       インセクター: '#03AF7A',
       バーダー: '#4DC4FF',
-      ママル: '#FF4B00',
+      ママル: '#F6AA00',
     });
     // すべての部門に色がある
     expect(Object.keys(CATEGORY_PIN_COLORS).sort()).toEqual([...CATEGORIES].sort());
   });
 
-  it('地点の部門が1つならその色、混ざっていれば灰色', () => {
+  it('地点の部門が1つならその色、混ざっていれば赤', () => {
     expect(pinColorFor(['アクア'])).toBe('#005AFF');
-    expect(pinColorFor(['ママル', 'ママル'])).toBe('#FF4B00');
+    expect(pinColorFor(['ママル', 'ママル'])).toBe('#F6AA00');
     expect(pinColorFor(['アクア', 'バーダー'])).toBe(MIXED_PIN_COLOR);
+    expect(MIXED_PIN_COLOR).toBe('#FF4B00');
   });
 });
