@@ -289,7 +289,14 @@ function MemoEditModal({ creature, onClose }: { creature: CreatureView; onClose:
   };
 
   return (
-    <Modal open onClose={onClose} title={`「${creature.name}」のメモを編集`} wide>
+    <Modal
+      open
+      onClose={onClose}
+      title={`「${creature.name}」のメモを編集`}
+      wide
+      // メモが長くても保存のボタンが見えるよう、ダイアログの下に固定する
+      footer={<SaveButtons saving={updateCreature.isPending} onSave={() => void save()} onClose={onClose} />}
+    >
       <div className="space-y-4">
         <label className="sr-only" htmlFor="cr-memo">メモ</label>
         <textarea
@@ -303,10 +310,6 @@ function MemoEditModal({ creature, onClose }: { creature: CreatureView; onClose:
         />
         <p className="text-right text-xs text-gray-500">{memo.length}文字</p>
         <ErrorText message={error} />
-        {/* メモが長くても保存のボタンが見えるよう、画面の下に固定する */}
-        <div className="sticky -bottom-6 -mx-6 -mb-6 border-t border-gray-100 bg-white px-6 py-4">
-          <SaveButtons saving={updateCreature.isPending} onSave={() => void save()} onClose={onClose} />
-        </div>
       </div>
     </Modal>
   );
