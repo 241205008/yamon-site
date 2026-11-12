@@ -77,7 +77,7 @@ describe('ユーザー', () => {
 describe('観察記録', () => {
   async function fixtures() {
     const [u] = await insertUser(`rec-${crypto.randomUUID()}@example.com`);
-    const [c] = await ctx.db.insert(creatures).values({ name: 'カブトムシ', category: 'インセクター' }).returning();
+    const [c] = await ctx.db.insert(creatures).values({ name: `カブトムシ-${crypto.randomUUID()}`, category: 'インセクター' }).returning();
     const [loc] = await ctx.db.insert(mainLocations).values({ name: '庄内緑地', lat: 35.19, lng: 136.87 }).returning();
     const [ev] = await ctx.db
       .insert(events)

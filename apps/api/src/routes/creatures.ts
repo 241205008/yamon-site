@@ -1,10 +1,11 @@
 import { can, creatureInputSchema, creaturePatchSchema, type CreaturePatch, type CreatureView, type SessionUser } from '@yamon/shared';
-import { and, asc, count, eq, ne } from 'drizzle-orm';
+import { and, asc, count, eq, ne, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { requirePermission, type AuthedEnv } from '../auth/middleware';
 import { schema, type Db } from '../db/client';
-import { isForeignKeyViolation, notFound } from '../observations/view';
+import { creatureNameKey } from '../db/schema';
+import { isForeignKeyViolation, isUniqueViolation, notFound } from '../observations/view';
 import { validate } from '../validator';
 
 const { creatures, observationRecords: r } = schema;
@@ -27,14 +28,43 @@ async function listCreatures(db: Db, id?: string): Promise<CreatureView[]> {
     .orderBy(asc(creatures.name));
 }
 
-/** 同じ名前の生き物を2つ作らない（前後の空白は入力チェックで除いてある） */
-async function assertNameAvailable(db: Db, name: string, exceptId?: string) {
+/**
+ * 同じ名前の生き物を2つ作らない（#105、D58）。ひらがな・カタカナ・全角半角・英字の大文字小文字の違いは同じ名前とみなす
+ * （creatureNameKey。DB の一意の索引と同じ式）。前後の空白は入力チェックで除いてある
+ */
+async function findSameName(db: Db, name: string, exceptId?: string) {
   const [dup] = await db
-    .select({ id: creatures.id })
+    .select({ name: creatures.name })
     .from(creatures)
-    .where(and(eq(creatures.name, name), exceptId ? ne(creatures.id, exceptId) : undefined))
+    .where(
+      and(
+        eq(creatureNameKey(creatures.name), creatureNameKey(sql`${name}::text`)),
+        exceptId ? ne(creatures.id, exceptId) : undefined,
+      ),
+    )
     .limit(1);
-  if (dup) throw new HTTPException(409, { message: `「${name}」はすでに登録されています` });
+  return dup?.name;
+}
+
+/** 登録済みの名前を出す（「あきあかね」と入れても、「アキアカネ」がある、と分かるように） */
+function duplicateName(existing: string) {
+  return new HTTPException(409, { message: `「${existing}」がすでに登録されています` });
+}
+
+async function assertNameAvailable(db: Db, name: string, exceptId?: string) {
+  const existing = await findSameName(db, name, exceptId);
+  if (existing !== undefined) throw duplicateName(existing);
+}
+
+/**
+ * 確かめた後に、ほかの人が同じ名前を登録していた（一意の索引で止まる）ときも 409 にする。
+ * 登録済みの名前を探し直して出す
+ */
+export async function rethrowIfDuplicate(db: Db, err: unknown, name: string | undefined, exceptId?: string): Promise<never> {
+  if (name !== undefined && isUniqueViolation(err)) {
+    throw duplicateName((await findSameName(db, name, exceptId)) ?? name);
+  }
+  throw err;
 }
 
 /** 「位置を保護する」印を変えられるのは creatures.protect の権限がある人（管理者・幹部）だけ（MVP 2章） */
@@ -57,7 +87,12 @@ async function updateCreature(db: Db, user: SessionUser, id: string, input: Crea
   if (!current) throw notFound('生き物');
   assertCanProtect(user, current.locationProtected, input.locationProtected);
   if (input.name !== undefined) await assertNameAvailable(db, input.name, id);
-  const updated = await db.update(creatures).set(input).where(eq(creatures.id, id)).returning({ id: creatures.id });
+  const updated = await db
+    .update(creatures)
+    .set(input)
+    .where(eq(creatures.id, id))
+    .returning({ id: creatures.id })
+    .catch((err: unknown) => rethrowIfDuplicate(db, err, input.name, id));
   if (updated.length === 0) throw notFound('生き物');
   return readCreature(db, id);
 }
@@ -80,7 +115,8 @@ export const creatureRoutes = new Hono<AuthedEnv>()
     const [created] = await db
       .insert(creatures)
       .values({ ...input, createdBy: c.get('user').id })
-      .returning({ id: creatures.id });
+      .returning({ id: creatures.id })
+      .catch((err: unknown) => rethrowIfDuplicate(db, err, input.name));
     return c.json(await readCreature(db, created.id), 201);
   })
   /** 記録は creatureId で参照しているので、名前を直すと過去の記録の表示にも反映される */
