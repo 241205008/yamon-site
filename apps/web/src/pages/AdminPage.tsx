@@ -324,6 +324,12 @@ function InvitationPanel({ invitations, onChanged }: { invitations: AdminInvitat
 // ユーザー
 // ---------------------------------------------------------------------------
 
+/** 登録済みユーザーを、メールアドレスか名前で絞り込む（#109）。検索語が空なら全員 */
+export function filterUsers(users: AdminUser[], query: string): AdminUser[] {
+  const match = searchMatcher(query);
+  return match ? users.filter((u) => match(u.email ?? '') || match(u.name)) : users;
+}
+
 function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => Promise<void> }) {
   const me = useCurrentUser()!;
   const [error, setError] = useState<string | null>(null);
@@ -365,14 +371,11 @@ function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => 
     void run(u, () => changeRole(u.id, role));
   };
 
-  const listed = users.filter((u) => u.status !== 'withdrawn');
+  const listed = useMemo(() => users.filter((u) => u.status !== 'withdrawn'), [users]);
   const withdrawn = users.filter((u) => u.status === 'withdrawn');
   // メールアドレス（と名前）で絞り込む（#109）。人が多くても、無効化・退会処理・役割の変更の相手を探せるようにする
   const [query, setQuery] = useState('');
-  const shownUsers = useMemo(() => {
-    const match = searchMatcher(query);
-    return match ? listed.filter((u) => match(u.email ?? '') || match(u.name)) : listed;
-  }, [listed, query]);
+  const shownUsers = useMemo(() => filterUsers(listed, query), [listed, query]);
 
   return (
     <Card className="p-6">

@@ -15,6 +15,9 @@ export const CATEGORY_PIN_COLORS: Record<Category, string> = {
   ママル: '#FF4B00',
 };
 
+/** 記録の位置を選ぶ地図のピンの色（部門と関係ないので、どの部門の色とも違う濃い色、#109） */
+export const PICK_PIN_COLOR = '#1F2937';
+
 /** 同じ地点に、複数の部門の記録があるときの色（どの部門の色とも紛れない灰色） */
 export const MIXED_PIN_COLOR = '#6B7280';
 
@@ -35,7 +38,7 @@ export function pinSvg(color: string, size = 24): string {
 }
 
 /** マップのピン。color で色を決める（部門の色、#109）。count が 2 以上なら件数のバッジを付ける */
-export function pinIcon(count = 1, color = '#fb2c36'): L.DivIcon {
+export function pinIcon(count = 1, color = PICK_PIN_COLOR): L.DivIcon {
   const badge =
     count > 1
       ? `<span style="position:absolute;top:-8px;right:-10px;min-width:20px;height:20px;padding:0 4px;border-radius:9999px;background:#1f2937;color:#fff;font-size:11px;font-weight:700;line-height:20px;text-align:center;border:2px solid #fff;box-sizing:border-box">${count}</span>`

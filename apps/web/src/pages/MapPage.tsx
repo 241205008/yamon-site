@@ -167,9 +167,10 @@ export function MapPage() {
           </div>
 
           {/* 凡例：ピンの色は部門ごと（#109） */}
-          <div className="pointer-events-none absolute right-4 bottom-8 z-[1000] rounded-lg bg-white p-3 shadow-md">
-            <p className="mb-2 text-sm font-medium text-gray-700">凡例（ピンの色は部門）</p>
-            <ul className="space-y-1 text-sm text-gray-700">
+          <div className="pointer-events-none absolute right-2 bottom-8 z-[1000] rounded-lg bg-white/95 p-2 shadow-md sm:right-4 sm:p-3">
+            <p className="mb-1.5 text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">凡例（ピンの色は部門）</p>
+            {/* スマホでは2列にして、地図を隠す高さを減らす */}
+            <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-700 sm:grid-cols-1 sm:text-sm">
               {LEGEND_CATEGORIES.map((c) => (
                 <li key={c} className="flex items-center gap-2">
                   <LegendPin color={CATEGORY_PIN_COLORS[c]} />
@@ -187,7 +188,7 @@ export function MapPage() {
                     N
                   </span>
                 </span>
-                同じ地点の記録の数
+                記録の数
               </li>
             </ul>
             <p className="mt-2 text-xs text-gray-500">{filtered.length}件の記録</p>
