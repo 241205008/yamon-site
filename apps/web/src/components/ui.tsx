@@ -84,12 +84,15 @@ export function Modal({
   children,
   wide = false,
   dismissible = true,
+  footer,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
   wide?: boolean;
+  /** ダイアログの下に固定して出すもの（保存のボタンなど）。中身が長くてスクロールしても見える（#97・#101） */
+  footer?: ReactNode;
   /** false なら、外側のクリックや Esc では閉じない（×と閉じるボタンだけ）。閉じると取り戻せない内容を見せるときに使う */
   dismissible?: boolean;
 }) {
@@ -110,7 +113,8 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`max-h-[90vh] w-full overflow-y-auto rounded-xl bg-white p-6 shadow-xl ${wide ? 'max-w-3xl' : 'max-w-md'}`}
+        // 高さの上限は dvh（スマホのブラウザのバーを除いた、見えている高さ）で決める（#101）
+        className={`max-h-[90dvh] w-full overflow-y-auto rounded-xl bg-white p-6 shadow-xl ${wide ? 'max-w-3xl' : 'max-w-md'}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -125,6 +129,10 @@ export function Modal({
           </button>
         </div>
         {children}
+        {footer && (
+          // p-6 の余白の分だけ外に広げ、ダイアログの下の端に付ける
+          <div className="sticky -bottom-6 -mx-6 -mb-6 mt-4 border-t border-gray-100 bg-white px-6 py-4">{footer}</div>
+        )}
       </div>
     </div>
   );

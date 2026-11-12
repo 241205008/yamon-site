@@ -28,7 +28,43 @@ export function MapPickerModal({
   const [outside, setOutside] = useState(false);
 
   return (
-    <Modal open={open} onClose={onClose} title="マップで位置を選択" wide>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="マップで位置を選択"
+      wide
+      // 座標の表示とボタンは、収まらない画面（スマホを横にしたときなど）でも見えるよう、ダイアログの下に固定する（#101）
+      footer={
+        <>
+          <p className="text-sm text-gray-700">
+            {picked
+              ? `選択中の座標: ${picked.lat.toFixed(4)}, ${picked.lng.toFixed(4)}`
+              : 'まだ位置が選ばれていません'}
+          </p>
+          {outside && <p className="mt-1 text-sm text-red-600">地図の範囲外（愛知・岐阜・三重・滋賀の4県）は選べません</p>}
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200"
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              disabled={!picked}
+              onClick={() => {
+                if (picked) onSelect(picked.lat, picked.lng);
+                onClose();
+              }}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              この位置にする
+            </button>
+          </div>
+        </>
+      }
+    >
       <p className="mb-3 text-sm text-gray-600">地図をクリックして観察した位置を選んでください。</p>
       <SurveyMap
         center={start ?? MAP_CENTER}
@@ -47,35 +83,6 @@ export function MapPickerModal({
         />
         {picked && <Marker position={picked} icon={pinIcon()} />}
       </SurveyMap>
-      {/* それでも収まらない画面（スマホを横にしたときなど）でも、座標とボタンが見えるようダイアログの下に固定する（#101） */}
-      <div className="sticky -bottom-6 -mx-6 -mb-6 mt-3 border-t border-gray-100 bg-white px-6 pt-3 pb-6">
-      <p className="text-sm text-gray-700">
-        {picked
-          ? `選択中の座標: ${picked.lat.toFixed(4)}, ${picked.lng.toFixed(4)}`
-          : 'まだ位置が選ばれていません'}
-      </p>
-      {outside && <p className="mt-1 text-sm text-red-600">地図の範囲外（愛知・岐阜・三重・滋賀の4県）は選べません</p>}
-      <div className="mt-3 flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200"
-        >
-          キャンセル
-        </button>
-        <button
-          type="button"
-          disabled={!picked}
-          onClick={() => {
-            if (picked) onSelect(picked.lat, picked.lng);
-            onClose();
-          }}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          この位置にする
-        </button>
-      </div>
-      </div>
     </Modal>
   );
 }

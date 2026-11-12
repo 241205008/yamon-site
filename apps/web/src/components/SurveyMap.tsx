@@ -47,6 +47,21 @@ function ProtomapsLayer() {
   return null;
 }
 
+/**
+ * 外枠の大きさが変わったら、Leaflet に大きさを測り直させる（#101）。地図の高さを画面の高さに合わせているので、
+ * スマホの向きやブラウザのバーで変わる。Leaflet はウィンドウの大きさの変化しか見ないので、外枠そのものを見張る
+ */
+function TrackContainerSize() {
+  const map = useMap();
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
+  return null;
+}
+
 /** 4県の全体が収まるところまでしか縮小できないようにする（画面の大きさで変わるので、大きさが変わるたびに計算し直す） */
 function LimitZoomOut() {
   const map = useMap();
@@ -105,6 +120,7 @@ export function SurveyMap({
           <ProtomapsLayer />
         )}
         <LimitZoomOut />
+        <TrackContainerSize />
         {/* 左上はマップ画面の「マップビュー」の表示と重なるため、左下に置く */}
         <ZoomControl position="bottomleft" />
         {children}
