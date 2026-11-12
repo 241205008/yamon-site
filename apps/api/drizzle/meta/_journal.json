@@ -29,6 +29,13 @@
       "when": 1794356186639,
       "tag": "0003_email_changed",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794452123004,
+      "tag": "0004_creature_name_key",
+      "breakpoints": true
     }
   ]
 }

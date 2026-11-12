@@ -8,9 +8,12 @@ import type {
   RecordView,
   Role,
 } from '@yamon/shared';
-import { eq } from 'drizzle-orm';
+import { normalizeForSearch } from '@yamon/shared';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { schema } from '../src/db/client';
+import { creatureNameKey } from '../src/db/schema';
+import { isUniqueViolation } from '../src/observations/view';
 import { createUser, jsonHeaders, login, setupTestApp, type TestContext } from './helpers';
 
 let ctx: TestContext;
@@ -98,6 +101,60 @@ describe('生き物', () => {
     await newCreature('member', 'オニヤンマ');
     const res = await call<ApiErrorBody>('POST', '/creatures', 'officer', { name: 'オニヤンマ', category: 'インセクター' });
     expect(res.status).toBe(409);
+    expect(res.body.error.message).toBe('「オニヤンマ」がすでに登録されています');
+  });
+
+  it('ひらがな・カタカナ・半角カナ・全角英字・大文字小文字の違いは同じ名前とみなし、登録済みの名前を出す（#105）', async () => {
+    await newCreature('member', 'アキアカネ');
+    await newCreature('member', 'Gクワガタ');
+    for (const [name, existing] of [
+      ['あきあかね', 'アキアカネ'],
+      ['ｱｷｱｶﾈ', 'アキアカネ'],
+      ['アキあかね', 'アキアカネ'],
+      ['ｇくわがた', 'Gクワガタ'],
+      ['gクワガタ', 'Gクワガタ'],
+    ]) {
+      const res = await call<ApiErrorBody>('POST', '/creatures', 'member', { name: `　${name} `, category: 'インセクター' });
+      expect(res.status, name).toBe(409);
+      expect(res.body.error.message).toBe(`「${existing}」がすでに登録されています`);
+    }
+    // 濁点の有無や漢字は別の名前
+    expect((await call('POST', '/creatures', 'member', { name: 'アキアガネ', category: 'インセクター' })).status).toBe(201);
+    expect((await call('POST', '/creatures', 'member', { name: '秋茜', category: 'インセクター' })).status).toBe(201);
+  });
+
+  it('名前の変更でも、そろえると同じになる名前にはできない（PUT・PATCH、#105）', async () => {
+    await newCreature('member', 'ニイニイゼミ');
+    const c = await newCreature('member');
+    const put = await call<ApiErrorBody>('PUT', `/creatures/${c.id}`, 'member', { name: 'にいにいぜみ', category: 'インセクター' });
+    expect(put.status).toBe(409);
+    expect(put.body.error.message).toBe('「ニイニイゼミ」がすでに登録されています');
+    const patch = await call<ApiErrorBody>('PATCH', `/creatures/${c.id}`, 'member', { name: 'ﾆｲﾆｲｾﾞﾐ' });
+    expect(patch.status).toBe(409);
+    expect(patch.body.error.message).toBe('「ニイニイゼミ」がすでに登録されています');
+    // 自分の名前の書き方を直すのは重複にしない
+    const own = await newCreature('member', 'みんみんぜみ');
+    const fixed = await call<CreatureView>('PATCH', `/creatures/${own.id}`, 'member', { name: 'ミンミンゼミ' });
+    expect(fixed.status).toBe(200);
+    expect(fixed.body.name).toBe('ミンミンゼミ');
+  });
+
+  it('API の確認をすり抜けても、DB の一意の索引が同じ名前の2つ目を止める（#105）', async () => {
+    await ctx.db.insert(schema.creatures).values({ name: 'ツクツクボウシ', category: 'インセクター' });
+    await expect(
+      ctx.db.insert(schema.creatures).values({ name: 'つくつくぼうし', category: 'インセクター' }),
+    ).rejects.toSatisfy((err: unknown) => isUniqueViolation(err));
+  });
+
+  it('DB のそろえ方は、検索の normalizeForSearch（#91）と同じ結果になる', async () => {
+    const samples = ['あきあかね', 'ｱｷｱｶﾈ', 'ｶﾞｷﾞｸﾞ', 'ゔゝゞ', 'ＡＢＣ abc', 'ぁゖ', '蛍 ほたる', 'Ⅳ号', '①'];
+    for (const s of samples) {
+      // テストの DB は PGlite なので、結果は { rows } の形
+      const { rows } = (await ctx.db.execute(sql`select ${creatureNameKey(sql`${s}::text`)} as key`)) as unknown as {
+        rows: { key: string }[];
+      };
+      expect(rows[0]?.key, s).toBe(normalizeForSearch(s));
+    }
   });
 
   it('OB・OG と未ログインは登録できない', async () => {

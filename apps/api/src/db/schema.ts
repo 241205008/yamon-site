@@ -1,5 +1,5 @@
 import { AUDIT_ACTIONS, CATEGORIES, LOCATION_TYPES, ROLES, USER_STATUSES } from '@yamon/shared';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import {
   boolean,
   check,
@@ -161,17 +161,35 @@ export const auditLogs = pgTable(
 );
 
 /** 生き物。記録から ID で参照する（記録がある生き物は削除できない、D9） */
-export const creatures = pgTable('creatures', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
-  category: categoryEnum('category').notNull(),
-  memo: text('memo').notNull().default(''),
-  /** 位置を保護する（部員・OB・OG には、記録した本人を除き、記録の場所名・座標を返さない、D24・D52） */
-  locationProtected: boolean('location_protected').notNull().default(false),
-  createdBy: uuid('created_by').references(() => users.id),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
+// ひらがな ぁ（U+3041）〜ゖ（U+3096）と踊り字 ゝゞ、それぞれに対応するカタカナ（+0x60）。normalizeForSearch と同じ対応
+const HIRAGANA = [...Array.from({ length: 0x3096 - 0x3041 + 1 }, (_, i) => 0x3041 + i), 0x309d, 0x309e];
+const HIRAGANA_FROM = String.fromCharCode(...HIRAGANA);
+const KATAKANA_TO = String.fromCharCode(...HIRAGANA.map((c) => c + 0x60));
+
+/**
+ * 生き物の名前を、重複を確かめるためにそろえる SQL（#105、D58）。packages/shared の normalizeForSearch（#91）と同じく、
+ * NFKC（全角・半角）→ ひらがなをカタカナに → 小文字、の順にそろえる。前後の空白は入力チェック（Zod の trim）で除いてある。
+ * 一意の索引と API の重複の確認の両方がこの式を使うので、2つの比べ方はずれない
+ */
+export const creatureNameKey = (name: SQL | AnyPgColumn) =>
+  sql`lower(translate(normalize(${name}, NFKC), ${sql.raw(`'${HIRAGANA_FROM}'`)}, ${sql.raw(`'${KATAKANA_TO}'`)}))`;
+
+export const creatures = pgTable(
+  'creatures',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    category: categoryEnum('category').notNull(),
+    memo: text('memo').notNull().default(''),
+    /** 位置を保護する（部員・OB・OG には、記録した本人を除き、記録の場所名・座標を返さない、D24・D52） */
+    locationProtected: boolean('location_protected').notNull().default(false),
+    createdBy: uuid('created_by').references(() => users.id),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  // 「アキアカネ」「あきあかね」「ｱｷｱｶﾈ」を同じ名前とみなし、同時に登録されても2つ目を DB が止める（#105、D58）
+  (t) => [uniqueIndex('creatures_name_key_unique').on(creatureNameKey(t.name))],
+);
 
 /** 主な場所。管理者・幹部が画面から追加・編集する（D27）。記録がある場所は削除せず isActive を false にする */
 export const mainLocations = pgTable('main_locations', {
