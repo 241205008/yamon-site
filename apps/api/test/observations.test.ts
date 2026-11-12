@@ -12,7 +12,7 @@ import { normalizeForSearch } from '@yamon/shared';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { schema } from '../src/db/client';
-import { creatureNameKey } from '../src/db/schema';
+import { nameKey } from '../src/db/schema';
 import { isUniqueViolation } from '../src/observations/view';
 import { rethrowIfDuplicate } from '../src/routes/creatures';
 import { HTTPException } from 'hono/http-exception';
@@ -168,7 +168,7 @@ describe('生き物', () => {
     const samples = ['あきあかね', 'ｱｷｱｶﾈ', 'ｶﾞｷﾞｸﾞ', 'ゔゝゞ', 'ＡＢＣ abc', 'ぁゖ', '蛍 ほたる', 'Ⅳ号', '①'];
     for (const s of samples) {
       // テストの DB は PGlite なので、結果は { rows } の形
-      const { rows } = (await ctx.db.execute(sql`select ${creatureNameKey(sql`${s}::text`)} as key`)) as unknown as {
+      const { rows } = (await ctx.db.execute(sql`select ${nameKey(sql`${s}::text`)} as key`)) as unknown as {
         rows: { key: string }[];
       };
       expect(rows[0]?.key, s).toBe(normalizeForSearch(s));

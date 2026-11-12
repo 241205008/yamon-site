@@ -4,7 +4,8 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { requirePermission, type AuthedEnv } from '../auth/middleware';
 import { schema, type Db } from '../db/client';
-import { isForeignKeyViolation, notFound } from '../observations/view';
+import { nameKey } from '../db/schema';
+import { isForeignKeyViolation, isUniqueViolation, notFound } from '../observations/view';
 import { validate } from '../validator';
 
 const { mainLocations, observationRecords: r, creatures } = schema;
@@ -34,14 +35,38 @@ async function readMainLocation(db: Db, id: string) {
   return loc;
 }
 
-/** 同じ名前の場所を2つ作らない（選択肢で見分けられなくなる） */
-async function assertNameAvailable(db: Db, name: string, exceptId?: string) {
+/**
+ * 同じ名前の場所を2つ作らない（選択肢で見分けられなくなる。#107、D59）。生き物（#105、D58）と同じく、
+ * ひらがな・カタカナ・全角半角・英字の大文字小文字の違いは同じ名前とみなす（nameKey。DB の一意の索引と同じ式）
+ */
+async function findSameName(db: Db, name: string, exceptId?: string) {
   const [dup] = await db
-    .select({ id: mainLocations.id })
+    .select({ name: mainLocations.name })
     .from(mainLocations)
-    .where(and(eq(mainLocations.name, name), exceptId ? ne(mainLocations.id, exceptId) : undefined))
+    .where(
+      and(
+        eq(nameKey(mainLocations.name), nameKey(sql`${name}::text`)),
+        exceptId ? ne(mainLocations.id, exceptId) : undefined,
+      ),
+    )
     .limit(1);
-  if (dup) throw new HTTPException(409, { message: `「${name}」はすでに登録されています` });
+  return dup?.name;
+}
+
+/** 登録済みの名前を出す（「やごと山」と入れても、「ヤゴト山」がある、と分かるように） */
+function duplicateName(existing: string) {
+  return new HTTPException(409, { message: `「${existing}」がすでに登録されています` });
+}
+
+async function assertNameAvailable(db: Db, name: string, exceptId?: string) {
+  const existing = await findSameName(db, name, exceptId);
+  if (existing !== undefined) throw duplicateName(existing);
+}
+
+/** 確かめた後に、ほかの人が同じ名前の場所を追加していた（一意の索引で止まる）ときも、登録済みの名前つきの 409 にする */
+export async function rethrowIfDuplicateLocation(db: Db, err: unknown, name: string, exceptId?: string): Promise<never> {
+  if (isUniqueViolation(err)) throw duplicateName((await findSameName(db, name, exceptId)) ?? name);
+  throw err;
 }
 
 const IN_USE_MESSAGE = 'この場所には記録または観察会があるため削除できません。「使わない」にしてください';
@@ -63,7 +88,8 @@ export const mainLocationRoutes = new Hono<AuthedEnv>()
     const [created] = await db
       .insert(mainLocations)
       .values({ ...input, isActive: input.isActive ?? true, sortOrder: Number(next) })
-      .returning({ id: mainLocations.id });
+      .returning({ id: mainLocations.id })
+      .catch((err: unknown) => rethrowIfDuplicateLocation(db, err, input.name));
     return c.json(await readMainLocation(db, created.id), 201);
   })
   /** 名前を直すと、過去の記録・観察会の表示にも反映される（記録は ID で参照している） */
@@ -72,7 +98,12 @@ export const mainLocationRoutes = new Hono<AuthedEnv>()
     const id = c.req.param('id');
     const input = c.req.valid('json');
     await assertNameAvailable(db, input.name, id);
-    const updated = await db.update(mainLocations).set(input).where(eq(mainLocations.id, id)).returning({ id: mainLocations.id });
+    const updated = await db
+      .update(mainLocations)
+      .set(input)
+      .where(eq(mainLocations.id, id))
+      .returning({ id: mainLocations.id })
+      .catch((err: unknown) => rethrowIfDuplicateLocation(db, err, input.name, id));
     if (updated.length === 0) throw notFound('主な場所');
     return c.json(await readMainLocation(db, id));
   })
