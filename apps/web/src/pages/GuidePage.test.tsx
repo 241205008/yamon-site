@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GETTING_STARTED, GUIDES, allGuideImages, findSection, guideIdFor } from '../guide/guides';
+import { DEPARTMENTS, GETTING_STARTED, GUIDES, allGuideImages, findSection, guideIdFor } from '../guide/guides';
 import imageSizes from '../guide/imageSizes.json';
 import { GuidePage } from './GuidePage';
 
@@ -104,9 +104,14 @@ describe('ガイドの中身', () => {
     expect(first.textContent).toContain(text);
   });
 
-  it('部員・OB・OG のガイドには、割り当ての囲みを出さない', () => {
+  it('部員・OB・OG のガイドには、割り当ての囲みを出さない（見出しの次は説明の文）', () => {
     render('/guide?for=member');
-    expect(GUIDES.find((g) => g.id === 'member')!.assignment).toBeUndefined();
+    const lead = GUIDES.find((g) => g.id === 'member')!.lead;
+    expect(container.querySelector('main h2')!.nextElementSibling!.textContent).toBe(lead);
+  });
+
+  it('割り当ての部門の名前は、生き物のカテゴリ（部門）と同じ', () => {
+    expect(DEPARTMENTS).toBe('インセクター・ママル・アクア・バーダー');
   });
 
   it('すべての役割が、どれか1つのガイドの対象になっていて、guideIdFor と食い違わない', () => {

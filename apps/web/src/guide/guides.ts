@@ -1,4 +1,7 @@
-import type { Permission, Role } from '@yamon/shared';
+import { CATEGORIES, type Permission, type Role } from '@yamon/shared';
+
+/** 部門の名前（生き物のカテゴリと同じ、MVP 6章）。役割の割り当ての説明に使う */
+export const DEPARTMENTS = CATEGORIES.join('・');
 
 /**
  * 使い方ガイドの中身（#79、D53）。
@@ -507,7 +510,7 @@ export const GUIDES: Guide[] = [
     label: '幹部',
     summary: '保護対象の生き物を扱う',
     roles: ['officer'],
-    assignment: '幹部は、各部門（インセクター・ママル・アクア・バーダー）の副リーダーと、サークルの副代表に割り当てます。',
+    assignment: `幹部は、各部門（${DEPARTMENTS}）の副リーダーと、サークルの副代表に割り当てます。`,
     lead: '幹部は、部員の操作に加えて、保護対象の生き物（絶滅危惧種など）を扱えます。',
     quickStart: [
       { label: '部員と同じ操作をする', ref: { id: 'officer-basics' } },
@@ -526,7 +529,7 @@ export const GUIDES: Guide[] = [
     label: '管理者',
     summary: 'メンバー・場所・地図を管理する',
     roles: ['admin'],
-    assignment: '管理者は、サークルの代表と、各部門（インセクター・ママル・アクア・バーダー）のリーダーに割り当てます。保守を担当する開発者も管理者です。',
+    assignment: `管理者は、サークルの代表と、各部門（${DEPARTMENTS}）のリーダーに割り当てます。保守を担当する開発者も管理者です。`,
     lead: '管理者は、部員・幹部の操作に加えて、管理者画面でメンバーや場所・地図を管理します。',
     quickStart: [
       { label: 'メンバーを招待する', ref: { id: 'admin-invite' } },
