@@ -50,6 +50,12 @@ export function GuidePage() {
 
         <Card className="p-6">
           <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">{guide.label}向けの使い方</h2>
+          {/* この役割を誰に割り当てるかを、一番最初に出す（#103） */}
+          {guide.assignment && (
+            <p className="mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 font-medium leading-relaxed text-green-900">
+              {guide.assignment}
+            </p>
+          )}
           <p className="mt-2 leading-relaxed text-gray-700">{guide.lead}</p>
           <QuickStart guide={guide} />
           <Toc guide={guide} />
@@ -68,7 +74,7 @@ export function GuidePage() {
         <Faq guide={guide} />
 
         <p className="text-center text-sm text-gray-600">
-          ここにないことや、画面がおかしいときは、管理者（代表・副代表）に相談してください。
+          ここにないことや、画面がおかしいときは、管理者（サークルの代表・各部門のリーダー）に相談してください。
         </p>
       </main>
     </PageBackground>

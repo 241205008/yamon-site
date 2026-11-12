@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GETTING_STARTED, GUIDES, allGuideImages, findSection, guideIdFor } from '../guide/guides';
+import { DEPARTMENTS, GETTING_STARTED, GUIDES, allGuideImages, findSection, guideIdFor } from '../guide/guides';
 import imageSizes from '../guide/imageSizes.json';
 import { GuidePage } from './GuidePage';
 
@@ -93,6 +93,27 @@ describe('役割ごとに最初に出すガイド', () => {
 });
 
 describe('ガイドの中身', () => {
+  it.each([
+    ['officer', '幹部は、各部門（インセクター・ママル・アクア・バーダー）の副リーダーと、サークルの副代表に割り当てます。'],
+    ['admin', '管理者は、サークルの代表と、各部門（インセクター・ママル・アクア・バーダー）のリーダーに割り当てます。'],
+  ] as const)('%s のガイドの一番最初に、誰に割り当てるかを出す（#103）', (id, text) => {
+    render(`/guide?for=${id}`);
+    const card = container.querySelector('main h2')!.parentElement!;
+    // 見出しのすぐ次に、割り当てがある（説明の文より前）
+    const first = card.querySelector('h2')!.nextElementSibling!;
+    expect(first.textContent).toContain(text);
+  });
+
+  it('部員・OB・OG のガイドには、割り当ての囲みを出さない（見出しの次は説明の文）', () => {
+    render('/guide?for=member');
+    const lead = GUIDES.find((g) => g.id === 'member')!.lead;
+    expect(container.querySelector('main h2')!.nextElementSibling!.textContent).toBe(lead);
+  });
+
+  it('割り当ての部門の名前は、生き物のカテゴリ（部門）と同じ', () => {
+    expect(DEPARTMENTS).toBe('インセクター・ママル・アクア・バーダー');
+  });
+
   it('すべての役割が、どれか1つのガイドの対象になっていて、guideIdFor と食い違わない', () => {
     for (const role of ROLES) {
       const owners = GUIDES.filter((g) => g.roles.includes(role));
