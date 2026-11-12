@@ -1,4 +1,4 @@
-import { Calendar, Filter, Search } from 'lucide-react';
+import { Calendar, ChevronDown, Filter, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Marker, Tooltip, useMapEvents } from 'react-leaflet';
 import { CATEGORY_PIN_COLORS, LEGEND_CATEGORIES, MIXED_PIN_COLOR, pinColorFor, pinIcon, pinSvg } from '../components/mapPins';
@@ -10,6 +10,57 @@ import { errorMessage, useCreatures, useMapRecords } from '../lib/queries';
 /** 凡例のピン（地図のピンと同じ形と色） */
 function LegendPin({ color }: { color: string }) {
   return <span aria-hidden className="inline-flex" dangerouslySetInnerHTML={{ __html: pinSvg(color, 14) }} />;
+}
+
+/**
+ * 地図の下の行：記録の件数と、凡例の色の説明を開く「凡例の色について」（#109）。
+ * 凡例は地図を隠さないよう、地図の上には重ねない
+ */
+export function MapLegend({ summary }: { summary: string }) {
+  const [legendOpen, setLegendOpen] = useState(false);
+  return (
+    <>
+      {/* 地図の下：記録の件数と、凡例の色の説明を開くリンク「凡例の色について」（#109） */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
+        <p className="text-sm text-gray-600">{summary}</p>
+        <button
+          type="button"
+          aria-expanded={legendOpen}
+          aria-controls="map-legend"
+          onClick={() => setLegendOpen((v) => !v)}
+          className="flex items-center gap-1 text-sm text-blue-600 underline-offset-2 hover:underline"
+        >
+          凡例の色について
+          <ChevronDown className={`h-4 w-4 transition-transform ${legendOpen ? 'rotate-180' : ''}`} aria-hidden />
+        </button>
+      </div>
+      {/* 閉じている間も要素は置いておく（aria-controls の先がなくならないように） */}
+      <div id="map-legend" hidden={!legendOpen} className="mt-2 rounded-xl bg-white p-4 shadow-md">
+        <p className="mb-2 text-sm font-medium text-gray-700">ピンの色は、記録の生き物の部門です</p>
+        <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-gray-700 sm:grid-cols-3">
+          {LEGEND_CATEGORIES.map((c) => (
+            <li key={c} className="flex items-center gap-2">
+              <LegendPin color={CATEGORY_PIN_COLORS[c]} />
+              {c}
+            </li>
+          ))}
+          <li className="flex items-center gap-2">
+            <LegendPin color={MIXED_PIN_COLOR} />
+            複数の部門
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="relative mr-1.5 inline-block shrink-0">
+              <LegendPin color={MIXED_PIN_COLOR} />
+              <span className="absolute -top-1.5 -right-2 flex h-3 w-3 items-center justify-center rounded-full bg-gray-800 text-[8px] font-bold text-white">
+                N
+              </span>
+            </span>
+            同じ地点の記録の数
+          </li>
+        </ul>
+      </div>
+    </>
+  );
 }
 
 interface Group {
@@ -134,7 +185,8 @@ export function MapPage() {
           </div>
         </aside>
 
-        <section className="relative order-1 h-[60vh] min-h-[360px] overflow-hidden rounded-xl shadow-md lg:order-2 lg:col-span-3 lg:h-[600px]">
+        <div className="order-1 lg:order-2 lg:col-span-3">
+        <section className="relative h-[60vh] min-h-[360px] overflow-hidden rounded-xl shadow-md lg:h-[600px]">
           <SurveyMap center={MAP_CENTER} zoom={14} className="h-full w-full">
             <CenterTracker onChange={setCenter} />
             {groups.map((g) => (
@@ -166,34 +218,6 @@ export function MapPage() {
             </p>
           </div>
 
-          {/* 凡例：ピンの色は部門ごと（#109） */}
-          <div className="pointer-events-none absolute right-2 bottom-8 z-[1000] rounded-lg bg-white/95 p-2 shadow-md sm:right-4 sm:p-3">
-            <p className="mb-1.5 text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">凡例（ピンの色は部門）</p>
-            {/* スマホでは2列にして、地図を隠す高さを減らす */}
-            <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-700 sm:grid-cols-1 sm:text-sm">
-              {LEGEND_CATEGORIES.map((c) => (
-                <li key={c} className="flex items-center gap-2">
-                  <LegendPin color={CATEGORY_PIN_COLORS[c]} />
-                  {c}
-                </li>
-              ))}
-              <li className="flex items-center gap-2">
-                <LegendPin color={MIXED_PIN_COLOR} />
-                複数の部門
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="relative inline-block">
-                  <LegendPin color={MIXED_PIN_COLOR} />
-                  <span className="absolute -top-1.5 -right-2 flex h-3 w-3 items-center justify-center rounded-full bg-gray-800 text-[8px] font-bold text-white">
-                    N
-                  </span>
-                </span>
-                記録の数
-              </li>
-            </ul>
-            <p className="mt-2 text-xs text-gray-500">{filtered.length}件の記録</p>
-          </div>
-
           {recordsQuery.isError ? (
             <div className="absolute inset-x-4 top-20 z-[1000]">
               <ErrorText message={`記録を読み込めませんでした。${errorMessage(recordsQuery.error)}`} />
@@ -215,6 +239,9 @@ export function MapPage() {
             )
           )}
         </section>
+
+        <MapLegend summary={recordsQuery.isPending ? '記録を読み込み中…' : `${filtered.length}件の記録`} />
+        </div>
       </main>
 
       <Modal open={!!openGroup} onClose={() => setOpenKey(null)} title="観察記録の詳細">
