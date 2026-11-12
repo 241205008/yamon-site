@@ -12,6 +12,57 @@ function LegendPin({ color }: { color: string }) {
   return <span aria-hidden className="inline-flex" dangerouslySetInnerHTML={{ __html: pinSvg(color, 14) }} />;
 }
 
+/**
+ * 地図の下の行：記録の件数と、凡例の色の説明を開く「凡例の色について」（#109）。
+ * 凡例は地図を隠さないよう、地図の上には重ねない
+ */
+export function MapLegend({ summary }: { summary: string }) {
+  const [legendOpen, setLegendOpen] = useState(false);
+  return (
+    <>
+      {/* 地図の下：記録の件数と、凡例の色の説明を開くリンク「凡例の色について」（#109） */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
+        <p className="text-sm text-gray-600">{summary}</p>
+        <button
+          type="button"
+          aria-expanded={legendOpen}
+          aria-controls="map-legend"
+          onClick={() => setLegendOpen((v) => !v)}
+          className="flex items-center gap-1 text-sm text-blue-600 underline-offset-2 hover:underline"
+        >
+          凡例の色について
+          <ChevronDown className={`h-4 w-4 transition-transform ${legendOpen ? 'rotate-180' : ''}`} aria-hidden />
+        </button>
+      </div>
+      {/* 閉じている間も要素は置いておく（aria-controls の先がなくならないように） */}
+      <div id="map-legend" hidden={!legendOpen} className="mt-2 rounded-xl bg-white p-4 shadow-md">
+        <p className="mb-2 text-sm font-medium text-gray-700">ピンの色は、記録の生き物の部門です</p>
+        <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-gray-700 sm:grid-cols-3">
+          {LEGEND_CATEGORIES.map((c) => (
+            <li key={c} className="flex items-center gap-2">
+              <LegendPin color={CATEGORY_PIN_COLORS[c]} />
+              {c}
+            </li>
+          ))}
+          <li className="flex items-center gap-2">
+            <LegendPin color={MIXED_PIN_COLOR} />
+            複数の部門
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="relative mr-1.5 inline-block shrink-0">
+              <LegendPin color={MIXED_PIN_COLOR} />
+              <span className="absolute -top-1.5 -right-2 flex h-3 w-3 items-center justify-center rounded-full bg-gray-800 text-[8px] font-bold text-white">
+                N
+              </span>
+            </span>
+            同じ地点の記録の数
+          </li>
+        </ul>
+      </div>
+    </>
+  );
+}
+
 interface Group {
   key: string;
   lat: number;
@@ -35,8 +86,6 @@ function CenterTracker({ onChange }: { onChange: (c: { lat: number; lng: number 
 export function MapPage() {
   const creaturesQuery = useCreatures();
   const [creatureSearch, setCreatureSearch] = useState('');
-  // 凡例の色の説明は、地図を隠さないよう地図の下に出し、リンクで開け閉めする（#109）
-  const [legendOpen, setLegendOpen] = useState(false);
   const [creatureId, setCreatureId] = useState<string | null>(null);
   const [month, setMonth] = useState<number | null>(null);
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay | null>(null);
@@ -191,46 +240,7 @@ export function MapPage() {
           )}
         </section>
 
-        {/* 地図の下：記録の件数と、凡例の色の説明を開くリンク「凡例の色について」（#109） */}
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
-          <p className="text-sm text-gray-600">{filtered.length}件の記録</p>
-          <button
-            type="button"
-            aria-expanded={legendOpen}
-            aria-controls="map-legend"
-            onClick={() => setLegendOpen((v) => !v)}
-            className="flex items-center gap-1 text-sm text-blue-600 underline-offset-2 hover:underline"
-          >
-            凡例の色について
-            <ChevronDown className={`h-4 w-4 transition-transform ${legendOpen ? 'rotate-180' : ''}`} aria-hidden />
-          </button>
-        </div>
-        {legendOpen && (
-          <div id="map-legend" className="mt-2 rounded-xl bg-white p-4 shadow-md">
-            <p className="mb-2 text-sm font-medium text-gray-700">ピンの色は、記録の生き物の部門です</p>
-            <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-gray-700 sm:grid-cols-3">
-              {LEGEND_CATEGORIES.map((c) => (
-                <li key={c} className="flex items-center gap-2">
-                  <LegendPin color={CATEGORY_PIN_COLORS[c]} />
-                  {c}
-                </li>
-              ))}
-              <li className="flex items-center gap-2">
-                <LegendPin color={MIXED_PIN_COLOR} />
-                複数の部門
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="relative mr-1.5 inline-block shrink-0">
-                  <LegendPin color={MIXED_PIN_COLOR} />
-                  <span className="absolute -top-1.5 -right-2 flex h-3 w-3 items-center justify-center rounded-full bg-gray-800 text-[8px] font-bold text-white">
-                    N
-                  </span>
-                </span>
-                同じ地点の記録の数
-              </li>
-            </ul>
-          </div>
-        )}
+        <MapLegend summary={recordsQuery.isPending ? '記録を読み込み中…' : `${filtered.length}件の記録`} />
         </div>
       </main>
 

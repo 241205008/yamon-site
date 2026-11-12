@@ -88,11 +88,10 @@ export function Collapsible({
           </span>
         </button>
       </Heading>
-      {open && (
-        <div id={panelId} className="mt-4">
-          {children}
-        </div>
-      )}
+      {/* 閉じている間も要素は置いておく（aria-controls の先がなくならないように）。中身は開いたときだけ描く */}
+      <div id={panelId} hidden={!open} className="mt-4">
+        {open && children}
+      </div>
     </div>
   );
 }
