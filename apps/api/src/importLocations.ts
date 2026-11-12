@@ -5,10 +5,11 @@
  *   npm run db:import-locations -w @yamon/api -- 一覧.csv --apply    # 実際に入れる
  *
  * DATABASE_URL があればその DB（本番は Neon）、なければローカルの PGlite に入れる。
- * 同じ名前の場所が既にあれば飛ばす（何度流しても重複しない）。1行でも誤りがあれば、何も入れない。
+ * 同じ名前の場所が既にあれば飛ばす（何度流しても重複しない）。書き方だけ違う名前（ひらがな・カタカナ・全角半角など）も同じとみなす（#107、D59）。1行でも誤りがあれば、何も入れない。
  * 登録した後の追加・編集は、管理者画面の「主な場所」から行う
  */
 import { readFileSync } from 'node:fs';
+import { normalizeForSearch } from '@yamon/shared';
 import { sql } from 'drizzle-orm';
 import { connectPglite, connectPostgres, schema } from './db/client';
 import { parseLocationsCsv } from './mainLocations/csv';
@@ -34,10 +35,16 @@ console.log(url ? 'DATABASE_URL の DB に接続しました' : 'ローカルの
 
 try {
   const { mainLocations } = schema;
-  const existing = new Set((await handle.db.select({ name: mainLocations.name }).from(mainLocations)).map((l) => l.name));
-  const toAdd = locations.filter((l) => !existing.has(l.name));
+  // そろえた名前 → 登録済みの名前。normalizeForSearch は DB の一意の索引の式（nameKey）と同じ結果になる（テストで確かめている）
+  const existing = new Map(
+    (await handle.db.select({ name: mainLocations.name }).from(mainLocations)).map((l) => [normalizeForSearch(l.name), l.name]),
+  );
+  const registered = (name: string) => existing.get(normalizeForSearch(name));
+  const toAdd = locations.filter((l) => registered(l.name) === undefined);
   for (const l of locations) {
-    console.log(`  ${existing.has(l.name) ? '登録済み（飛ばす）' : '追加する'}：${l.name}（${l.lat}, ${l.lng}）`);
+    const found = registered(l.name);
+    const status = found === undefined ? '追加する' : found === l.name ? '登録済み（飛ばす）' : `「${found}」として登録済み（飛ばす）`;
+    console.log(`  ${status}：${l.name}（${l.lat}, ${l.lng}）`);
   }
 
   if (!apply) {

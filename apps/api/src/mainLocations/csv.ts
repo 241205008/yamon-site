@@ -1,4 +1,4 @@
-import { mainLocationInputSchema } from '@yamon/shared';
+import { mainLocationInputSchema, normalizeForSearch } from '@yamon/shared';
 
 export interface ParsedLocation {
   name: string;
@@ -72,8 +72,16 @@ export function parseLocationsCsv(text: string): CsvResult {
       result.errors.push({ line, message: parsed.error.issues.map((i) => i.message).join('、') });
       return;
     }
-    if (result.locations.some((l) => l.name === parsed.data.name)) {
-      result.errors.push({ line, message: `「${parsed.data.name}」が一覧の中で重複しています` });
+    // 書き方だけ違う同じ名前も重複とみなす（DB の一意の索引と同じそろえ方。#107、D59）
+    const same = result.locations.find((l) => normalizeForSearch(l.name) === normalizeForSearch(parsed.data.name));
+    if (same) {
+      result.errors.push({
+        line,
+        message:
+          same.name === parsed.data.name
+            ? `「${parsed.data.name}」が一覧の中で重複しています`
+            : `「${parsed.data.name}」が一覧の中の「${same.name}」と重複しています`,
+      });
       return;
     }
     result.locations.push({ name: parsed.data.name, lat: parsed.data.lat, lng: parsed.data.lng });

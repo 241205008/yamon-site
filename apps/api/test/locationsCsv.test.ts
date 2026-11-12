@@ -30,4 +30,14 @@ describe('主な場所の CSV', () => {
     expect(locations.map((l) => l.name)).toEqual(['池2']);
     expect(errors.map((e) => e.line)).toEqual([1, 2, 4, 5]);
   });
+
+  it('書き方だけ違う同じ名前も一覧の中の重複とみなす（#107）', () => {
+    const csv = ['ヤゴト山,35.1,136.9', 'ﾔｺﾞﾄ山,35.1,136.9', 'やごと山,35.1,136.9', 'ヤコト山,35.1,136.9'].join('\n');
+    const { locations, errors } = parseLocationsCsv(csv);
+    expect(locations.map((l) => l.name)).toEqual(['ヤゴト山', 'ヤコト山']);
+    expect(errors).toEqual([
+      { line: 2, message: '「ﾔｺﾞﾄ山」が一覧の中の「ヤゴト山」と重複しています' },
+      { line: 3, message: '「やごと山」が一覧の中の「ヤゴト山」と重複しています' },
+    ]);
+  });
 });

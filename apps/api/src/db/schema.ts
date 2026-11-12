@@ -167,11 +167,11 @@ const HIRAGANA_FROM = String.fromCharCode(...HIRAGANA);
 const KATAKANA_TO = String.fromCharCode(...HIRAGANA.map((c) => c + 0x60));
 
 /**
- * 生き物の名前を、重複を確かめるためにそろえる SQL（#105、D58）。packages/shared の normalizeForSearch（#91）と同じく、
+ * 生き物・主な場所の名前を、重複を確かめるためにそろえる SQL（生き物は #105・D58、主な場所は #107・D59）。packages/shared の normalizeForSearch（#91）と同じく、
  * NFKC（全角・半角）→ ひらがなをカタカナに → 小文字、の順にそろえる。前後の空白は入力チェック（Zod の trim）で除いてある。
  * 一意の索引と API の重複の確認の両方がこの式を使うので、2つの比べ方はずれない
  */
-export const creatureNameKey = (name: SQL | AnyPgColumn) =>
+export const nameKey = (name: SQL | AnyPgColumn) =>
   sql`lower(translate(normalize(${name}, NFKC), ${sql.raw(`'${HIRAGANA_FROM}'`)}, ${sql.raw(`'${KATAKANA_TO}'`)}))`;
 
 export const creatures = pgTable(
@@ -188,20 +188,25 @@ export const creatures = pgTable(
     updatedAt: updatedAt(),
   },
   // 「アキアカネ」「あきあかね」「ｱｷｱｶﾈ」を同じ名前とみなし、同時に登録されても2つ目を DB が止める（#105、D58）
-  (t) => [uniqueIndex('creatures_name_key_unique').on(creatureNameKey(t.name))],
+  (t) => [uniqueIndex('creatures_name_key_unique').on(nameKey(t.name))],
 );
 
 /** 主な場所。管理者・幹部が画面から追加・編集する（D27）。記録がある場所は削除せず isActive を false にする */
-export const mainLocations = pgTable('main_locations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
-  lat: doublePrecision('lat').notNull(),
-  lng: doublePrecision('lng').notNull(),
-  isActive: boolean('is_active').notNull().default(true),
-  sortOrder: integer('sort_order').notNull().default(0),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
+export const mainLocations = pgTable(
+  'main_locations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    lat: doublePrecision('lat').notNull(),
+    lng: doublePrecision('lng').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  // 書き方だけ違う同じ名前（「ヤゴト山」「やごと山」「ﾔｺﾞﾄ山」）を2つ作らない。同時に追加されても2つ目を DB が止める（#107、D59）
+  (t) => [uniqueIndex('main_locations_name_key_unique').on(nameKey(t.name))],
+);
 
 /** 観察会。削除しても記録は消さず、記録側の eventId を null にする（#7） */
 export const events = pgTable(

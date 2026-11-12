@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { requirePermission, type AuthedEnv } from '../auth/middleware';
 import { schema, type Db } from '../db/client';
-import { creatureNameKey } from '../db/schema';
+import { nameKey } from '../db/schema';
 import { isForeignKeyViolation, isUniqueViolation, notFound } from '../observations/view';
 import { validate } from '../validator';
 
@@ -30,7 +30,7 @@ async function listCreatures(db: Db, id?: string): Promise<CreatureView[]> {
 
 /**
  * 同じ名前の生き物を2つ作らない（#105、D58）。ひらがな・カタカナ・全角半角・英字の大文字小文字の違いは同じ名前とみなす
- * （creatureNameKey。DB の一意の索引と同じ式）。前後の空白は入力チェックで除いてある
+ * （nameKey。DB の一意の索引と同じ式）。前後の空白は入力チェックで除いてある
  */
 async function findSameName(db: Db, name: string, exceptId?: string) {
   const [dup] = await db
@@ -38,7 +38,7 @@ async function findSameName(db: Db, name: string, exceptId?: string) {
     .from(creatures)
     .where(
       and(
-        eq(creatureNameKey(creatures.name), creatureNameKey(sql`${name}::text`)),
+        eq(nameKey(creatures.name), nameKey(sql`${name}::text`)),
         exceptId ? ne(creatures.id, exceptId) : undefined,
       ),
     )

@@ -36,6 +36,13 @@
       "when": 1794452123004,
       "tag": "0004_creature_name_key",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794453646805,
+      "tag": "0005_main_location_name_key",
+      "breakpoints": true
     }
   ]
 }
