@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseLocationsCsv } from '../src/mainLocations/csv';
+import { matchRegistered, parseLocationsCsv } from '../src/mainLocations/csv';
 
 describe('主な場所の CSV', () => {
   it('見出し行・空行・# の行を飛ばし、名前,緯度,経度 を読む', () => {
@@ -38,6 +38,19 @@ describe('主な場所の CSV', () => {
     expect(errors).toEqual([
       { line: 2, message: '「ﾔｺﾞﾄ山」が一覧の中の「ヤゴト山」と重複しています' },
       { line: 3, message: '「やごと山」が一覧の中の「ヤゴト山」と重複しています' },
+    ]);
+  });
+
+  it('書き方だけ違う登録済みの名前も登録済みとみなし、登録済みの名前を返す（取り込み、#107）', () => {
+    const at = { lat: 35.1, lng: 136.9 };
+    const matched = matchRegistered(
+      [{ name: 'やごと山', ...at }, { name: '天白川', ...at }, { name: 'ヤコト山', ...at }],
+      ['ヤゴト山', '天白川'],
+    );
+    expect(matched.map((m) => [m.location.name, m.registered])).toEqual([
+      ['やごと山', 'ヤゴト山'],
+      ['天白川', '天白川'],
+      ['ヤコト山', undefined],
     ]);
   });
 });

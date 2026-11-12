@@ -9,10 +9,10 @@
  * 登録した後の追加・編集は、管理者画面の「主な場所」から行う
  */
 import { readFileSync } from 'node:fs';
-import { normalizeForSearch } from '@yamon/shared';
 import { sql } from 'drizzle-orm';
 import { connectPglite, connectPostgres, schema } from './db/client';
-import { parseLocationsCsv } from './mainLocations/csv';
+import { matchRegistered, parseLocationsCsv } from './mainLocations/csv';
+import { isUniqueViolation } from './observations/view';
 
 const args = process.argv.slice(2);
 const file = args.find((a) => !a.startsWith('--'));
@@ -35,15 +35,12 @@ console.log(url ? 'DATABASE_URL の DB に接続しました' : 'ローカルの
 
 try {
   const { mainLocations } = schema;
-  // そろえた名前 → 登録済みの名前。normalizeForSearch は DB の一意の索引の式（nameKey）と同じ結果になる（テストで確かめている）
-  const existing = new Map(
-    (await handle.db.select({ name: mainLocations.name }).from(mainLocations)).map((l) => [normalizeForSearch(l.name), l.name]),
-  );
-  const registered = (name: string) => existing.get(normalizeForSearch(name));
-  const toAdd = locations.filter((l) => registered(l.name) === undefined);
-  for (const l of locations) {
-    const found = registered(l.name);
-    const status = found === undefined ? '追加する' : found === l.name ? '登録済み（飛ばす）' : `「${found}」として登録済み（飛ばす）`;
+  const registeredNames = (await handle.db.select({ name: mainLocations.name }).from(mainLocations)).map((l) => l.name);
+  const matched = matchRegistered(locations, registeredNames);
+  const toAdd = matched.filter((m) => m.registered === undefined).map((m) => m.location);
+  for (const { location: l, registered } of matched) {
+    const status =
+      registered === undefined ? '追加する' : registered === l.name ? '登録済み（飛ばす）' : `「${registered}」として登録済み（飛ばす）`;
     console.log(`  ${status}：${l.name}（${l.lat}, ${l.lng}）`);
   }
 
@@ -51,12 +48,19 @@ try {
     console.log(`確認のみ：${toAdd.length}件を追加します。入れるときは --apply を付けて実行してください`);
   } else if (toAdd.length > 0) {
     // 既存の場所の後ろに、CSV の順番のまま並べる
-    await handle.db.transaction(async (tx) => {
-      const [{ next }] = await tx
-        .select({ next: sql<number>`coalesce(max(${mainLocations.sortOrder}), -1) + 1` })
-        .from(mainLocations);
-      await tx.insert(mainLocations).values(toAdd.map((l, i) => ({ ...l, sortOrder: Number(next) + i })));
-    });
+    try {
+      await handle.db.transaction(async (tx) => {
+        const [{ next }] = await tx
+          .select({ next: sql<number>`coalesce(max(${mainLocations.sortOrder}), -1) + 1` })
+          .from(mainLocations);
+        await tx.insert(mainLocations).values(toAdd.map((l, i) => ({ ...l, sortOrder: Number(next) + i })));
+      });
+    } catch (err) {
+      // 確かめた後に、画面から同じ名前の場所が追加された（一意の索引で止まる）。何も入れずに終える
+      if (!isUniqueViolation(err)) throw err;
+      console.error('確かめた後に、同じ名前の場所が追加されました。何も入れていません。もう一度実行してください');
+      process.exitCode = 1;
+    }
     console.log(`${toAdd.length}件の主な場所を追加しました`);
   } else {
     console.log('追加する場所はありません');

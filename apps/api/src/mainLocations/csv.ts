@@ -49,6 +49,8 @@ const isNumber = (v: string) => v !== '' && Number.isFinite(Number(v));
  */
 export function parseLocationsCsv(text: string): CsvResult {
   const result: CsvResult = { locations: [], errors: [] };
+  // そろえた名前 → 一覧の中で先に出た名前（#107、D59）
+  const seen = new Map<string, string>();
   const lines = text.replace(/^﻿/, '').split(/\r?\n/);
   let first = true;
   lines.forEach((raw, index) => {
@@ -73,18 +75,29 @@ export function parseLocationsCsv(text: string): CsvResult {
       return;
     }
     // 書き方だけ違う同じ名前も重複とみなす（DB の一意の索引と同じそろえ方。#107、D59）
-    const same = result.locations.find((l) => normalizeForSearch(l.name) === normalizeForSearch(parsed.data.name));
-    if (same) {
+    const key = normalizeForSearch(parsed.data.name);
+    const same = seen.get(key);
+    if (same !== undefined) {
       result.errors.push({
         line,
         message:
-          same.name === parsed.data.name
+          same === parsed.data.name
             ? `「${parsed.data.name}」が一覧の中で重複しています`
-            : `「${parsed.data.name}」が一覧の中の「${same.name}」と重複しています`,
+            : `「${parsed.data.name}」が一覧の中の「${same}」と重複しています`,
       });
       return;
     }
+    seen.set(key, parsed.data.name);
     result.locations.push({ name: parsed.data.name, lat: parsed.data.lat, lng: parsed.data.lng });
   });
   return result;
+}
+
+/**
+ * CSV の各場所が登録済みか（登録済みなら、その登録済みの名前）。書き方だけ違う名前も登録済みとみなす（#107、D59）。
+ * normalizeForSearch は DB の一意の索引の式（nameKey）と同じ結果になる（observations.test.ts で確かめている）
+ */
+export function matchRegistered(locations: ParsedLocation[], registeredNames: string[]) {
+  const byKey = new Map(registeredNames.map((name) => [normalizeForSearch(name), name]));
+  return locations.map((location) => ({ location, registered: byKey.get(normalizeForSearch(location.name)) }));
 }
