@@ -33,7 +33,9 @@ export function MapPickerModal({
       <SurveyMap
         center={start ?? MAP_CENTER}
         zoom={start ? 16 : 14}
-        className="h-[420px] overflow-hidden rounded-lg border border-gray-200"
+        // 高さは画面に合わせる（#101）：大きい画面では 420px、スマホでは「この位置にする」まで1画面に収まるよう縮める。
+        // 15rem は、ダイアログの余白・題名・説明・座標・ボタンの高さの合計の目安
+        className="h-[clamp(200px,calc(90dvh-15rem),420px)] overflow-hidden rounded-lg border border-gray-200"
       >
         <ClickToPick
           onPick={(lat, lng) => {
@@ -45,13 +47,15 @@ export function MapPickerModal({
         />
         {picked && <Marker position={picked} icon={pinIcon()} />}
       </SurveyMap>
-      <p className="mt-3 text-sm text-gray-700">
+      {/* それでも収まらない画面（スマホを横にしたときなど）でも、座標とボタンが見えるようダイアログの下に固定する（#101） */}
+      <div className="sticky -bottom-6 -mx-6 -mb-6 mt-3 border-t border-gray-100 bg-white px-6 pt-3 pb-6">
+      <p className="text-sm text-gray-700">
         {picked
           ? `選択中の座標: ${picked.lat.toFixed(4)}, ${picked.lng.toFixed(4)}`
           : 'まだ位置が選ばれていません'}
       </p>
       {outside && <p className="mt-1 text-sm text-red-600">地図の範囲外（愛知・岐阜・三重・滋賀の4県）は選べません</p>}
-      <div className="mt-4 flex justify-end gap-2">
+      <div className="mt-3 flex justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
@@ -70,6 +74,7 @@ export function MapPickerModal({
         >
           この位置にする
         </button>
+      </div>
       </div>
     </Modal>
   );
