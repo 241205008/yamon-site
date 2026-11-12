@@ -97,6 +97,7 @@ const SHOTS = [
     file: 'recent-records.webp', role: 'member', device: 'phone', maxHeight: 900,
     async run(page) {
       await page.goto('/');
+      await expand(page, '最近の記録');
       const heading = page.getByRole('heading', { name: '最近の記録' });
       await page.getByText('あなたの記録').first().waitFor();
       return card(heading);
@@ -154,6 +155,7 @@ const SHOTS = [
     async run(page) {
       // 幹部が付けたホタルの記録（部員には場所が非公開）。ホームの最近の記録に出る
       await page.goto('/');
+      await expand(page, '最近の記録');
       return page.getByText('保護対象のため場所は非公開').locator('xpath=ancestor::article[1]');
     },
   },
@@ -161,6 +163,7 @@ const SHOTS = [
     file: 'viewer-home.webp', role: 'viewer', device: 'phone',
     async run(page) {
       await page.goto('/');
+      await expand(page, '最近の記録');
       await page.getByRole('heading', { name: '最近の記録' }).waitFor();
     },
   },
@@ -209,6 +212,7 @@ const SHOTS = [
     file: 'admin-users.webp', role: 'admin', device: 'pc',
     async run(page) {
       await page.goto('/admin');
+      await expand(page, '登録済みユーザー');
       return card(page.getByRole('heading', { name: '登録済みユーザー' }));
     },
   },
@@ -221,6 +225,7 @@ const SHOTS = [
       await api('admin', 'PATCH', `/api/admin/users/${member.id}/role`, { role: 'officer' });
       await api('admin', 'PATCH', `/api/admin/users/${member.id}/role`, { role: 'member' });
       await page.goto('/admin');
+      await expand(page, '操作履歴');
       return card(page.getByRole('heading', { name: '操作履歴' }));
     },
   },
@@ -243,6 +248,12 @@ const SHOTS = [
 ];
 
 /** 見出しを含む白いカード（rounded-xl） */
+/** 畳んである一覧（#109）を開く。見出しのボタンを押す */
+async function expand(page, title) {
+  const button = page.getByRole('button', { name: new RegExp(`^${title}`) });
+  if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+}
+
 function card(heading) {
   return heading.locator('xpath=ancestor::*[contains(concat(" ", @class, " "), " rounded-xl ")][1]');
 }
@@ -266,6 +277,10 @@ async function capture(page, file, target, maxHeight) {
   const cdp = await page.context().newCDPSession(page);
   let clip;
   if (target) {
+    // 上に貼り付く「ホーム画面に戻る」のバーが、切り取る所に重ならないようにする（並びは変えない）
+    await page.evaluate(() => {
+      for (const el of document.querySelectorAll('header.sticky')) el.style.position = 'relative';
+    });
     await target.first().scrollIntoViewIfNeeded();
     clip = await target.first().evaluate((el) => {
       const r = el.getBoundingClientRect();

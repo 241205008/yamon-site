@@ -1,5 +1,5 @@
-import { ArrowLeft, X } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { ArrowLeft, ChevronDown, X } from 'lucide-react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { PrivacyFooter } from './PrivacyNotice';
 
@@ -41,6 +41,59 @@ export function BackBar({ to, label, title }: { to: string; label: string; title
         {title && <h1 className="text-xl font-bold text-gray-900">{title}</h1>}
       </div>
     </header>
+  );
+}
+
+/**
+ * 見出しを押すと開け閉めできる一覧（#109）。最初は畳んでおき、開くと中身をすべて出す。
+ * 見出しの横に件数を出す。level で見出しの大きさ（h2・h3）を選ぶ
+ */
+export function Collapsible({
+  title,
+  icon,
+  count,
+  level = 2,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  icon?: ReactNode;
+  /** 見出しの横に出す件数の文字（例：「12件」）。省くと出さない */
+  count?: string;
+  level?: 2 | 3;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const panelId = useId();
+  const Heading = level === 2 ? 'h2' : 'h3';
+  return (
+    <div>
+      <Heading className={level === 2 ? 'text-xl font-bold text-gray-900' : 'text-lg font-bold text-gray-900'}>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full items-center gap-2 rounded-lg text-left"
+        >
+          {icon}
+          <span>{title}</span>
+          {count !== undefined && (
+            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-sm font-normal text-gray-700">{count}</span>
+          )}
+          <span className="ml-auto flex items-center gap-1 text-sm font-normal text-gray-500">
+            {open ? '閉じる' : '開く'}
+            <ChevronDown className={`h-5 w-5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
+          </span>
+        </button>
+      </Heading>
+      {open && (
+        <div id={panelId} className="mt-4">
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
 

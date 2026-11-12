@@ -1,11 +1,16 @@
 import { Calendar, Filter, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Marker, Tooltip, useMapEvents } from 'react-leaflet';
-import { pinIcon } from '../components/mapPins';
+import { CATEGORY_PIN_COLORS, LEGEND_CATEGORIES, MIXED_PIN_COLOR, pinColorFor, pinIcon, pinSvg } from '../components/mapPins';
 import { SurveyMap } from '../components/SurveyMap';
 import { BackBar, CategoryBadge, ErrorText, Modal, PageBackground, inputClass } from '../components/ui';
 import { MAP_CENTER, TIMES_OF_DAY, getTimeOfDay, searchMatcher, type RecordView, type TimeOfDay } from '@yamon/shared';
 import { errorMessage, useCreatures, useMapRecords } from '../lib/queries';
+
+/** 凡例のピン（地図のピンと同じ形と色） */
+function LegendPin({ color }: { color: string }) {
+  return <span aria-hidden className="inline-flex" dangerouslySetInnerHTML={{ __html: pinSvg(color, 14) }} />;
+}
 
 interface Group {
   key: string;
@@ -136,7 +141,7 @@ export function MapPage() {
               <Marker
                 key={g.key}
                 position={[g.lat, g.lng]}
-                icon={pinIcon(g.records.length)}
+                icon={pinIcon(g.records.length, pinColorFor(g.records.map((r) => r.category)))}
                 eventHandlers={{ click: () => setOpenKey(g.key) }}
               >
                 <Tooltip direction="top">
@@ -161,20 +166,31 @@ export function MapPage() {
             </p>
           </div>
 
-          <div className="pointer-events-none absolute right-4 bottom-8 z-[1000] rounded-lg bg-white p-3 shadow-md">
-            <p className="mb-2 text-sm text-gray-700">凡例</p>
-            <p className="flex items-center gap-2 text-sm text-gray-700">
-              <span className="inline-block h-3.5 w-3 rounded-t-full rounded-b-sm bg-red-500" />
-              観察地点
-            </p>
-            <p className="mt-1 flex items-center gap-2 text-sm text-gray-700">
-              <span className="relative inline-block h-3.5 w-3 rounded-t-full rounded-b-sm bg-red-400">
-                <span className="absolute -top-1.5 -right-2 flex h-3 w-3 items-center justify-center rounded-full bg-blue-600 text-[8px] font-bold text-white">
-                  N
+          {/* 凡例：ピンの色は部門ごと（#109） */}
+          <div className="pointer-events-none absolute right-2 bottom-8 z-[1000] rounded-lg bg-white/95 p-2 shadow-md sm:right-4 sm:p-3">
+            <p className="mb-1.5 text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">凡例（ピンの色は部門）</p>
+            {/* スマホでは2列にして、地図を隠す高さを減らす */}
+            <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-700 sm:grid-cols-1 sm:text-sm">
+              {LEGEND_CATEGORIES.map((c) => (
+                <li key={c} className="flex items-center gap-2">
+                  <LegendPin color={CATEGORY_PIN_COLORS[c]} />
+                  {c}
+                </li>
+              ))}
+              <li className="flex items-center gap-2">
+                <LegendPin color={MIXED_PIN_COLOR} />
+                複数の部門
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="relative inline-block">
+                  <LegendPin color={MIXED_PIN_COLOR} />
+                  <span className="absolute -top-1.5 -right-2 flex h-3 w-3 items-center justify-center rounded-full bg-gray-800 text-[8px] font-bold text-white">
+                    N
+                  </span>
                 </span>
-              </span>
-              複数の記録
-            </p>
+                記録の数
+              </li>
+            </ul>
             <p className="mt-2 text-xs text-gray-500">{filtered.length}件の記録</p>
           </div>
 

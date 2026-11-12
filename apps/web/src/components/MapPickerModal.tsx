@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Marker, useMapEvents } from 'react-leaflet';
 import { MAP_CENTER, isInSurveyArea } from '@yamon/shared';
-import { pinIcon } from './mapPins';
+import { PICK_PIN_COLOR, pinIcon } from './mapPins';
 import { SurveyMap } from './SurveyMap';
 import { Modal } from './ui';
 
@@ -81,7 +81,7 @@ export function MapPickerModal({
             if (inside) setPicked({ lat, lng });
           }}
         />
-        {picked && <Marker position={picked} icon={pinIcon()} />}
+        {picked && <Marker position={picked} icon={pinIcon(1, PICK_PIN_COLOR)} />}
       </SurveyMap>
     </Modal>
   );

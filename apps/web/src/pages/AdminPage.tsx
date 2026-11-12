@@ -13,13 +13,14 @@ import {
   type InvitationStatus,
   type IssuedLink,
   type Role,
+  searchMatcher,
 } from '@yamon/shared';
-import { CheckCircle2, Clock, History, KeyRound, Mail, RotateCw, ShieldCheck, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { CheckCircle2, Clock, History, KeyRound, Mail, RotateCw, Search, ShieldCheck, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { IssuedLinkModal, type IssuedLinkKind } from '../components/IssuedLinkModal';
 import { MainLocationPanel } from '../components/MainLocationPanel';
 import { MapDataPanel } from '../components/MapDataPanel';
-import { BackBar, Card, ErrorText, inputClass, Modal, PageBackground, StatCard } from '../components/ui';
+import { BackBar, Card, Collapsible, ErrorText, inputClass, Modal, PageBackground, StatCard } from '../components/ui';
 import {
   changeRole,
   createInvitation,
@@ -245,73 +246,75 @@ function InvitationPanel({ invitations, onChanged }: { invitations: AdminInvitat
         )}
       </div>
 
-      <h3 className="mb-3 text-lg font-bold text-gray-900">招待履歴</h3>
-      {invitations.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-500">まだ招待はありません</p>
-      ) : (
-        <ul className="space-y-3">
-          {invitations.map((inv) => {
-            const badge = INVITATION_BADGE[inv.status];
-            const Icon = badge.icon;
-            const open = inv.status === 'pending' || inv.status === 'expired';
-            return (
-              <li key={inv.id} className="rounded-lg border border-gray-200 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Mail className="h-4 w-4 shrink-0 text-gray-500" />
-                      <span className="break-all text-gray-900">{inv.email}</span>
-                      <span className={`rounded px-2 py-0.5 text-xs ${ROLE_BADGE[inv.role]}`}>{ROLE_LABELS[inv.role]}</span>
-                      <span className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs ${badge.className}`}>
-                        <Icon className="h-3 w-3" />
-                        {INVITATION_STATUS_LABELS[inv.status]}
-                      </span>
+      {/* 最初は畳んでおき、開くとすべて見られる（#109） */}
+      <Collapsible title="招待履歴" count={`${invitations.length}件`} level={3}>
+        {invitations.length === 0 ? (
+          <p className="py-6 text-center text-sm text-gray-500">まだ招待はありません</p>
+        ) : (
+          <ul className="space-y-3">
+            {invitations.map((inv) => {
+              const badge = INVITATION_BADGE[inv.status];
+              const Icon = badge.icon;
+              const open = inv.status === 'pending' || inv.status === 'expired';
+              return (
+                <li key={inv.id} className="rounded-lg border border-gray-200 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Mail className="h-4 w-4 shrink-0 text-gray-500" />
+                        <span className="break-all text-gray-900">{inv.email}</span>
+                        <span className={`rounded px-2 py-0.5 text-xs ${ROLE_BADGE[inv.role]}`}>{ROLE_LABELS[inv.role]}</span>
+                        <span className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs ${badge.className}`}>
+                          <Icon className="h-3 w-3" />
+                          {INVITATION_STATUS_LABELS[inv.status]}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-gray-600">
+                        招待日: {isoToJstDate(inv.createdAt)}（{inv.invitedByName}）
+                      </p>
+                      {inv.status === 'pending' && (
+                        <p className="text-xs text-gray-500">有効期限: {isoToJstDateTime(inv.expiresAt)}</p>
+                      )}
                     </div>
-                    <p className="mt-1 text-sm text-gray-600">
-                      招待日: {isoToJstDate(inv.createdAt)}（{inv.invitedByName}）
-                    </p>
-                    {inv.status === 'pending' && (
-                      <p className="text-xs text-gray-500">有効期限: {isoToJstDateTime(inv.expiresAt)}</p>
+                    {open && (
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            if (!window.confirm(`${inv.email} への招待リンクを作り直しますか？前に送ったリンクは使えなくなります。`)) return;
+                            void run(async () => {
+                              const link = await reissueInvitation(inv.id);
+                              setShown({ kind: 'invitation', to: inv.email, link });
+                            }, null);
+                          }}
+                          className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 disabled:opacity-60"
+                        >
+                          <RotateCw className="h-3.5 w-3.5" />
+                          リンクを作り直す
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            if (window.confirm(`${inv.email} への招待を取り消しますか？送ったリンクは使えなくなります。`)) {
+                              void run(() => revokeInvitation(inv.id), `${inv.email} への招待を取り消しました`);
+                            }
+                          }}
+                          className="rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-60"
+                          aria-label="招待を取り消す"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     )}
                   </div>
-                  {open && (
-                    <div className="flex shrink-0 items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => {
-                          if (!window.confirm(`${inv.email} への招待リンクを作り直しますか？前に送ったリンクは使えなくなります。`)) return;
-                          void run(async () => {
-                            const link = await reissueInvitation(inv.id);
-                            setShown({ kind: 'invitation', to: inv.email, link });
-                          }, null);
-                        }}
-                        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 disabled:opacity-60"
-                      >
-                        <RotateCw className="h-3.5 w-3.5" />
-                        リンクを作り直す
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => {
-                          if (window.confirm(`${inv.email} への招待を取り消しますか？送ったリンクは使えなくなります。`)) {
-                            void run(() => revokeInvitation(inv.id), `${inv.email} への招待を取り消しました`);
-                          }
-                        }}
-                        className="rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-60"
-                        aria-label="招待を取り消す"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Collapsible>
       {shown && <IssuedLinkModal {...shown} onClose={() => setShown(null)} />}
     </Card>
   );
@@ -320,6 +323,12 @@ function InvitationPanel({ invitations, onChanged }: { invitations: AdminInvitat
 // ---------------------------------------------------------------------------
 // ユーザー
 // ---------------------------------------------------------------------------
+
+/** 登録済みユーザーを、メールアドレスか名前で絞り込む（#109）。検索語が空なら全員 */
+export function filterUsers(users: AdminUser[], query: string): AdminUser[] {
+  const match = searchMatcher(query);
+  return match ? users.filter((u) => match(u.email ?? '') || match(u.name)) : users;
+}
 
 function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => Promise<void> }) {
   const me = useCurrentUser()!;
@@ -362,24 +371,41 @@ function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => 
     void run(u, () => changeRole(u.id, role));
   };
 
-  const listed = users.filter((u) => u.status !== 'withdrawn');
+  const listed = useMemo(() => users.filter((u) => u.status !== 'withdrawn'), [users]);
   const withdrawn = users.filter((u) => u.status === 'withdrawn');
+  // メールアドレス（と名前）で絞り込む（#109）。人が多くても、無効化・退会処理・役割の変更の相手を探せるようにする
+  const [query, setQuery] = useState('');
+  const shownUsers = useMemo(() => filterUsers(listed, query), [listed, query]);
 
   return (
     <Card className="p-6">
-      <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-900">
-        <Users className="h-5 w-5 text-blue-600" />
-        登録済みユーザー
-        <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-sm font-normal text-blue-800">{listed.length}名</span>
-      </h2>
+      {/* 最初は畳んでおき、開くとすべて見られる（#109） */}
+      <Collapsible title="登録済みユーザー" icon={<Users className="h-5 w-5 text-blue-600" />} count={`${listed.length}名`}>
       <p className="mb-4 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2.5 text-sm text-purple-800">
         役割を選ぶと、すぐに変わります。管理者は複数人にできますが、最後の1人の管理者は降格・無効化・退会させられません。
+      </p>
+      <div className="relative mb-2">
+        <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="メールアドレスで検索（名前でも探せます）"
+          aria-label="登録済みユーザーをメールアドレスで検索"
+          className={`${inputClass} pl-10`}
+        />
+      </div>
+      <p className="mb-3 text-xs text-gray-500" aria-live="polite">
+        {query.trim() ? `${shownUsers.length}名 / ${listed.length}名` : `${listed.length}名`}
       </p>
       <div className="mb-3">
         <ErrorText message={error} />
       </div>
+      {shownUsers.length === 0 && (
+        <p className="py-6 text-center text-sm text-gray-500">「{query.trim()}」に当てはまるユーザーはいません</p>
+      )}
       <ul className="space-y-3">
-        {listed.map((u) => {
+        {shownUsers.map((u) => {
           const busy = busyId === u.id;
           const isMe = u.id === me.id;
           return (
@@ -462,6 +488,7 @@ function UserPanel({ users, onChanged }: { users: AdminUser[]; onChanged: () => 
       {withdrawn.length > 0 && (
         <p className="mt-4 text-sm text-gray-500">退会済みユーザー：{withdrawn.length}名（記録は「退会済みユーザー」の記録として残っています）</p>
       )}
+      </Collapsible>
 
       {shown && <IssuedLinkModal {...shown} onClose={() => setShown(null)} />}
       {withdrawTarget && (
@@ -542,10 +569,8 @@ function WithdrawModal({
 function AuditLogPanel({ logs }: { logs: AuditLogEntry[] }) {
   return (
     <Card className="p-6">
-      <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-900">
-        <History className="h-5 w-5 text-gray-600" />
-        操作履歴
-      </h2>
+      {/* 最初は畳んでおき、開くとすべて見られる（#109） */}
+      <Collapsible title="操作履歴" icon={<History className="h-5 w-5 text-gray-600" />} count={`${logs.length}件`}>
       {logs.length === 0 ? (
         <p className="py-4 text-center text-sm text-gray-500">まだ操作はありません</p>
       ) : (
@@ -566,6 +591,7 @@ function AuditLogPanel({ logs }: { logs: AuditLogEntry[] }) {
           ))}
         </ul>
       )}
+      </Collapsible>
     </Card>
   );
 }

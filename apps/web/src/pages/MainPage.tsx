@@ -5,7 +5,7 @@ import { HomeHeader } from '../components/HomeHeader';
 import { EventForm } from '../components/EventForm';
 import { RecordCard } from '../components/RecordCard';
 import { RecordForm } from '../components/RecordForm';
-import { ErrorText, PageBackground, QueryState, firstUnready } from '../components/ui';
+import { Collapsible, ErrorText, PageBackground, QueryState, firstUnready } from '../components/ui';
 import { can, type RecordView } from '@yamon/shared';
 import { logout, useCurrentUser } from '../lib/auth';
 import {
@@ -129,7 +129,8 @@ export function MainPage() {
         )}
 
         <section className="rounded-xl bg-white p-6 shadow-md">
-          <h2 className="mb-4 text-xl font-bold text-gray-900">最近の記録</h2>
+          {/* 最初は畳んでおき、開くとすべて見られる（#109） */}
+          <Collapsible title="最近の記録" count={recentQuery.isSuccess ? `${recent.length}件` : undefined}>
           <div className="mb-3">
             <ErrorText message={listError} />
           </div>
@@ -152,6 +153,7 @@ export function MainPage() {
             </div>
           )}
           </QueryState>
+          </Collapsible>
         </section>
       </main>
     </PageBackground>
