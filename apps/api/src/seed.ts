@@ -3,7 +3,7 @@
  * 表ごとに、空のときだけ入れる（ユーザーが0人なら役割ごとに1人ずつ、主な場所が0件なら仮の5か所、記録が0件ならデモの記録）。
  * ローカルの PGlite 専用で、DATABASE_URL があるときは動かさない。本番の最初の管理者は、初回セットアップ（#4）で作る
  */
-import { MAIN_LOCATIONS, type Category, type Role } from '@yamon/shared';
+import { MAIN_LOCATIONS, normalizeForSearch, type Category, type Role } from '@yamon/shared';
 import { count } from 'drizzle-orm';
 import { hashPassword } from './auth/password';
 import { connectPglite, schema } from './db/client';
@@ -78,12 +78,14 @@ async function seedDemoRecords() {
   const place = (name: string) => places.find((p) => p.name === name) ?? places[0];
 
   const existing = await db.select().from(schema.creatures);
-  const missing = DEMO_CREATURES.filter((c) => !existing.some((e) => e.name === c.name));
+  // 書き方だけ違う同じ名前（「かわせみ」など）があれば足さない。足すと一意の索引で止まる（#105、D58）
+  const sameName = (a: string, b: string) => normalizeForSearch(a) === normalizeForSearch(b);
+  const missing = DEMO_CREATURES.filter((c) => !existing.some((e) => sameName(e.name, c.name)));
   const inserted = missing.length
     ? await db.insert(schema.creatures).values(missing.map((c) => ({ ...c, createdBy: admin }))).returning()
     : [];
   const creatures = [...existing, ...inserted];
-  const creature = (name: string) => creatures.find((c) => c.name === name)!.id;
+  const creature = (name: string) => creatures.find((c) => sameName(c.name, name))!.id;
 
   const event = async (name: string, placeName: string, date: string, time: string, createdBy: string) => {
     const p = place(placeName);

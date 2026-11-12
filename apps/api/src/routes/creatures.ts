@@ -60,7 +60,7 @@ async function assertNameAvailable(db: Db, name: string, exceptId?: string) {
  * 確かめた後に、ほかの人が同じ名前を登録していた（一意の索引で止まる）ときも 409 にする。
  * 登録済みの名前を探し直して出す
  */
-async function rethrowIfDuplicate(db: Db, err: unknown, name: string | undefined, exceptId?: string): Promise<never> {
+export async function rethrowIfDuplicate(db: Db, err: unknown, name: string | undefined, exceptId?: string): Promise<never> {
   if (name !== undefined && isUniqueViolation(err)) {
     throw duplicateName((await findSameName(db, name, exceptId)) ?? name);
   }

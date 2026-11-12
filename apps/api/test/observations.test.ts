@@ -14,6 +14,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { schema } from '../src/db/client';
 import { creatureNameKey } from '../src/db/schema';
 import { isUniqueViolation } from '../src/observations/view';
+import { rethrowIfDuplicate } from '../src/routes/creatures';
+import { HTTPException } from 'hono/http-exception';
 import { createUser, jsonHeaders, login, setupTestApp, type TestContext } from './helpers';
 
 let ctx: TestContext;
@@ -144,6 +146,22 @@ describe('生き物', () => {
     await expect(
       ctx.db.insert(schema.creatures).values({ name: 'つくつくぼうし', category: 'インセクター' }),
     ).rejects.toSatisfy((err: unknown) => isUniqueViolation(err));
+  });
+
+  it('確認の後に同時に登録されて索引で止まったときも、登録済みの名前つきの 409 にする（#105）', async () => {
+    // PGlite は1本の接続で順に処理するので、本当の同時の登録は起こせない。索引の違反の実物を作って渡す
+    await ctx.db.insert(schema.creatures).values({ name: 'ヒグラシ', category: 'インセクター' });
+    const err = await ctx.db
+      .insert(schema.creatures)
+      .values({ name: 'ひぐらし', category: 'インセクター' })
+      .then(() => undefined, (e: unknown) => e);
+    const thrown = await rethrowIfDuplicate(ctx.db, err, 'ひぐらし').catch((e: unknown) => e);
+    expect(thrown).toBeInstanceOf(HTTPException);
+    expect((thrown as HTTPException).status).toBe(409);
+    expect((thrown as HTTPException).message).toBe('「ヒグラシ」がすでに登録されています');
+    // 索引の違反でなければ、そのまま投げ直す
+    const other = new Error('ほかのエラー');
+    expect(await rethrowIfDuplicate(ctx.db, other, 'ひぐらし').catch((e: unknown) => e)).toBe(other);
   });
 
   it('DB のそろえ方は、検索の normalizeForSearch（#91）と同じ結果になる', async () => {
