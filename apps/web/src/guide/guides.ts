@@ -62,6 +62,8 @@ export type Guide = {
   summary: string;
   /** どの役割の人向けか */
   roles: Role[];
+  /** この役割をサークルの誰に割り当てるか。ガイドの一番最初に出す（#103、D57） */
+  assignment?: string;
   lead: string;
   /** 「はじめての方へ」の3ステップ */
   quickStart: { label: string; ref: GuideRef }[];
@@ -85,7 +87,7 @@ export const GETTING_STARTED: GuideSection[] = [
   {
     id: 'register',
     title: '招待リンクから登録する',
-    lead: 'やもんサイトは招待制です。管理者（代表・副代表）から届いた招待リンクで、自分のアカウントを作ります。',
+    lead: 'やもんサイトは招待制です。管理者（サークルの代表・各部門のリーダー）から届いた招待リンクで、自分のアカウントを作ります。',
     requires: '管理者から LINE などで届いた招待リンク',
     steps: [
       '届いた招待リンクを開きます。',
@@ -505,6 +507,7 @@ export const GUIDES: Guide[] = [
     label: '幹部',
     summary: '保護対象の生き物を扱う',
     roles: ['officer'],
+    assignment: '幹部は、各部門（インセクター・ママル・アクア・バーダー）の副リーダーと、サークルの副代表に割り当てます。',
     lead: '幹部は、部員の操作に加えて、保護対象の生き物（絶滅危惧種など）を扱えます。',
     quickStart: [
       { label: '部員と同じ操作をする', ref: { id: 'officer-basics' } },
@@ -523,7 +526,8 @@ export const GUIDES: Guide[] = [
     label: '管理者',
     summary: 'メンバー・場所・地図を管理する',
     roles: ['admin'],
-    lead: '管理者（代表・副代表）は、部員・幹部の操作に加えて、管理者画面でメンバーや場所・地図を管理します。',
+    assignment: '管理者は、サークルの代表と、各部門（インセクター・ママル・アクア・バーダー）のリーダーに割り当てます。保守を担当する開発者も管理者です。',
+    lead: '管理者は、部員・幹部の操作に加えて、管理者画面でメンバーや場所・地図を管理します。',
     quickStart: [
       { label: 'メンバーを招待する', ref: { id: 'admin-invite' } },
       { label: '招待リンクを渡す', ref: { id: 'admin-link' } },
