@@ -18,5 +18,10 @@
   "devDependencies": {
     "concurrently": "^10.0.6",
     "playwright-core": "^1.65.0"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.0"
+    }
   }
 }

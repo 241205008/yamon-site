@@ -1102,3 +1102,24 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - D58 と同じ（英字以外の大文字・小文字のずれ、Postgres の大きな版を上げたら `REINDEX INDEX main_locations_name_key_unique`）。
   - 索引を張る前に、本番の DB にそろえると同じになる名前の組があると、マイグレーションが失敗し、デプロイが止まる。マージの前に、本番の DB で組を探す（確かめ方の SQL は #107 に書いた）。
 - **再検討する条件**：D58 と同じ。
+
+## D62. 開発・テスト用の依存の注意情報：vite・vitest・undici は同じメジャー版の中で上げ、drizzle-kit の中の古い esbuild は `overrides` で置き換える
+
+- **背景（2026-11-13、#114）**：`npm audit` で、開発・テストだけで使う依存に注意情報が出た。`undici` 7.30.0（jsdom 経由。high を含む）、`vite` 6.4.4（`server.fs.deny` をクエリで回避できる）、`vitest`・`@vitest/mocker` 4.1.11（手動のモックの登録からのコード注入）、`esbuild` 0.18.20（drizzle-kit → `@esbuild-kit/esm-loader` → `@esbuild-kit/core-utils` 経由。開発サーバーにほかのサイトから要求を送れる）。どれも devDependencies の先にあり、本番（Cloud Run の API の `dist`、Workers の画面の静的ファイル）には入らない（`npm audit --omit=dev` に出ない）。
+- **決定**
+  - **vite** を `^6.4.6`、**vitest** を `^4.1.12`（`@vitest/mocker` も 4.1.12）に上げる。どちらも直った最初の版（vite 6.4.5、@vitest/mocker 4.1.12）以降の、同じメジャー版の中の版。
+  - **undici** は jsdom 29.1.1 の範囲（`^7.25.0`）の中で 7.30.2 に上げる（直った版は 7.30.1）。jsdom 自体は上げない。
+  - **drizzle-kit の中の esbuild** は、ルートの `package.json` の `overrides` で `@esbuild-kit/core-utils` の esbuild を `^0.25.0`（drizzle-kit 本体が使っている 0.25.12 と同じもの）に置き換える。drizzle-kit 0.31.11 の配布物（`bin.cjs` など）は `@esbuild-kit/*` を一度も読み込んでおらず（依存に書かれているだけ。TypeScript の読み込みは tsx と本体の esbuild を使う）、置き換えても drizzle-kit の動きは変わらない。
+  - 確かめたこと：`npm ci` から型チェック・テスト（shared・api・web）・ビルドが通る。`npm run db:generate -w @yamon/api` が「No schema changes」で終わる。`@esbuild-kit/core-utils` の `transform` も 0.25 で動く。開発サーバー（`npm run dev`）で画面が出て、コンソールにエラーがない。使い方ガイドの撮影スクリプト（`scripts/guide-screenshots/capture.mjs`）が全部の画像を撮り終える。
+  - これで `npm audit` に残るのは、API の本番の依存（hono・@hono/node-server は #112・D60、nodemailer は #113・D61）だけになる。
+- **採用理由**：直った版が同じメジャー版の中にあるので、破壊的変更を持ち込まずに注意情報を消せる。lock の差分も vitest 系・vite・undici・esbuild の置き換えだけに収まる。esbuild は、npm が出す「修正」（drizzle-kit 0.18.1 への格下げ）だと、`db:generate` が使えなくなる（0.18.1 は 2023-05 の版で、`generate` コマンドがなく `generate:pg` などに分かれている。`defineConfig` もなく、`scripts/drizzle-kit.mjs` が起動する `bin.cjs` もない。scratchpad に入れて確かめた）。読み込まれていない依存の中身を置き換えるだけなら、drizzle-kit の版は変えずに済む。
+- **比較した案**
+  - **vite 8・vitest 5・jsdom 31 に上げる（メジャー版を上げる）**：最新にそろうが、vite 8 は中のバンドラーが Rolldown に変わり、`@vitejs/plugin-react`（今の 4.7 は vite 7 までにしか対応しない）や `@tailwindcss/vite` の対応の版も合わせて上げることになる。注意情報を消すだけならメジャー版を上げる必要はないので、別の Issue で、変更点を読んでから行う。
+  - **`npm audit fix` をそのまま流す**：vite・vitest・undici は直るが、#112 の担当の hono・@hono/node-server も一緒に上がり、並行のセッションと lock の変更が重なる。対象を絞って `npm install` / `npm update` で上げた。
+  - **`npm audit fix --force`（drizzle-kit 0.18.1 に下げる）**：上に書いたとおり、今の設定とマイグレーションが使えなくなる。
+  - **drizzle-kit の esbuild は見送る（注意情報を残す）**：開発用で本番に入らず、esbuild の開発サーバーの機能（`serve`）も使っていないので実害はない。ただ `npm audit` に残り続け、ほかの注意情報が見落とされやすくなる。`overrides` は数行で、外すのも簡単なので置き換えた。
+  - **drizzle-kit 1.0 の候補版（rc）に上げる**：`@esbuild-kit/*` を依存から外しているが、正式版ではなく、設定やマイグレーションの形が変わる可能性がある。
+- **弱くなること・注意**
+  - `overrides` で、`@esbuild-kit/core-utils` が求める版（`~0.18.20`）と違う esbuild を入れている（`npm ls` で `invalid` と出るが、終了コードは 0）。drizzle-kit がまた `@esbuild-kit/*` を使うようになったら、`db:generate` で確かめ直す。
+  - vite・vitest は 6・4 のままなので、いずれメジャー版を上げる作業が残る。
+- **再検討する条件**：drizzle-kit の正式版が `@esbuild-kit/*` を依存から外したら、上げて `overrides` を消す。vite 6・vitest 4 の更新が止まったり、同じメジャー版の中で直らない注意情報が出たら、メジャー版を上げる。
