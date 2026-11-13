@@ -1179,7 +1179,7 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
 
 - **背景（2026-11-13、#118）**：D62（#114）で、注意情報を消すために vite 6・vitest 4・jsdom 29 の中で上げ、メジャー版の更新は見送った。今の版でも `npm audit` は0件で急ぎではないが、vite 6 の更新が止まる前に、変更点を読んでからまとめて上げる。
 - **決定**
-  - `apps/web`：**vite** `^8.3.8`、**@vitejs/plugin-react** `^6.3.0`、**vitest** `^5.1.0`、**jsdom** `^31.0.0`、合わせて **@tailwindcss/vite**・**tailwindcss** `^4.3.5`。`apps/api`・`packages/shared` の **vitest** も `^5.1.0`。plugin-react 6 は vite 8 だけに対応するので、vite と同時に上げる。
+  - `apps/web`：**vite** `^8.3.8`、**@vitejs/plugin-react** `^6.3.0`、**vitest** `^5.1.0`、**jsdom** `^31.0.0`、合わせて **@tailwindcss/vite**・**tailwindcss** `^4.3.5`。`apps/api`・`packages/shared` の **vitest** も `^5.1.0`。vitest 5 から vite は必須の peer になったので、`apps/api`・`packages/shared` の devDependencies にも **vite** `^8.3.8` を書く（apps/web が入れた vite に頼らない）。vitest 5 の成果物の置き場所（`.vitest/`）を `.gitignore` に入れる。plugin-react 6 は vite 8 だけに対応するので、vite と同時に上げる。
   - `vite.config.ts` の `./worker/map/range` の import に拡張子 `.ts` を付ける（vite 8 が、将来の既定の設定の読み込み方（`configLoader: 'native'`）では使えない書き方として警告するため）。ほかの設定は変えない。
   - **drizzle-kit** の最新の正式版は 0.31.11 のままで、まだ `@esbuild-kit/esm-loader` に依存している（1.0 は rc）。`overrides` は消さない。置き換え先は `^0.25.0` から **`^0.28.0`** に変える。vite 8 は esbuild を任意の peer（`^0.27.0 || ^0.28.0`）にしており、ルートに 0.28.2（api の devDependencies）が置かれるので、`@esbuild-kit/core-utils` もそれを使う。`^0.25.0` のままだと、npm は 0.28.2 を使ったうえで、書いた範囲と実際の版がずれる。`@esbuild-kit/core-utils` の `transform` が 0.28 で動くこと、`db:generate` が「No schema changes」で終わることを確かめた。
   - 破壊的変更と影響（公式の移行ガイド・CHANGELOG）
@@ -1199,5 +1199,5 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
 - **弱くなること・注意**
   - `npm dedupe` を流すと、`overrides` が効かずに `@esbuild-kit/core-utils` の下に esbuild 0.18.20 が戻った（`npm audit` に注意情報が出る）。lock を作り直すときは、`npm audit` が0件か確かめる。戻ったときは、lock の `node_modules/@esbuild-kit/core-utils/node_modules/esbuild` を消して `npm install` し直す。
   - `npm ls` は、`@esbuild-kit/core-utils` の求める版（`~0.18.20`）と違うので `invalid` と出す（D62 と同じ。動きには関係ない）。
-  - 対象ブラウザが vite 8 の既定（Chrome 111・Safari 16.4 など）に上がる。部員のスマホがそれより古いと、画面が動かない可能性がある（どちらも 2023 年の版）。
-- **再検討する条件**：drizzle-kit の正式版が `@esbuild-kit/*` を依存から外したら、上げて `overrides` を消す（D62）。古いブラウザで画面が動かないという声が出たら、`build.target` を下げる。
+  - JS の対象ブラウザが vite 8 の既定（Chrome 111・Safari 16.4 など、どちらも 2023 年の版）に上がる。ただし Tailwind CSS 4（D1 で採用）が、もともと Safari 16.4・Chrome 111 以上を前提にしている（`@property`・`color-mix()`・カスケードレイヤー）ので、画面が正しく出る端末の範囲はほとんど変わらない。古い端末で画面が崩れるという声が出たら、JS の `build.target` より先に CSS（Tailwind 4）を疑う。
+- **再検討する条件**：drizzle-kit の正式版が `@esbuild-kit/*` を依存から外したら、上げて `overrides` を消す（D62）。古いブラウザで画面が動かないという声が出たら、CSS（Tailwind 4）と JS（`build.target`）のどちらが原因かを確かめてから下げる。
