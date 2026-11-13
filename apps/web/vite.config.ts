@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { createReadStream, statSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
-import { parseRange } from './worker/map/range';
+import { parseRange } from './worker/map/range.ts';
 
 /**
  * 開発サーバーで、手元の地図データ（map-data/*.pmtiles、Git には入れない）を /map/ から返す。
