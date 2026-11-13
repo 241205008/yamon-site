@@ -15,3 +15,6 @@ apps/web/map-data/
 
 # wrangler のローカルの状態
 .wrangler/
+
+# vitest 5 の成果物（reporter・キャッシュ。D63）
+.vitest/
