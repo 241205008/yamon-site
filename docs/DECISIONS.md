@@ -1103,6 +1103,35 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - 索引を張る前に、本番の DB にそろえると同じになる名前の組があると、マイグレーションが失敗し、デプロイが止まる。マージの前に、本番の DB で組を探す（確かめ方の SQL は #107 に書いた）。
 - **再検討する条件**：D58 と同じ。
 
+## D61. nodemailer：注意情報の直った 10.5.0 に上げ、`^10.5.0` の範囲にする。型は本体のものを使い、`@types/nodemailer` を外す
+
+- **背景（2026-11-13、#113）**：`npm audit` で、API の `nodemailer` 10.0.13 に、メールアドレスの読み取り（addressparser）の注意情報が3件（いずれも moderate）見つかった。GHSA-8c8m-p3m8-cjg8（入れ子のコメントが早く終わり、残りが宛先になる）・GHSA-m943-m63m-w62w（引用符やコメントの中の `;` でグループが早く終わり、表示名が宛先になる）・GHSA-85x2-q946-cp5h（引用符の中の `>` で山かっこが早く終わり、ヘッダーにない宛先へ届く）。対象は `>= 3.0.0, < 10.1.4` で、10.1.4 で直った。版は D36（#44）で `10.0.13` に固定していたが、固定した理由は DECISIONS にもコミットにも書かれていない（ほかの依存は `^` の範囲）。
+- **決定**
+  - `nodemailer` を最新の **10.5.0** に上げ、指定を `"^10.5.0"` にする（ほかの依存と同じく `^`。実際に入る版は `package-lock.json` で決まる）。
+  - `@types/nodemailer`（8.0.2）を外す。nodemailer は 10.x から型（`dist/esm/nodemailer.d.ts`）を同梱していて、TypeScript（`moduleResolution: bundler`）はもとから本体の型を読んでいた（`tsc --traceResolution` で確かめた）。`@types/nodemailer` は使われていなかった。
+  - `apps/api/src/mail.ts` は変えない。10.0.13 から 10.5.0 までの CHANGELOG に破壊的な変更はない（機能の追加と修正だけ）。
+  - `apps/api/test/mail.test.ts` を足し、送信の処理をテストで確かめる。nodemailer を本物のまま使い、`createTransport` だけを、SMTP の代わりにメッセージを組み立てる `streamTransport` に差し替える。
+    - 465 番は最初から TLS、それ以外は STARTTLS を必須にして認証の情報を渡す。差出人（日本語の表示名）・宛先・件名・本文を組み立てる。
+    - 表示名やコメントにまぎれたアドレスには送らない（注意情報の例）。**このテストは 10.0.13 では失敗し、10.5.0 で通る**ことを確かめた。
+    - STARTTLS を出さない SMTP サーバー（テストの中で `net` で立てる）には、`AUTH`・`MAIL` を送らずに失敗する。
+    - `mailerFromEnv`（設定がなければ送らない、既定は Gmail の 465 番、`SMTP_PORT` の検証）と `trySend`。
+  - 本番の API には、メールの設定がない（GitHub の Variable に `SMTP_USER` がなく、CI は `SMTP_USER` があるときだけ `SMTP_USER`・`SMTP_PASS` を Cloud Run に渡す。HANDOVER の 2026-11 時点の記載とも合う）。`createSmtpMailer` は設定があるときだけ nodemailer を読み込む（`await import`）ので、**本番では今も nodemailer は読み込まれず、メールは送らない**（D46）。本番での確認は、API が動き、招待・パスワード再設定のリンクが管理者画面に出ることにする。
+- **採用理由**
+  - 3件とも 10.1.4 で直っているが、その後の 10.1.5〜10.4.1 にも addressparser の修正が続いている。最新の 10.5.0 にすると、まとめて取り込める。メジャー版は 10 のままで、使っている API（`createTransport`・`sendMail`）は変わらない。
+  - `^` にすると、次に注意情報が出たとき `npm audit fix` だけで直せる（固定だと範囲の外になり、今回のように `package.json` を書き換える Issue が要る）。勝手に上がることはなく、上がるのは lock を作り直したときだけで、そのときは CI のテストが確かめる。
+  - 使われていない型の依存を残すと、本体の型とずれていても気づけず、読む人が「どちらの型か」を迷う。
+  - 送信の処理のテストが今までなかった（ルートのテストはメモリの mailer を使う）。nodemailer を上げるたびに、本物の nodemailer で組み立てと TLS の必須を確かめられるようにした。
+- **比較した案**
+  - **`10.5.0` に固定する（今までと同じ書き方）**：入る版が `package.json` だけで分かるが、lock があるので再現性は `^` でも同じ。注意情報のたびに `npm audit fix` で直せず、`package.json` を書き換える手間が増える。固定した理由も見つからなかった。
+  - **注意情報を直した最小の版（`10.1.4`）にする**：変更が小さいが、その後の addressparser・SMTP の修正（10.1.5〜10.5.0）を取り込めず、すぐにまた上げることになりうる。
+  - **`@types/nodemailer` を残す**：害はないが使われておらず、本体の型と食い違っても気づけない。
+  - **nodemailer をやめ、Resend などの API に移る**：依存はなくなるが、本番はメールを送っていないので、移る理由は今はない（D22・D46 のとおり、移るときは `Mailer` をもう1つ書く）。
+  - **テストで本物の STARTTLS のサーバーを立て、送るところまで確かめる**：もっとも本番に近いが、テスト用の証明書をリポジトリに置き、証明書の確認を外す設定が要る。組み立ては `streamTransport`、TLS の必須は STARTTLS のないサーバーで確かめれば足りる。
+- **弱くなること・注意**
+  - `^10.5.0` なので、lock を作り直すと 10.x の新しい版が入る。nodemailer は更新が多い（2026-09〜11 で 20 以上の版）。テストが落ちたら、その版を見送る。
+  - 本番でメールを送っていないので、本物の Gmail の SMTP で送れるかは確かめていない。メールの設定を入れるとき（DEPLOY_API の手順）に、招待のメールが届くことを確かめる。
+- **再検討する条件**：nodemailer の次のメジャー版が出たとき。メールの設定を本番に入れたとき（送信のテストを本物の SMTP で一度行う）。
+
 ## D62. 開発・テスト用の依存の注意情報：vite・vitest・undici は同じメジャー版の中で上げ、drizzle-kit の中の古い esbuild は `overrides` で置き換える
 
 - **背景（2026-11-13、#114）**：`npm audit` で、開発・テストだけで使う依存に注意情報が出た。`undici` 7.30.0（jsdom 経由。high を含む）、`vite` 6.4.4（`server.fs.deny` をクエリで回避できる）、`vitest`・`@vitest/mocker` 4.1.11（手動のモックの登録からのコード注入）、`esbuild` 0.18.20（drizzle-kit → `@esbuild-kit/esm-loader` → `@esbuild-kit/core-utils` 経由。開発サーバーにほかのサイトから要求を送れる）。どれも devDependencies の先にあり、本番（Cloud Run の API の `dist`、Workers の画面の静的ファイル）には入らない（`npm audit --omit=dev` に出ない）。
@@ -1111,7 +1140,7 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - **undici** は jsdom 29.1.1 の範囲（`^7.25.0`）の中で 7.30.2 に上げる（直った版は 7.30.1）。jsdom 自体は上げない。
   - **drizzle-kit の中の esbuild** は、ルートの `package.json` の `overrides` で `@esbuild-kit/core-utils` の esbuild を `^0.25.0`（drizzle-kit 本体が使っている 0.25.12 と同じもの）に置き換える。drizzle-kit 0.31.11 の配布物（`bin.cjs` など）は `@esbuild-kit/*` を一度も読み込んでおらず（依存に書かれているだけ。TypeScript の読み込みは tsx と本体の esbuild を使う）、置き換えても drizzle-kit の動きは変わらない。
   - 確かめたこと：`npm ci` から型チェック・テスト（shared・api・web）・ビルドが通る。`npm run db:generate -w @yamon/api` が「No schema changes」で終わる。`@esbuild-kit/core-utils` の `transform` も 0.25 で動く。開発サーバー（`npm run dev`）で画面が出て、コンソールにエラーがない。使い方ガイドの撮影スクリプト（`scripts/guide-screenshots/capture.mjs`）が全部の画像を撮り終える。
-  - これで `npm audit` に残るのは、API の本番の依存（hono・@hono/node-server は #112・D60、nodemailer は #113・D61）だけになる。
+  - これで `npm audit` に残るのは、API の本番の依存の hono・@hono/node-server（#112・D60）だけになる（nodemailer は #113・D61 で先に直った）。
 - **採用理由**：直った版が同じメジャー版の中にあるので、破壊的変更を持ち込まずに注意情報を消せる。lock の差分も vitest 系・vite・undici・esbuild の置き換えだけに収まる。esbuild は、npm が出す「修正」（drizzle-kit 0.18.1 への格下げ）だと、`db:generate` が使えなくなる（0.18.1 は 2023-05 の版で、`generate` コマンドがなく `generate:pg` などに分かれている。`defineConfig` もなく、`scripts/drizzle-kit.mjs` が起動する `bin.cjs` もない。scratchpad に入れて確かめた）。読み込まれていない依存の中身を置き換えるだけなら、drizzle-kit の版は変えずに済む。
 - **比較した案**
   - **vite 8・vitest 5・jsdom 31 に上げる（メジャー版を上げる）**：最新にそろうが、vite 8 は中のバンドラーが Rolldown に変わり、`@vitejs/plugin-react`（今の 4.7 は vite 7 までにしか対応しない）や `@tailwindcss/vite` の対応の版も合わせて上げることになる。注意情報を消すだけならメジャー版を上げる必要はないので、別の Issue で、変更点を読んでから行う。
