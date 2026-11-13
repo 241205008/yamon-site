@@ -1162,7 +1162,7 @@ D28（Protomaps を R2 から配信）を実装するときに決めた細部。
   - **undici** は jsdom 29.1.1 の範囲（`^7.25.0`）の中で 7.30.2 に上げる（直った版は 7.30.1）。jsdom 自体は上げない。
   - **drizzle-kit の中の esbuild** は、ルートの `package.json` の `overrides` で `@esbuild-kit/core-utils` の esbuild を `^0.25.0`（drizzle-kit 本体が使っている 0.25.12 と同じもの）に置き換える。drizzle-kit 0.31.11 の配布物（`bin.cjs` など）は `@esbuild-kit/*` を一度も読み込んでおらず（依存に書かれているだけ。TypeScript の読み込みは tsx と本体の esbuild を使う）、置き換えても drizzle-kit の動きは変わらない。
   - 確かめたこと：`npm ci` から型チェック・テスト（shared・api・web）・ビルドが通る。`npm run db:generate -w @yamon/api` が「No schema changes」で終わる。`@esbuild-kit/core-utils` の `transform` も 0.25 で動く。開発サーバー（`npm run dev`）で画面が出て、コンソールにエラーがない。使い方ガイドの撮影スクリプト（`scripts/guide-screenshots/capture.mjs`）が全部の画像を撮り終える。
-  - これで `npm audit` に残るのは、API の本番の依存の hono・@hono/node-server（#112・D60）だけになる（nodemailer は #113・D61 で先に直った）。
+  - API の本番の依存（hono・@hono/node-server は #112・D60、nodemailer は #113・D61）は先に直ったので、これで `npm audit` の指摘はなくなる。
 - **採用理由**：直った版が同じメジャー版の中にあるので、破壊的変更を持ち込まずに注意情報を消せる。lock の差分も vitest 系・vite・undici・esbuild の置き換えだけに収まる。esbuild は、npm が出す「修正」（drizzle-kit 0.18.1 への格下げ）だと、`db:generate` が使えなくなる（0.18.1 は 2023-05 の版で、`generate` コマンドがなく `generate:pg` などに分かれている。`defineConfig` もなく、`scripts/drizzle-kit.mjs` が起動する `bin.cjs` もない。scratchpad に入れて確かめた）。読み込まれていない依存の中身を置き換えるだけなら、drizzle-kit の版は変えずに済む。
 - **比較した案**
   - **vite 8・vitest 5・jsdom 31 に上げる（メジャー版を上げる）**：最新にそろうが、vite 8 は中のバンドラーが Rolldown に変わり、`@vitejs/plugin-react`（今の 4.7 は vite 7 までにしか対応しない）や `@tailwindcss/vite` の対応の版も合わせて上げることになる。注意情報を消すだけならメジャー版を上げる必要はないので、別の Issue で、変更点を読んでから行う。
