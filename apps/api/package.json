@@ -16,12 +16,12 @@
     "db:import-locations": "tsx src/importLocations.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.5",
+    "@hono/node-server": "^2.1.8",
     "@hono/zod-validator": "^0.9.1",
     "@yamon/shared": "*",
     "drizzle-orm": "^0.45.4",
     "hash-wasm": "^4.12.0",
-    "hono": "^4.13.13",
+    "hono": "^4.13.18",
     "nodemailer": "^10.5.0",
     "postgres": "^3.4.9",
     "zod": "^4.6.7"
