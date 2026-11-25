@@ -63,6 +63,10 @@
     "width": 390,
     "height": 844
   },
+  "my-records.webp": {
+    "width": 390,
+    "height": 844
+  },
   "officer-map.webp": {
     "width": 390,
     "height": 844
@@ -70,10 +74,6 @@
   "protected-record.webp": {
     "width": 326,
     "height": 146
-  },
-  "recent-records.webp": {
-    "width": 374,
-    "height": 900
   },
   "record-form.webp": {
     "width": 374,

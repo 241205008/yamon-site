@@ -94,13 +94,11 @@ const SHOTS = [
     },
   },
   {
-    file: 'recent-records.webp', role: 'member', device: 'phone', maxHeight: 900,
+    // 専用ページ（#120）なので、上部の「ホーム画面に戻る」ごと撮る
+    file: 'my-records.webp', role: 'member', device: 'phone',
     async run(page) {
-      await page.goto('/');
-      await expand(page, '最近の記録');
-      const heading = page.getByRole('heading', { name: '最近の記録' });
+      await page.goto('/my-records');
       await page.getByText('あなたの記録').first().waitFor();
-      return card(heading);
     },
   },
   {

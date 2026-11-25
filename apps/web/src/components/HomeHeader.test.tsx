@@ -67,6 +67,14 @@ describe('ホームのヘッダー', () => {
     expect(linkTo('/creatures')?.textContent).toBe('生き物管理');
   });
 
+  it.each(['admin', 'officer', 'member', 'viewer'] as const)('%s にも「自分の記録」の緑のボタン（/my-records）が、観察会一覧の隣にある（#120）', (role) => {
+    render(role);
+    const mine = linkTo('/my-records')!;
+    expect(mine.textContent).toBe('自分の記録');
+    expect(mine.className).toContain('bg-green-600');
+    expect(mine.previousElementSibling?.getAttribute('href')).toBe('/event-list');
+  });
+
   it('ロゴとサイト名は、ホーム画面（/）へのリンク（#97）', () => {
     render('member');
     const home = linkTo('/')!;

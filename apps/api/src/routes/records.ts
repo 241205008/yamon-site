@@ -10,7 +10,7 @@ import {
   type RecordView,
   type SessionUser,
 } from '@yamon/shared';
-import { and, count, desc, eq, isNotNull, ne, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, gte, isNotNull, lte, ne, sql, type SQL } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { z } from 'zod';
@@ -128,8 +128,15 @@ export const recordRoutes = new Hono<AuthedEnv>()
   /** 記録一覧（新しい順）。サーバー側でページングし、続きは nextCursor で取る */
   .get('/', requirePermission('records.view'), validate('query', recordListQuerySchema), async (c) => {
     const db = c.get('db');
-    const { eventId, limit, cursor } = c.req.valid('query');
-    const filter = eventId ? eq(r.eventId, eventId) : undefined;
+    const { eventId, mine, creatureId, from, to, limit, cursor } = c.req.valid('query');
+    // 本人の ID はセッションから取る（画面から ID を受け取らない、D64）
+    const filter = and(
+      eventId ? eq(r.eventId, eventId) : undefined,
+      mine ? eq(r.userId, c.get('user').id) : undefined,
+      creatureId ? eq(r.creatureId, creatureId) : undefined,
+      from ? gte(r.date, from) : undefined,
+      to ? lte(r.date, to) : undefined,
+    );
 
     let after: SQL | undefined;
     if (cursor) {
