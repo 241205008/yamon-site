@@ -169,13 +169,37 @@ describe('自分の記録の画面（#120）', () => {
     expect([cleared.get('creatureId'), cleared.get('from'), cleared.get('to')]).toEqual([null, null, null]);
   });
 
-  it('期間が逆のときは知らせ、逆の期間では問い合わせない', async () => {
+  it('期間が逆のときは知らせ、最後に正しかった期間のまま問い合わせる', async () => {
     recordPages = () => ({ records: [], nextCursor: null, total: 0 });
     await render('member');
     setValue(input('いつから'), '2026-05-01');
+    await flush();
     setValue(input('いつまで'), '2026-04-01');
     await flush();
     expect(container.textContent).toContain('「いつから」は「いつまで」より前の日付');
-    expect(recordQueries().some((u) => u.searchParams.get('from') === '2026-05-01' && u.searchParams.has('to'))).toBe(false);
+    // 逆の期間でも、期間なしでも問い合わせない
+    const queries = recordQueries();
+    expect(queries.some((u) => u.searchParams.has('to'))).toBe(false);
+    expect(queries.at(-1)!.searchParams.get('from')).toBe('2026-05-01');
+
+    setValue(input('いつまで'), '2026-05-31');
+    await flush();
+    expect(recordQueries().at(-1)!.searchParams.get('to')).toBe('2026-05-31');
+  });
+
+  it('生き物の絞り込みだけを外せる（期間は残る）', async () => {
+    recordPages = () => ({ records: [], nextCursor: null, total: 0 });
+    await render('member');
+    setValue(container.querySelector<HTMLInputElement>('input[role="combobox"]')!, 'やもり');
+    await act(async () => (container.querySelector('[role="option"]') as HTMLElement).click());
+    setValue(input('いつから'), '2026-04-01');
+    await flush();
+    expect(recordQueries().at(-1)!.searchParams.get('creatureId')).toBe('c1');
+
+    await act(async () => buttons('生き物の絞り込みを外す')[0].click());
+    await flush();
+    const last = recordQueries().at(-1)!.searchParams;
+    expect(last.get('creatureId')).toBeNull();
+    expect(last.get('from')).toBe('2026-04-01');
   });
 });

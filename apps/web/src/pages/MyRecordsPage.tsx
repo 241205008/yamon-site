@@ -41,15 +41,21 @@ export function MyRecordsPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const rangeInvalid = !!from && !!to && from > to;
+  // 問い合わせに使う期間。逆の期間を入れている間は、最後に正しかった期間のまま（API は 400 を返すため）
+  const [range, setRange] = useState({ from: '', to: '' });
+  const changeRange = (next: { from: string; to: string }) => {
+    setFrom(next.from);
+    setTo(next.to);
+    if (!next.from || !next.to || next.from <= next.to) setRange(next);
+  };
 
   const creatures = useCreatures();
   const mainLocations = useMainLocations();
-  // 期間が逆のときは、前の結果を出したまま読み込まない（API は 400 を返す）
   const recordsQuery = useRecordPages({
     mine: true,
     creatureId: creatureId || null,
-    from: rangeInvalid ? '' : from,
-    to: rangeInvalid ? '' : to,
+    from: range.from,
+    to: range.to,
     limit: PAGE_SIZE,
   });
   const records = recordsQuery.data?.pages.flatMap((p) => p.records) ?? [];
@@ -81,8 +87,7 @@ export function MyRecordsPage() {
   const clearFilter = () => {
     setCreatureId('');
     setCreatureSearch('');
-    setFrom('');
-    setTo('');
+    changeRange({ from: '', to: '' });
   };
 
   return (
@@ -135,6 +140,18 @@ export function MyRecordsPage() {
                 onSearchChange={setCreatureSearch}
                 canAddCreature={false}
               />
+              {creatureId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatureId('');
+                    setCreatureSearch('');
+                  }}
+                  className="mt-1 text-sm text-blue-700 underline"
+                >
+                  生き物の絞り込みを外す
+                </button>
+              )}
             </QueryState>
             <fieldset>
               <legend className="mb-2 flex items-center gap-1.5 text-sm text-gray-700">
@@ -150,7 +167,7 @@ export function MyRecordsPage() {
                     aria-label="いつから"
                     value={from}
                     max={to || undefined}
-                    onChange={(e) => setFrom(e.target.value)}
+                    onChange={(e) => changeRange({ from: e.target.value, to })}
                     className={`${inputClass} mt-1`}
                   />
                 </label>
@@ -161,7 +178,7 @@ export function MyRecordsPage() {
                     aria-label="いつまで"
                     value={to}
                     min={from || undefined}
-                    onChange={(e) => setTo(e.target.value)}
+                    onChange={(e) => changeRange({ from, to: e.target.value })}
                     className={`${inputClass} mt-1`}
                   />
                 </label>
