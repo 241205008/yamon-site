@@ -47,7 +47,7 @@ const keys = {
   mainLocations: [OBS, 'main-locations'] as const,
   events: [OBS, 'events'] as const,
   event: (id: string) => [OBS, 'events', id] as const,
-  records: (eventId: string | null, limit: number) => [OBS, 'records', { eventId, limit }] as const,
+  records: (filter: RecordFilter, limit: number) => [OBS, 'records', { ...filter, limit }] as const,
   map: (filter: MapFilter) => [OBS, 'map', filter] as const,
   locationStats: [OBS, 'stats', 'locations'] as const,
 };
@@ -77,14 +77,28 @@ export function useEvent(id: string) {
   });
 }
 
+/** 記録一覧の絞り込み（すべて AND）。mine は本人の記録だけ（#120） */
+export interface RecordFilter {
+  eventId?: string | null;
+  mine?: boolean;
+  creatureId?: string | null;
+  /** "YYYY-MM-DD"。空なら絞らない */
+  from?: string;
+  to?: string;
+}
+
 /** 記録一覧（新しい順）。サーバー側でページングし、fetchNextPage で続きを読む */
-export function useRecordPages({ eventId = null, limit }: { eventId?: string | null; limit: number }) {
+export function useRecordPages({ limit, ...filter }: RecordFilter & { limit: number }) {
   return useInfiniteQuery({
-    queryKey: keys.records(eventId, limit),
+    queryKey: keys.records(filter, limit),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
       const q = new URLSearchParams({ limit: String(limit) });
-      if (eventId) q.set('eventId', eventId);
+      if (filter.eventId) q.set('eventId', filter.eventId);
+      if (filter.mine) q.set('mine', '1');
+      if (filter.creatureId) q.set('creatureId', filter.creatureId);
+      if (filter.from) q.set('from', filter.from);
+      if (filter.to) q.set('to', filter.to);
       if (pageParam) q.set('cursor', pageParam);
       return apiFetch<RecordPage>(`/api/records?${q}`);
     },

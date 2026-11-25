@@ -337,6 +337,86 @@ describe('観察記録', () => {
   });
 });
 
+describe('自分の記録の絞り込み（#120、D64）', () => {
+  async function asUser(role: Role) {
+    const user = await createUser(ctx.db, { role, name: `絞り込み${role}` });
+    const cookie = await login(ctx, user.email, user.password);
+    const get = async (q: string) => {
+      const res = await ctx.app.request(`/api/records?${q}`, { headers: { cookie } });
+      return { status: res.status, body: (await res.json()) as RecordPage };
+    };
+    const post = async (body: unknown) => {
+      const res = await ctx.app.request('/api/records', { method: 'POST', headers: { ...jsonHeaders, cookie }, body: JSON.stringify(body) });
+      expect(res.status).toBe(201);
+      return (await res.json()) as RecordView;
+    };
+    return { user, get, post };
+  }
+
+  it('mine=1 は本人の記録だけを、新しい順にページングして最後まで返す', async () => {
+    const me = await asUser('member');
+    const c = await newCreature();
+    const dates = ['2026-01-10', '2026-03-05', '2025-12-31', '2026-02-20', '2026-03-05'];
+    const mine = [];
+    for (const date of dates) mine.push(await me.post(recordInput(c.id, { date })));
+    // 他人の記録（同じ生き物・同じ日付）は出ない
+    await newRecord('officer', c.id, { date: '2026-03-05' });
+
+    const seen: RecordView[] = [];
+    let cursor: string | null = null;
+    do {
+      const page = await me.get(`mine=1&limit=2${cursor ? `&cursor=${cursor}` : ''}`);
+      expect(page.status).toBe(200);
+      expect(page.body.total).toBe(cursor ? null : dates.length);
+      seen.push(...page.body.records);
+      cursor = page.body.nextCursor;
+    } while (cursor);
+    expect(new Set(seen.map((r) => r.id))).toEqual(new Set(mine.map((r) => r.id)));
+    expect(seen.every((r) => r.userId === me.user.id)).toBe(true);
+    expect(seen.map((r) => r.date)).toEqual([...dates].sort().reverse());
+  });
+
+  it('生き物と期間（両端を含む）で絞れ、mine と組み合わせられる', async () => {
+    const me = await asUser('member');
+    const [a, b] = [await newCreature(), await newCreature()];
+    const inRange = await me.post(recordInput(a.id, { date: '2026-05-01' }));
+    const edge = await me.post(recordInput(a.id, { date: '2026-05-31' }));
+    await me.post(recordInput(a.id, { date: '2026-06-01' }));
+    await me.post(recordInput(b.id, { date: '2026-05-15' }));
+    await newRecord('officer', a.id, { date: '2026-05-10' });
+
+    const page = await me.get(`mine=1&creatureId=${a.id}&from=2026-05-01&to=2026-05-31`);
+    expect(page.status).toBe(200);
+    expect(page.body.total).toBe(2);
+    expect(page.body.records.map((r) => r.id)).toEqual([edge.id, inRange.id]);
+
+    // 片側だけの期間も使える
+    expect((await me.get(`mine=1&from=2026-06-01`)).body.total).toBe(1);
+    expect((await me.get(`mine=1&to=2026-05-15`)).body.total).toBe(2);
+  });
+
+  it('OB・OG も自分の過去の記録を一覧で見られる（直すのは 403 のまま）', async () => {
+    const me = await asUser('member');
+    const c = await newCreature();
+    const rec = await me.post(recordInput(c.id));
+    await ctx.db.update(schema.users).set({ role: 'viewer' }).where(eq(schema.users.id, me.user.id));
+    const page = await me.get('mine=1');
+    expect(page.status).toBe(200);
+    expect(page.body.records.map((r) => r.id)).toEqual([rec.id]);
+  });
+
+  it('記録がない人は 0 件。正しくない指定は 400、ログインしていなければ 401', async () => {
+    const me = await asUser('member');
+    expect((await me.get('mine=1')).body).toMatchObject({ records: [], total: 0, nextCursor: null });
+    expect((await me.get('mine=true')).status).toBe(400);
+    expect((await me.get('mine=0')).status).toBe(400);
+    expect((await me.get('from=2026-06-01&to=2026-05-01')).status).toBe(400);
+    expect((await me.get('from=2026-13-01')).status).toBe(400);
+    expect((await me.get('creatureId=abc')).status).toBe(400);
+    expect((await ctx.app.request('/api/records?mine=1')).status).toBe(401);
+  });
+});
+
 describe('記録一覧のページング', () => {
   it('新しい順に、nextCursor で重複も抜けもなく最後まで読める', async () => {
     const c = await newCreature();

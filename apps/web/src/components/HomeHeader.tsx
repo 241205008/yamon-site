@@ -1,5 +1,5 @@
 import { can, type SessionUser } from '@yamon/shared';
-import { Calendar, CircleHelp, List, LogOut, Map as MapIcon, MapPin, Shield, UserCog } from 'lucide-react';
+import { Calendar, CircleHelp, List, LogOut, Map as MapIcon, MapPin, NotebookPen, Shield, UserCog } from 'lucide-react';
 import { Link } from 'react-router';
 
 const navBtn = 'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap text-white transition-colors';
@@ -43,6 +43,11 @@ export function HomeHeader({ user, onLogout }: { user: SessionUser; onLogout: ()
           <Link to="/event-list" className={`${navBtn} ${navGreen}`}>
             <Calendar className="h-4 w-4" />
             観察会一覧
+          </Link>
+          {/* 自分の記録をすべて見て、古い記録も直せる（#120）。OB・OG も見るだけで使える */}
+          <Link to="/my-records" className={`${navBtn} ${navGreen}`}>
+            <NotebookPen className="h-4 w-4" />
+            自分の記録
           </Link>
           {/* ほかのボタンと同じく、専用ページに移る（#97） */}
           <Link to="/creatures" className={`${navBtn} ${navGreen}`}>

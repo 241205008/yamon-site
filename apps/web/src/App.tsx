@@ -10,6 +10,7 @@ import { LocationsPage } from './pages/LocationsPage';
 import { LoginPage } from './pages/LoginPage';
 import { MainPage } from './pages/MainPage';
 import { MapPage } from './pages/MapPage';
+import { MyRecordsPage } from './pages/MyRecordsPage';
 import { ForgotPasswordPage, ResetPasswordPage } from './pages/PasswordResetPages';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { SetupPage } from './pages/SetupPage';
@@ -29,6 +30,7 @@ export function App() {
           <Route path="/" element={<MainPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/map" element={<MapPage />} />
+          <Route path="/my-records" element={<MyRecordsPage />} />
           <Route path="/creatures" element={<CreaturesPage />} />
           <Route path="/locations" element={<LocationsPage />} />
           <Route path="/event-list" element={<EventListPage />} />

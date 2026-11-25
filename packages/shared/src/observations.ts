@@ -116,12 +116,29 @@ export const RECORDS_PAGE_MAX = 100;
 
 const optionalId = idSchema.optional();
 
-/** GET /api/records のクエリ。cursor は前回の応答の nextCursor */
-export const recordListQuerySchema = z.object({
-  eventId: optionalId,
-  limit: z.coerce.number().int().min(1).max(RECORDS_PAGE_MAX).default(20),
-  cursor: z.string().max(500).optional(),
-});
+/**
+ * GET /api/records のクエリ。cursor は前回の応答の nextCursor。絞り込みはすべて AND。
+ * - mine=1：ログイン中の本人の記録だけ（#120、D64）。他人の記録で絞る入口は設けない
+ * - creatureId：その生き物の記録だけ
+ * - from・to：観察した日付の範囲（両端を含む）
+ */
+export const recordListQuerySchema = z
+  .object({
+    eventId: optionalId,
+    mine: z
+      .literal('1')
+      .optional()
+      .transform((v) => v === '1'),
+    creatureId: optionalId,
+    from: dateSchema.optional(),
+    to: dateSchema.optional(),
+    limit: z.coerce.number().int().min(1).max(RECORDS_PAGE_MAX).default(20),
+    cursor: z.string().max(500).optional(),
+  })
+  .refine((v) => !v.from || !v.to || v.from <= v.to, {
+    message: '期間の「いつから」は「いつまで」より前の日付にしてください',
+    path: ['to'],
+  });
 
 /** GET /api/records/map のクエリ（マップの絞り込み。すべて AND 条件） */
 export const mapQuerySchema = z.object({
